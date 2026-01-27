@@ -17,15 +17,17 @@ Plus supporting skills (`research-principles`, `research-judging`) and hooks for
 
 ## Installation
 
-**For development** (editable, changes reflected on restart):
+**For development** (recommended):
 ```bash
 claude --plugin-dir /path/to/this/repo
 ```
+Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to the plugin are reflected after restarting Claude.
 
-**For install** (cached copy):
+**For install** (cached copy, no auto-updates):
 ```bash
 claude plugin install /path/to/this/repo
 ```
+This copies files to `~/.claude/plugins/cache`. Local changes to the source are **not** reflected - you must re-run `plugin install` to update.
 
 ## Configuration
 
