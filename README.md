@@ -30,7 +30,7 @@ claude plugin install /path/to/this/repo
 ## Configuration
 
 ```bash
-export RESEARCH_TOOLS_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
+export CLAB_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
 ```
 
 ## Usage
