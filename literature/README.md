@@ -1,0 +1,1 @@
+I'm not convinced by the literature because they focus on fully autonomous rather than phd student/ research assistant kind of relation with the scaffolding.

@@ -4,6 +4,19 @@ description: Autonomous research mode. Investigates questions, maintains hypothe
 skills:
   - research-principles
   - research-judging
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+  - WebFetch
+  - WebSearch
+  - Task
+  - TaskOutput
+  - NotebookEdit
+  - AskUserQuestion
 hooks:
   Stop:
     - hooks:
