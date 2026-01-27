@@ -1,0 +1,13 @@
+{
+  "name": "claude-lab",
+  "owner": {
+    "name": "Clément Dumas"
+  },
+  "plugins": [
+    {
+      "name": "clab",
+      "source": "..",
+      "description": "Autonomous research orchestration: agents for hypothesis-driven investigation, experiment running, fresh-eyes review, and batch evaluation."
+    }
+  ]
+}

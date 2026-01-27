@@ -13,21 +13,29 @@ Provides agents for hypothesis-driven research:
 - **colleague**: Fresh-eyes review with intentionally limited context. Catches assumptions.
 - **judge**: Evaluates samples against criteria. Used for scaling qualitative observations to quantitative data.
 
-Plus supporting skills (`research-principles`, `research-judging`) and hooks for agent constraints.
+Plus supporting skills (`research-principles`, `research-judging`, `contact-supervisor`) and hooks for agent constraints.
 
 ## Installation
 
-**For development** (recommended):
+**For development** (load directly without installation):
 ```bash
 claude --plugin-dir /path/to/this/repo
 ```
 Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to the plugin are reflected after restarting Claude.
 
-**For install** (cached copy, no auto-updates):
-```bash
-claude plugin install /path/to/this/repo
-```
-This copies files to `~/.claude/plugins/cache`. Local changes to the source are **not** reflected - you must re-run `plugin install` to update.
+**For persistent install** (via local marketplace):
+
+1. Add this repo as a marketplace:
+   ```bash
+   /plugin marketplace add /path/to/this/repo
+   ```
+
+2. Install the plugin:
+   ```bash
+   /plugin install clab@claude-lab
+   ```
+
+To update after changes, run `/plugin marketplace update claude-lab`.
 
 ## Configuration
 
@@ -37,9 +45,9 @@ export CLAB_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
 
 ## Usage
 
-Initialize a research project:
+Initialize a research project (run from the plugin directory):
 ```bash
-~/.claude/plugins/clab/scripts/init-research.sh "Your research question"
+./scripts/init-research.sh "Your research question"
 ```
 
 Start research:
@@ -71,5 +79,4 @@ sidequests/            # Interesting tangents for later
 ## WIP Notes
 
 - Plugin structure converted from install.sh, not yet tested end-to-end
-- Hook paths assume installation at `~/.claude/plugins/clab/`
 - Skills will be namespaced as `/clab:skill-name`
