@@ -19,7 +19,7 @@ Plus supporting skills (`research-principles`, `research-judging`, `contact-supe
 
 **For development** (load directly without installation):
 ```bash
-claude --plugin-dir /path/to/this/repo
+claude --plugin-dir /path/to/this/repo/plugins/clab
 ```
 Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to the plugin are reflected after restarting Claude.
 
@@ -35,7 +35,7 @@ Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to th
    /plugin install clab@claude-lab
    ```
 
-To update after changes, run `/plugin marketplace update claude-lab`.
+To update after local changes, run `/plugin marketplace update claude-lab` then reinstall.
 
 ## Configuration
 
@@ -45,9 +45,9 @@ export CLAB_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
 
 ## Usage
 
-Initialize a research project (run from the plugin directory):
+Initialize a research project:
 ```bash
-./scripts/init-research.sh "Your research question"
+/clab:init-research "Your research question"
 ```
 
 Start research:

@@ -1,22 +1,27 @@
-#!/bin/bash
-# Initialize a research project with standard structure
-# Usage: init-research.sh "Research question/title"
+---
+name: init-research
+description: Initialize a research project with standard directory structure and files
+disable-model-invocation: true
+---
 
-set -e
+# Initialize Research Project
 
-TITLE="${1:-Untitled Research}"
-DATE=$(date +%Y-%m-%d)
+Create a research project structure for: **$ARGUMENTS**
 
-echo "Initializing research project: $TITLE"
+## Create These Directories
 
-# Create directories
+```bash
 mkdir -p experiments sidequests tools
+```
 
-# Create RESEARCH_STATE.md
-cat > RESEARCH_STATE.md << EOF
-# Research: $TITLE
+## Create These Files
 
-Last updated: $DATE
+### RESEARCH_STATE.md
+
+```markdown
+# Research: $ARGUMENTS
+
+Last updated: [today's date]
 
 ## Current State of Mind
 
@@ -51,23 +56,25 @@ Last updated: $DATE
 ## Open Questions
 
 - [Questions that emerged during research]
-EOF
+```
 
-# Create research_diary.md
-cat > research_diary.md << EOF
+### research_diary.md
+
+```markdown
 # Research Diary
 
 Personal reflections, process observations, and async questions for @clement.
 
 ---
 
-## $DATE
+## [today's date]
 
 [First entry - initial thoughts on approaching this research]
-EOF
+```
 
-# Create tools/README.md
-cat > tools/README.md << EOF
+### tools/README.md
+
+```markdown
 # Research Tools
 
 Reusable utilities for this research project. Created and maintained by the orchestrator.
@@ -79,10 +86,11 @@ Reusable utilities for this research project. Created and maintained by the orch
 ## Usage
 
 Scientists should check here before writing code. Use existing tools when possible.
-EOF
+```
 
-# Create TECHNICAL_GUIDE.md
-cat > TECHNICAL_GUIDE.md << 'EOF'
+### TECHNICAL_GUIDE.md
+
+```markdown
 # Technical Guide
 
 **Note: This file should be alive - update it as you discover new techniques, debug new bugs, etc.**
@@ -93,9 +101,9 @@ cat > TECHNICAL_GUIDE.md << 'EOF'
 
 ## Quick Reference
 
-```bash
+\`\`\`bash
 # [Common commands go here]
-```
+\`\`\`
 
 ## Setup
 
@@ -116,10 +124,11 @@ cat > TECHNICAL_GUIDE.md << 'EOF'
 ## Reference
 
 [Links to relevant documentation, source code, configs]
-EOF
+```
 
-# Create scaffolding_notes.md
-cat > scaffolding_notes.md << EOF
+### scaffolding_notes.md
+
+```markdown
 # Scaffolding Notes
 
 Issues with tools, best practices discovered, and recommendations for future research.
@@ -137,15 +146,11 @@ Issues with tools, best practices discovered, and recommendations for future res
 ## Recommendations
 
 [Suggestions for improving the research infrastructure]
-EOF
+```
 
-echo "Created:"
-echo "  - RESEARCH_STATE.md"
-echo "  - TECHNICAL_GUIDE.md"
-echo "  - research_diary.md"
-echo "  - scaffolding_notes.md"
-echo "  - experiments/"
-echo "  - sidequests/"
-echo "  - tools/README.md"
-echo ""
-echo "Ready to start research. Run: claude --agent research-orchestrator"
+## After Creating Files
+
+Tell the user the project is initialized and they can start research with:
+```bash
+claude --agent clab:orchestrator
+```

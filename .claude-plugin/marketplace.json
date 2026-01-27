@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "clab",
-      "source": "..",
+      "source": "./plugins/clab",
       "description": "Autonomous research orchestration: agents for hypothesis-driven investigation, experiment running, fresh-eyes review, and batch evaluation."
     }
   ]
