@@ -18,6 +18,8 @@ PROTECTED_PATTERNS = [
     r"\.claude/skills/",
     r"\.claude/hooks/",
     r"\.claude/agents/",
+    r"^tools/",      # Orchestrator's domain - use suggested_utils/ instead
+    r"/tools/",      # Also catch absolute paths to tools/
 ]
 
 
@@ -41,11 +43,17 @@ def main():
     file_path = tool_input.get("file_path", "")
 
     if is_protected_file(file_path):
+        # Custom message for tools/
+        if "tools/" in file_path:
+            reason = "Scientists cannot edit tools/. If you have useful code, put it in experiments/<exp>/suggested_utils/ for the orchestrator to review."
+        else:
+            reason = f"Scientists cannot edit {os.path.basename(file_path)}. Write your findings to your experiment report instead."
+
         output = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": f"Scientists cannot edit {os.path.basename(file_path)}. Write your findings to your experiment report instead."
+                "permissionDecisionReason": reason
             }
         }
         print(json.dumps(output))

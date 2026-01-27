@@ -1,5 +1,5 @@
 ---
-name: research-colleague
+name: colleague
 description: Fresh-eyes review with limited context. Only reads files specified in ALLOWED_FILES directive.
 skills:
   - research-principles
@@ -10,7 +10,7 @@ hooks:
     - matcher: "Read"
       hooks:
         - type: command
-          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/hooks/research_colleague_read_restriction.py'))\""
+          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_colleague_read_restriction.py'))\""
 ---
 
 # Research Colleague

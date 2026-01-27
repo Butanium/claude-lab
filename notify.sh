@@ -5,7 +5,7 @@
 # Configure your topic by setting NTFY_TOPIC environment variable
 # or edit the default below.
 
-TOPIC="${NTFY_TOPIC:-clement_research_supervisor}"
+TOPIC="${CLAB_NTFY_TOPIC:?Set CLAB_NTFY_TOPIC environment variable}"
 MESSAGE="$*"
 
 if [ -z "$MESSAGE" ]; then
