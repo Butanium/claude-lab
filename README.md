@@ -37,6 +37,8 @@ Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to th
 
 To update after local changes, run `/plugin marketplace update claude-lab` then reinstall.
 
+**Tip for development**: Enable auto-update on the marketplace (`/plugin` → Marketplaces → claude-lab → Enable auto-update) to automatically pick up changes at startup.
+
 ## Configuration
 
 ```bash
