@@ -1,0 +1,5 @@
+{
+  "name": "test-task",
+  "version": "0.1.0",
+  "description": "Test plugin to verify Task tool access in agents"
+}
