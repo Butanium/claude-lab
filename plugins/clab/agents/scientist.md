@@ -52,7 +52,7 @@ For evaluating many samples, use the research-judging skill. Key pattern:
 
 ```bash
 cd experiments/exp_001/judging
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent clab:judge --model haiku --print "Judge all samples"'
+ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent clab:judge --model haiku --print "Judge all samples" --allowedTools "Read,Write,Glob"'
 ```
 
 See research-judging skill for full setup (directory structure, criteria files, aggregation).

@@ -11,6 +11,11 @@ hooks:
     - hooks:
         - type: command
           command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_judge_require_claude_md.py'))\""
+  PreToolUse:
+    - matcher: "Write"
+      hooks:
+        - type: command
+          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_judge_write_restriction.py'))\""
 ---
 
 # Research Judge
