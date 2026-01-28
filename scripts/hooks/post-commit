@@ -1,0 +1,36 @@
+#!/bin/bash
+# Update clab plugin version with commit hash when plugin files change
+
+# Guard against recursive execution
+[ -n "$CLAB_VERSION_HOOK_RUNNING" ] && exit 0
+export CLAB_VERSION_HOOK_RUNNING=1
+
+PLUGIN_DIR="plugins/clab"
+PLUGIN_JSON="$PLUGIN_DIR/.claude-plugin/plugin.json"
+
+# Check if this commit touched the plugin directory (excluding plugin.json itself to avoid loops)
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | grep "^$PLUGIN_DIR/" | grep -v "plugin.json$")
+if [ -z "$CHANGED_FILES" ]; then
+    exit 0
+fi
+
+# Get short commit hash
+COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# Update version if plugin.json exists
+if [ -f "$PLUGIN_JSON" ]; then
+    BASE_VERSION=$(jq -r '.version' "$PLUGIN_JSON" | sed 's/[-+].*//')
+    NEW_VERSION="${BASE_VERSION}-${COMMIT_HASH}"
+
+    # Skip if version already matches (idempotent)
+    CURRENT_VERSION=$(jq -r '.version' "$PLUGIN_JSON")
+    if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+        exit 0
+    fi
+
+    jq --arg v "$NEW_VERSION" '.version = $v' "$PLUGIN_JSON" > "$PLUGIN_JSON.tmp"
+    mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
+
+    git add "$PLUGIN_JSON"
+    git commit -m "chore(clab): bump version to ${NEW_VERSION}"
+fi
