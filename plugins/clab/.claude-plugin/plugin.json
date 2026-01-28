@@ -1,7 +1,7 @@
 {
   "name": "clab",
   "description": "Autonomous research orchestration: agents for hypothesis-driven investigation, experiment running, fresh-eyes review, and batch evaluation.",
-  "version": "0.1.0-7aafd83",
+  "version": "0.1.0-212f13b",
   "author": {
     "name": "Clément Dumas"
   }
