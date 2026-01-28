@@ -195,9 +195,9 @@ If you find something interesting but out of scope, add a `.md` file to `sideque
 
 ## Contacting Supervisor
 
-For critical blockers only:
+For critical blockers only, use the `contact-supervisor` skill (already loaded). Quick reference:
 ```bash
-~/.claude/plugins/clab/notify.sh "ORCHESTRATOR: [your question]"
+curl -s -d "ORCHESTRATOR: [your message]" "ntfy.sh/$CLAB_NTFY_TOPIC"
 ```
 
 You have autonomy - use it.

@@ -47,14 +47,14 @@ export CLAB_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
 
 ## Usage
 
-Initialize a research project:
+Add this alias to your shell config:
 ```bash
-/clab:init-research "Your research question"
+alias research-claude="claude --dangerously-skip-permissions -p \"[this is an automated prompt to enable the skills in your context, DO NOT start doing stuff, wait for user instruction.]/clab:orchestrator /clab:contact-supervisor /clab:research-principles /clab:research-judging /clab:experiment-structure\""
 ```
 
-Start research:
+Then start a research session:
 ```bash
-claude --agent clab:orchestrator
+research-claude
 ```
 
 ## Project Structure Created

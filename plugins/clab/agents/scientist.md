@@ -4,6 +4,7 @@ description: Run specific experiments and document results. Spawned by the resea
 skills:
   - research-principles
   - research-judging
+  - experiment-structure
 allowed-tools:
   - Read
   - Write
