@@ -10,7 +10,7 @@ hooks:
     - matcher: "Read"
       hooks:
         - type: command
-          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_colleague_read_restriction.py'))\""
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_colleague_read_restriction.py"
 ---
 
 # Research Colleague

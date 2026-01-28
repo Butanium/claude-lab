@@ -20,9 +20,9 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_orchestrator_nudge.py'))\""
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_orchestrator_nudge.py"
         - type: command
-          command: "python3 -c \"import runpy,os; runpy.run_path(os.path.expanduser('~/.claude/plugins/clab/hooks/research_orchestrator_freshness.py'))\""
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_orchestrator_freshness.py"
 ---
 
 # Research Orchestrator
