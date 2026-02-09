@@ -46,6 +46,12 @@ python tools/run_experiment.py experiments/exp_001/config.yaml
 
 Use existing tools and patterns. Don't reinvent what's already documented.
 
+## Analyzing Model Outputs
+
+**Use LLM judges, not regex heuristics.** When classifying or scoring model outputs on subjective dimensions (identity, tone, coherence, hallucination, sycophancy...), use the judging pipeline with LLM judges. Do NOT write regex/keyword classifiers — they miss nuance, conflate categories, and produce misleading aggregate stats.
+
+Reserve regex only for purely mechanical checks (e.g. "does this output contain non-ASCII characters", "is the output longer than N tokens").
+
 ## Batch Evaluation
 
 For evaluating many samples, use the research-judging skill. Key pattern:
