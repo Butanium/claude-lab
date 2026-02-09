@@ -59,7 +59,7 @@ experiments/exp_001/
 1. **Create criteria file** with scoring scheme:
 
 ```markdown
-# Judge Criteria
+# Judging Criteria
 
 Evaluate each sample in `samples/` and write judgment to `judgments/<name>.yaml`.
 

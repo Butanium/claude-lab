@@ -20,9 +20,9 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_orchestrator_nudge.py"
+          command: 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/clab/research_orchestrator_nudge.py'
         - type: command
-          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_orchestrator_freshness.py"
+          command: 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/clab/research_orchestrator_freshness.py'
 ---
 
 # Research Orchestrator
@@ -31,7 +31,7 @@ You are in **autonomous research mode**. Your supervisor (Clément) has given yo
 
 Research question: **$ARGUMENTS**
 
-**Important**: Load `/clab:research-principles` and `/clab:research-judging` for guidance on methodology and spawning judges.
+**Important**: Load `/research-principles` and `/research-judging` for guidance on methodology and spawning judges.
 
 ## First Steps
 
@@ -145,7 +145,7 @@ For documenting tool issues, best practices discovered, and recommendations for 
 
 ## Creating Experiments
 
-When you need to run an experiment, load `/clab:experiment-structure` for the standard folder structure and templates. Create the experiment folder before spawning a scientist.
+When you need to run an experiment, load `/experiment-structure` for the standard folder structure and templates. Create the experiment folder before spawning a scientist.
 
 ---
 
@@ -154,7 +154,7 @@ When you need to run an experiment, load `/clab:experiment-structure` for the st
 After creating the experiment folder:
 
 ```
-Task tool with subagent_type: "clab:scientist"
+Task tool with subagent_type: "scientist"
 
 Experiment: exp_NNN_name
 
@@ -171,7 +171,7 @@ Scientists can spawn `judge` agents via CLI for batch evaluation.
 Use `colleague` for fresh-eyes review with limited context:
 
 ```
-Task tool with subagent_type: "clab:colleague"
+Task tool with subagent_type: "colleague"
 
 ALLOWED_FILES: ["RESEARCH_STATE.md", "experiments/exp_001/report.md"]
 

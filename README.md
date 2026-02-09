@@ -39,6 +39,23 @@ To update after local changes, run `/plugin marketplace update claude-lab` then 
 
 **Tip for development**: Enable auto-update on the marketplace (`/plugin` → Marketplaces → claude-lab → Enable auto-update) to automatically pick up changes at startup.
 
+**Local symlink install** (workaround for [GH #17688](https://github.com/anthropics/claude-code/issues/17688) — plugin frontmatter hooks don't fire):
+
+The plugin system doesn't parse hooks from agent/skill frontmatter. This script symlinks agents, skills, and hooks into `.claude/` so they're loaded by the local agent loader which correctly handles hooks.
+
+```bash
+# Run from your project directory (where .claude/ lives)
+path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab
+
+# Overwrite existing symlinks
+path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab --force
+
+# Uninstall
+path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab --uninstall
+```
+
+Requires hook commands to use `"$CLAUDE_PROJECT_DIR"/...` paths (not `${CLAUDE_PLUGIN_ROOT}`). Restart Claude Code after install.
+
 ## Configuration
 
 ```bash

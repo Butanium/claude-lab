@@ -45,9 +45,9 @@ def main():
     if is_protected_file(file_path):
         # Custom message for tools/
         if "tools/" in file_path:
-            reason = "Scientists cannot edit tools/. If you have useful code, put it in experiments/<exp>/suggested_utils/ for the orchestrator to review."
+            reason = "Scientists cannot edit tools/. If you have useful code, put it in experiments/<exp>/suggested_utils/ for the orchestrator to review. If you genuinely need this file changed, stop here and report it in your experiment report — the orchestrator will handle it."
         else:
-            reason = f"Scientists cannot edit {os.path.basename(file_path)}. Write your findings to your experiment report instead."
+            reason = f"Scientists cannot edit {os.path.basename(file_path)}. Write your findings to your experiment report instead. If you genuinely need this file changed, stop here and report it in your experiment report — the orchestrator will handle it."
 
         output = {
             "hookSpecificOutput": {

@@ -1,2 +1,5 @@
 examples/
 archives/
+.claude
+
+**__pycache__**

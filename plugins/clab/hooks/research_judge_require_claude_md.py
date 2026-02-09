@@ -21,6 +21,14 @@ def main():
         print("See research-judging skill for setup instructions.", file=sys.stderr)
         sys.exit(2)
 
+    with open(claude_md) as f:
+        content = f.read()
+    if "# Judging Criteria" not in content:
+        print(f"ERROR: CLAUDE.md in {cwd} doesn't contain judging criteria.", file=sys.stderr)
+        print("Expected a '# Judging Criteria' heading.", file=sys.stderr)
+        print("See research-judging skill for the correct template.", file=sys.stderr)
+        sys.exit(2)
+
     sys.exit(0)
 
 

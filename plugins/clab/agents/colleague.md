@@ -10,7 +10,7 @@ hooks:
     - matcher: "Read"
       hooks:
         - type: command
-          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_colleague_read_restriction.py"
+          command: 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/clab/research_colleague_read_restriction.py'
 ---
 
 # Research Colleague

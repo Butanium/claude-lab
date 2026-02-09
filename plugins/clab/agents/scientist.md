@@ -19,7 +19,7 @@ hooks:
     - matcher: "Edit|Write"
       hooks:
         - type: command
-          command: "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/research_scientist_protection.py"
+          command: 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/clab/research_scientist_protection.py'
 ---
 
 # Research Scientist
@@ -52,7 +52,7 @@ For evaluating many samples, use the research-judging skill. Key pattern:
 
 ```bash
 cd experiments/exp_001/judging
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent clab:judge --model haiku --print "Judge all samples" --allowedTools "Read,Write,Glob"'
+ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent judge --model haiku --print "Judge all samples" --allowedTools "Read,Write,Glob"'
 ```
 
 See research-judging skill for full setup (directory structure, criteria files, aggregation).
