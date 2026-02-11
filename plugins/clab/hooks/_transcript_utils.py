@@ -9,6 +9,27 @@ import string
 IDLE_MARKER = "[PASS]"
 
 
+def _decode_chunk(raw: bytes) -> tuple[str, bytes]:
+    """Decode bytes to str, handling splits in the middle of multi-byte UTF-8 chars.
+
+    Returns (decoded_text, leftover_bytes) where leftover_bytes are the leading
+    bytes that couldn't be decoded (up to 3 bytes from a split multi-byte char).
+    These should be prepended to the next chunk read from the left.
+    """
+    try:
+        return raw.decode(), b""
+    except UnicodeDecodeError:
+        # The chunk boundary split a multi-byte UTF-8 character.
+        # UTF-8 chars are at most 4 bytes, so skip up to 3 leading continuation bytes.
+        for i in range(1, 4):
+            try:
+                return raw[i:].decode(), raw[:i]
+            except UnicodeDecodeError:
+                continue
+        # Should not happen with valid UTF-8 files, but fail loudly if it does
+        raise
+
+
 def get_last_jsonl_entry(transcript_path: str) -> dict | None:
     """Return the last non-progress JSONL entry as a dict.
 
@@ -24,7 +45,11 @@ def get_last_jsonl_entry(transcript_path: str) -> dict | None:
             read_size = min(chunk_size, position)
             position -= read_size
             f.seek(position)
-            chunk = f.read(read_size).decode() + remainder
+            text, leftover = _decode_chunk(f.read(read_size))
+            # If we split a multi-byte char, those leading bytes belong to the
+            # chunk further left — adjust position so they're re-read next time.
+            position += len(leftover)
+            chunk = text + remainder
             lines = chunk.splitlines(True)
             # First line may be partial (split across chunks), save for next iteration
             remainder = lines[0] if position > 0 else ""
@@ -66,7 +91,9 @@ def _get_last_n_entries(transcript_path: str, n: int = 4) -> list[dict]:
             read_size = min(chunk_size, position)
             position -= read_size
             f.seek(position)
-            chunk = f.read(read_size).decode() + remainder
+            text, leftover = _decode_chunk(f.read(read_size))
+            position += len(leftover)
+            chunk = text + remainder
             lines = chunk.splitlines(True)
             remainder = lines[0] if position > 0 else ""
             complete_lines = lines[1:] if position > 0 else lines
