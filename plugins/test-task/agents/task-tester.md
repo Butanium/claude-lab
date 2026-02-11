@@ -1,7 +1,7 @@
 ---
 name: task-tester
 description: Test agent with Task tool access
-allowed-tools:
+tools:
   - Read
   - Write
   - Bash

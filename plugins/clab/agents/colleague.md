@@ -3,7 +3,7 @@ name: colleague
 description: Fresh-eyes review with limited context. Only reads files specified in ALLOWED_FILES directive.
 skills:
   - research-principles
-allowed-tools:
+tools:
   - Read
 hooks:
   PreToolUse:

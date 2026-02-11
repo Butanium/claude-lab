@@ -5,7 +5,7 @@ skills:
   - research-principles
   - research-judging
   - experiment-structure
-allowed-tools:
+tools:
   - Read
   - Write
   - Edit

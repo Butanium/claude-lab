@@ -3,7 +3,7 @@ name: orchestrator
 description: Autonomous research mode. Investigates questions, maintains hypotheses, spawns scientists and colleagues.
 argument-hint: Research question or project description
 disable-model-invocation: true
-allowed-tools:
+tools:
   - Read
   - Write
   - Edit

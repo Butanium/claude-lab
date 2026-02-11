@@ -5,7 +5,7 @@ description: How to spawn and orchestrate research-judge agents for batch evalua
 
 # Research Judging Pipeline
 
-How to evaluate many samples using `research-judge` agents.
+How to evaluate many samples using `judge` agents.
 
 ## Model Choice
 
@@ -14,8 +14,13 @@ How to evaluate many samples using `research-judge` agents.
 
 Change model in the CLI call:
 ```bash
-claude --agent research-judge --model sonnet --print "Judge all samples"
+echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools 'Read,Write,Glob'
 ```
+
+## Known CLI gotchas
+
+- **`--allowedTools` is required in `--print` mode**: The `tools` field in agent frontmatter does NOT grant auto-permission. Without `--allowedTools`, the agent can evaluate samples but silently fails to write judgment files (exits 0, dumps text to stdout instead).
+- **`--allowedTools` is variadic**: It eats subsequent positional args, so the prompt must be piped via stdin (`echo "..." | claude ...`), not passed as a trailing argument.
 
 ## Audit-First Workflow
 
@@ -99,18 +104,18 @@ done
 Single batch (for testing):
 ```bash
 cd experiments/exp_001/judging/batch_001
-claude --agent research-judge --model haiku --print "Judge all samples"
+echo "Judge all samples in samples/, write to judgments/" | claude --agent judge --model haiku --print --allowedTools 'Read,Write,Glob'
 ```
 
 **Parallel batches (max 10 concurrent):**
 ```bash
 cd experiments/exp_001/judging
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent research-judge --model haiku --print "Judge all samples in samples/, write to judgments/"'
+ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && echo "Judge all samples in samples/, write to judgments/" | claude --agent judge --model haiku --print --allowedTools "Read,Write,Glob"'
 ```
 
 For nuanced judging, use sonnet:
 ```bash
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent research-judge --model sonnet --print "Judge all samples"'
+ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools "Read,Write,Glob"'
 ```
 
 ## Aggregating Results

@@ -2,7 +2,7 @@
 name: judge
 description: Evaluates samples against criteria in CLAUDE.md. Reads from samples/, writes to judgments/.
 model: haiku
-allowed-tools:
+tools:
   - Read
   - Write
   - Glob
