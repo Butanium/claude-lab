@@ -1,5 +1,6 @@
 examples/
 archives/
+junk/
 .claude
 
 **__pycache__**
