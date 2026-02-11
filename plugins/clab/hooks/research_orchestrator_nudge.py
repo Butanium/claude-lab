@@ -127,6 +127,15 @@ def main():
         debug_dir = f"/run/user/{os.getuid()}/orchestrator_nudge_debug/nudge"
         wait_for_transcript_flush(transcript_path, debug_dir=debug_dir)
         last_msg = get_last_assistant_text(transcript_path)
+        if "You've hit your limit" in last_msg:
+            time.sleep(3600)
+            output = {
+                "decision": "block",
+                "reason": "rate limit hit... waiting for reset",
+            }
+            print(json.dumps(output))
+            sys.exit(0)
+
         if IDLE_MARKER in last_msg:
             # [PASS] = agent is waiting for pending work. Let it stop and clean
             # nudge state so the next cycle starts fresh.
