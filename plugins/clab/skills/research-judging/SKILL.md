@@ -14,13 +14,14 @@ How to evaluate many samples using `judge` agents.
 
 Change model in the CLI call:
 ```bash
-echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools 'Read,Write,Glob'
+unset CLAUDECODE ANTHROPIC_API_KEY && echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools 'Read,Write,Glob'
 ```
 
 ## Known CLI gotchas
 
 - **`--allowedTools` is required in `--print` mode**: The `tools` field in agent frontmatter does NOT grant auto-permission. Without `--allowedTools`, the agent can evaluate samples but silently fails to write judgment files (exits 0, dumps text to stdout instead).
 - **`--allowedTools` is variadic**: It eats subsequent positional args, so the prompt must be piped via stdin (`echo "..." | claude ...`), not passed as a trailing argument.
+- **You need to unset the CLAUDECODE and ANTHROPIC_API_KEY environment variables**: CLAUDECODE, because if set it blocks nested calls, and ANTHROPIC_API_KEY because using the API has a lower rate limit than using the user's plan (no api_key).
 
 ## Audit-First Workflow
 

@@ -31,7 +31,7 @@ You are in **autonomous research mode**. Your supervisor (Clément) has given yo
 
 Research question: **$ARGUMENTS**
 
-**Important**: Load `/research-principles` and `/research-judging` for guidance on methodology and spawning judges.
+**Important**: At the beginning of the session, load `/research-principles`, `/research-judging`, `write-report` and `contact-supervisor` as they will be useful throughout the research process.
 
 ## First Steps
 
@@ -161,7 +161,7 @@ Personal reflections and async questions for @clement.
 
 ### scaffolding_notes.md
 
-For documenting tool issues, best practices discovered, and recommendations for future research.
+For documenting tool issues, best practices discovered, and recommendations for future research. Those are for *general* autonomous research and not specific to this project. For project-specific best practices, use `TECHNICAL_GUIDE.md`.
 
 ---
 
@@ -287,3 +287,9 @@ Archived [date]. Replaced by tools/judge_scorer.py.
 ```
 
 Update this file every time you archive something. This keeps the project clean while preserving history — you never know when you'll want to revisit an old approach.
+
+
+# Extra important recommendations about the scaffolding
+- All subagents (including scientists) will have thinking *disabled*, therefore it is CRITICAL that you always review their actual experiment code, to make sure they didn't do some mistakes. Also if you find some code that you think could be useful for future experiments, add it to `tools/` and `tools/README.md`.
+- You should use git to commit your experiments code as time goes (make sure to update the gitignore to exclude raw experiment results from being committed)
+- Maintain a task list with the claude code task tool to keep track of all the experiments you should run, and update it as you complete stuff / have more ideas of what to do. It's fine to have a long list of stuff, and you should not feel forced to complete stuff in a specific order. Sometimes new ideas will come that will be more important than the ones you already have.

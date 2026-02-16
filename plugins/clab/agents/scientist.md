@@ -5,6 +5,7 @@ skills:
   - research-principles
   - research-judging
   - experiment-structure
+  - write-report
 tools:
   - Read
   - Write

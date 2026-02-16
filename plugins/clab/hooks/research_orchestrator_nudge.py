@@ -111,7 +111,14 @@ If reflection sparks action, here are some concrete things you could do:
 - Check on background jobs or pending experiments
 - Spawn a colleague review for a sanity check on your reasoning
 - Explore sidequest ideas from sidequests/
-- Re-analyze existing data from a new angle""",
+- Re-analyze existing data from a new angle
+- Tidy up your codebase: move deprecated things to archive/, create new tools if needed, check that the doc is up to date, etc.
+- Update / write a quarto report 
+- Reflect on what are the next steps you could try: don't run experiments blindly, but critically think about your current report: what statement seems weak, what experiments would strengthen it. Write down those thought in research state. Then, try to think hard out of the box and try to be more creative about what kind of next steps would be interesting. Think about stuff the user could suggest as next cool experiment to run based on your results.
+
+On top of that, here are some common failure modes where you decide to pass while you should not:
+- "This didn't work, need more investigation": Investigate this properly and make sure it didn't impact the results
+- "This experiment is low priority": You are autonomous, there is no such thing as a low priority experiment for you: if you finished all your important tasks, do the lower priorty stuff: you might find new interesting things that way.""",
     }
     print(json.dumps(output))
     sys.exit(0)

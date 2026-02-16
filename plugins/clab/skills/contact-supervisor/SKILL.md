@@ -1,11 +1,11 @@
 ---
 name: contact-supervisor
-description: How to send notifications to the human supervisor via ntfy.sh. Use when you need input, hit a blocker, or want to report significant findings.
+description: How to send notifications to the human supervisor via ntfy.sh. Use when you need input, hit a blocker, or update them on your progress.
 ---
 
 # Contacting the Supervisor
 
-When you need human input, hit a blocker, or have significant findings to report, send a notification via ntfy.sh.
+When you need human input, hit a blocker, have significant findings to report, or achieved a milestone, send a notification via ntfy.sh.
 
 ## How to Notify
 
@@ -20,7 +20,7 @@ The `CLAB_NTFY_TOPIC` environment variable must be set. If it's not configured, 
 - **Blockers**: Something prevents progress and you need guidance
 - **Decision points**: Multiple valid approaches, need human judgment
 - **Significant findings**: Results that warrant immediate attention
-- **Completion**: Major milestones or experiment completion
+- **Milestones**: Major milestones or experiment completion
 
 ## Message Format
 
