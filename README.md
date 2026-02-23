@@ -1,19 +1,30 @@
 # clab
 
-**STATUS: Work in progress - not tested yet**
+**STATUS: Work in progress - very experimental and fast evolving codebase**
 
 Claude Code plugin for autonomous research orchestration.
 
 ## What It Does
 
-Provides agents for hypothesis-driven research:
+A scaffolding system for hypothesis-driven research using Claude Code. The **orchestrator** skill acts as a PI — it maintains hypotheses, designs experiments, and delegates execution to specialized **subagents** (scientist, colleague, judge) that run with constrained permissions enforced by hooks.
 
-- **orchestrator**: Main agent. Maintains hypotheses, designs experiments, spawns scientists, synthesizes findings.
-- **scientist**: Runs experiments defined by orchestrator. Writes reports, can spawn judges for batch evaluation.
-- **colleague**: Fresh-eyes review with intentionally limited context. Catches assumptions.
-- **judge**: Evaluates samples against criteria. Used for scaling qualitative observations to quantitative data.
+### Entry point
 
-Plus supporting skills (`research-principles`, `research-judging`, `contact-supervisor`) and hooks for agent constraints.
+- **`/orchestrator`** (skill) — Starts autonomous research mode. Maintains `RESEARCH_STATE.md`, designs experiments, spawns subagents, synthesizes findings. Not model-invocable — must be started by the user via slash command.
+
+### Subagents (spawned by orchestrator via Task tool)
+
+- **scientist** — Runs experiments, writes reports. Can only write to its own experiment folder (hooks block `RESEARCH_STATE.md`, `tools/`, etc.).
+- **colleague** — Fresh-eyes review with intentionally limited context. Read-only, restricted to files specified in `ALLOWED_FILES`.
+- **judge** — Evaluates samples against criteria in `CLAUDE.md`. Writes only to `judgments/`. Runs on haiku by default.
+
+### Supporting skills (loaded by orchestrator at session start)
+
+- **`/research-principles`** — Core principles for hypothesis-driven investigation (shared across all roles).
+- **`/research-judging`** — How to set up and run the LLM judge pipeline for batch evaluation.
+- **`/experiment-structure`** — Standard experiment folder structure and templates. Not user-invocable.
+- **`/contact-supervisor`** — How to send notifications to the human supervisor via ntfy.sh.
+- **`/write-report`** — How to write up findings as an interactive Quarto report.
 
 ## Installation
 
@@ -64,38 +75,59 @@ export CLAB_NTFY_TOPIC="your-ntfy-topic"  # Required for notifications
 
 ## Usage
 
-Add this alias to your shell config:
+Start a research session:
 ```bash
-alias research-claude="claude --dangerously-skip-permissions \"[this is an automated prompt to enable the skills in your context, DO NOT start doing stuff, wait for user instruction.]/clab:orchestrator /clab:contact-supervisor /clab:research-principles /clab:research-judging /clab:experiment-structure\""
+claude --dangerously-skip-permissions
 ```
 
-Then start a research session:
+Then invoke the orchestrator with your research question:
+```
+/orchestrator Your research question here
+```
+
+The orchestrator will load the supporting skills (`/research-principles`, `/research-judging`, `/contact-supervisor`, `/write-report`) itself at session start.
+
+**Shell alias** for convenience:
 ```bash
-research-claude
+alias research-claude="claude --dangerously-skip-permissions \"/orchestrator [this is an automated prompt to enable the skills in your context, DO NOT start doing stuff, wait for user instruction. No need to comment. Just say '[PASS]' and list the loaded skills after loading all those skills: /orchestrator /contact-supervisor /research-principles /research-judging /experiment-structure /write-report. If some of those skills are not available, please report it to the user]\"" 
 ```
 
-## Project Structure Created
+## Project Structure (created by orchestrator)
 
 ```
-RESEARCH_STATE.md      # Hypotheses, evidence, confidence
-TECHNICAL_GUIDE.md     # Accumulated technical knowledge
+RESEARCH_STATE.md      # Hypotheses, evidence, confidence levels
+TECHNICAL_GUIDE.md     # Project-specific technical knowledge
 research_diary.md      # Reflections, @clement mentions
-scaffolding_notes.md   # Tool issues, best practices
+scaffolding_notes.md   # General autonomous research best practices
 tools/                 # Reusable utilities (orchestrator maintains)
-experiments/           # One folder per experiment
+experiments/           # One folder per experiment (config.yaml, report.md, outputs/)
 sidequests/            # Interesting tangents for later
+archive/               # Deprecated files (never delete, always archive)
 ```
 
-## Agents & Constraints
+## Agents & Hooks
 
-| Agent | Can Write | Hooks |
-|-------|-----------|-------|
-| orchestrator | Everything | Stop: nudge + freshness check |
-| scientist | Own experiment folder only | PreToolUse: blocks protected files |
-| colleague | Nothing (read-only) | PreToolUse: restricts to ALLOWED_FILES |
-| judge | judgments/ only | SessionStart: requires CLAUDE.md |
+| Role | Type | Can Write | Hooks |
+|------|------|-----------|-------|
+| orchestrator | skill | Everything | **Stop**: nudge before stopping + RESEARCH_STATE.md freshness check |
+| scientist | agent | Own experiment folder only | **PreToolUse**: blocks `RESEARCH_STATE.md`, `research_diary.md`, `tools/`, `.claude/` |
+| colleague | agent | Nothing (read-only) | **PreToolUse**: restricts reads to `ALLOWED_FILES` list |
+| judge | agent | `judgments/` only | **SessionStart**: requires `CLAUDE.md` with judging criteria. **PreToolUse**: blocks writes outside `judgments/` |
 
-## WIP Notes
+## Repo Structure
 
-- Plugin structure converted from install.sh, not yet tested end-to-end
-- Skills will be namespaced as `/clab:skill-name`
+```
+plugins/clab/                  # The plugin
+  agents/                      # Subagent definitions (scientist, colleague, judge)
+  skills/                      # Skill definitions (orchestrator, research-principles, etc.)
+  hooks/                       # Python hook scripts for agent constraints
+  .claude-plugin/plugin.json   # Plugin metadata
+scripts/
+  install-plugin-locally.sh    # Symlink installer (workaround for GH #17688)
+  setup-hooks.sh               # Git hooks setup
+  hooks/post-commit            # Auto-bumps plugin version on commit
+debug-utils/
+  inspect_subagent_transcript.py  # Debug tool for subagent transcripts
+literature/                    # Notes on related work
+possible-improvments/          # Ideas and future work
+```
