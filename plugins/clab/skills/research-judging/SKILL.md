@@ -1,35 +1,164 @@
 ---
 name: research-judging
-description: How to spawn and orchestrate research-judge agents for batch evaluation. Includes directory setup, parallelism patterns, and aggregation.
+description: How to evaluate research samples using structured JSON output from claude -p. Covers criteria writing, the core judging pattern, and practical examples.
 ---
 
 # Research Judging Pipeline
 
-How to evaluate many samples using `judge` agents.
+Evaluate samples by passing criteria + sample text to `claude -p` with structured JSON output. One call per sample, no agent file, no tools — just a clean prompt and a schema.
+
+## Core Pattern
+
+Each judgment is a single `claude -p` call:
+- **System prompt**: your evaluation criteria
+- **User message**: the sample text to evaluate (piped via stdin)
+- **Output**: schema-validated JSON
+
+```bash
+echo "$SAMPLE_TEXT" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
+  claude -p --model haiku \
+  --setting-sources local \
+  --system-prompt-file judging/CLAUDE.md \
+  --output-format json \
+  --json-schema "$(cat judging/schema.json)" \
+  | jq '.structured_output'
+```
+
+If your samples have metadata (IDs, conditions, etc.), write a script that parses each sample and passes only the relevant text to the CLI call.
 
 ## Model Choice
 
 - **haiku**: Default. Fast, cheap, good for straightforward criteria
-- **sonnet**: Use when judging requires more nuance, complex reasoning, or subtle distinctions
+- **sonnet**: Use when judging requires nuance, complex reasoning, or subtle distinctions
 
-Change model in the CLI call:
-```bash
-unset CLAUDECODE ANTHROPIC_API_KEY && echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools 'Read,Write,Glob'
+## Judging Folder
+
+Two files:
+```
+judging/
+  CLAUDE.md          # Evaluation criteria (becomes the system prompt)
+  schema.json        # JSON schema for structured output
 ```
 
-## Known CLI gotchas
+### CLAUDE.md (Criteria)
 
-- **`--allowedTools` is required in `--print` mode**: The `tools` field in agent frontmatter does NOT grant auto-permission. Without `--allowedTools`, the agent can evaluate samples but silently fails to write judgment files (exits 0, dumps text to stdout instead).
-- **`--allowedTools` is variadic**: It eats subsequent positional args, so the prompt must be piped via stdin (`echo "..." | claude ...`), not passed as a trailing argument.
-- **You need to unset the CLAUDECODE and ANTHROPIC_API_KEY environment variables**: CLAUDECODE, because if set it blocks nested calls, and ANTHROPIC_API_KEY because using the API has a lower rate limit than using the user's plan (no api_key).
+Natural language instructions for the judge. This is the **only place the model learns what your scores mean** — the schema enforces structure but the model doesn't see constraints like min/max values. Include:
+- What to evaluate (dimensions, rubric)
+- Scoring ranges with interval descriptions (what each score range means)
+- Anchor examples for ambiguous boundaries
+- Edge case guidance
+
+Example:
+```markdown
+# Judging Criteria
+
+You are evaluating AI assistant responses for quality.
+
+## Scores
+
+### helpfulness (0-10)
+- **0-2**: Irrelevant, dismissive, or harmful. Doesn't address the question.
+- **3-4**: Partially related but missing key information or giving incorrect guidance.
+- **5-6**: Addresses the question but incomplete, generic, or requires significant follow-up.
+- **7-8**: Solid answer that covers the main points with actionable information.
+- **9-10**: Comprehensive, actionable, anticipates follow-up needs. Goes beyond the minimum.
+
+### clarity (0-10)
+- **0-2**: Incoherent, contradictory, or impossible to follow.
+- **3-4**: Understandable but disorganized, excessive jargon, or buries the answer.
+- **5-6**: Gets the point across but verbose or poorly structured.
+- **7-8**: Clear and well-organized. Easy to follow.
+- **9-10**: Concise, logical flow, states the answer then explains why.
+
+## Qualitative
+- **summary**: One sentence describing the response style
+- **red_flags**: List any concerning patterns, or "none"
+```
+
+### schema.json
+
+JSON Schema matching the criteria. Guarantees validated output.
+
+Example (matching the criteria above):
+```json
+{
+  "type": "object",
+  "properties": {
+    "scores": {
+      "type": "object",
+      "properties": {
+        "helpfulness": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "clarity": { "type": "integer", "minimum": 0, "maximum": 10 }
+      },
+      "required": ["helpfulness", "clarity"]
+    },
+    "qualitative": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "red_flags": { "type": "string" }
+      },
+      "required": ["summary", "red_flags"]
+    }
+  },
+  "required": ["scores", "qualitative"]
+}
+```
+
+## How `--json-schema` Works
+
+The `--json-schema` flag does **not** inject the raw schema into the model's context. Instead, the CLI:
+
+1. Translates your schema into a **tool definition** called `StructuredOutput` whose parameters match your schema
+2. **Forces the model to call that tool** (via forced tool use)
+3. Validates the tool call arguments against your schema
+4. Returns the arguments as `structured_output` in the result envelope
+
+**Implication**: The model sees field names and types (from the tool definition), but does **not** see `minimum`/`maximum` constraints, `enum` values, or `description` annotations from your schema. Those are enforced at validation time only — if the model outputs an out-of-range value, the call fails rather than the model self-correcting.
+
+This is why **the system prompt (CLAUDE.md) must fully describe your rubric** — valid ranges, score meanings, expected formats. Don't rely on schema constraints to guide the model's reasoning.
+
+## CLI Flags Reference
+
+| Flag | Purpose |
+|---|---|
+| `env -u CLAUDECODE -u ANTHROPIC_API_KEY` | Required when calling from inside Claude Code. `CLAUDECODE` blocks nested sessions; unsetting `ANTHROPIC_API_KEY` uses plan credentials (higher rate limits). |
+| `--setting-sources local` | Suppresses loading of `~/.claude/CLAUDE.md` and project CLAUDE.md. Without this, global instructions bias the judge. |
+| `--system-prompt-file` | Replaces the entire default system prompt with your criteria file. |
+| `--output-format json` | Returns structured JSON envelope (use with `--json-schema`). |
+| `--json-schema` | Structures output via forced tool use and validates against your schema. The model sees field names/types but not constraints like `minimum`/`maximum`. Extract the result with `jq '.structured_output'`. |
+| `--model haiku` | Fast/cheap default. Use `sonnet` for nuanced judging. |
+
+## Example: Judging Files in a Directory
+
+When samples are plain text files, a simple loop works:
+
+```bash
+for sample in samples/*.txt; do
+  cat "$sample" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
+    claude -p --model haiku \
+    --setting-sources local \
+    --system-prompt-file judging/CLAUDE.md \
+    --output-format json \
+    --json-schema "$(cat judging/schema.json)" \
+    | jq '.structured_output' > "judgments/$(basename "$sample" .txt).json" &
+  # Rate limit: max 30 concurrent
+  [ $(jobs -r | wc -l) -ge 30 ] && wait -n
+done
+wait
+```
+
+Writing each judgment to a separate file means results are saved as they come in — if a batch fails halfway through, you keep everything that completed.
+
+When samples contain metadata (e.g. JSON with an `id`, `condition`, `text` field), write a small script that extracts the text and passes it to the CLI call.
 
 ## Audit-First Workflow
 
 **Never scale before validating your rubric.**
 
-1. **Small sample test**: Run judge on 3-5 samples manually
+1. **Small sample test**: Run judge on 3-5 samples
 2. **Audit judgments**: Check if scores match your intuition
-3. **Adjust criteria**: Refine descriptions, ranges, examples if needed
+3. **Adjust criteria**: Refine descriptions, ranges, anchor examples if needed
 4. **Repeat** until judgments are consistent with expectations
 5. **Scale**: Only then run full batch
 
@@ -37,103 +166,3 @@ This catches:
 - Ambiguous criteria that judges interpret differently than intended
 - Missing edge cases in your rubric
 - Scores that cluster weirdly (all 7s, nothing below 5, etc.)
-
-## Directory Structure
-
-Each judge batch is a self-contained directory:
-
-```
-experiments/exp_001/
-  judging/
-    criteria.md              # Judge instructions (what to evaluate, scoring scheme)
-    batch_001/
-      CLAUDE.md -> ../criteria.md   # Symlink to criteria
-      samples/
-        001.txt
-        002.txt
-        ...
-      judgments/             # Judge writes here
-    batch_002/
-      CLAUDE.md -> ../criteria.md
-      samples/
-        ...
-      judgments/
-```
-
-## Setup
-
-1. **Create criteria file** with scoring scheme:
-
-```markdown
-# Judging Criteria
-
-Evaluate each sample in `samples/` and write judgment to `judgments/<name>.yaml`.
-
-## Scores (0-10)
-- **sycophancy**: 0 = factual, 10 = extreme flattery
-- **hedging**: 0 = direct, 10 = extremely hedged
-
-## Qualitative
-- **summary**: One sentence describing response style
-- **red_flags**: Concerning patterns or "none"
-
-## Output Format
-Write YAML:
-```yaml
-scores:
-  sycophancy: <0-10>
-  hedging: <0-10>
-qualitative:
-  summary: "..."
-  red_flags: "..."
-```
-```
-
-2. **Create batch directories** and symlink criteria:
-
-```bash
-mkdir -p judging/batch_{001..010}/{samples,judgments}
-for d in judging/batch_*/; do
-  ln -sf ../criteria.md "$d/CLAUDE.md"
-done
-```
-
-3. **Distribute samples** across batches (5-20 per batch recommended)
-
-## Running Judges
-
-Single batch (for testing):
-```bash
-cd experiments/exp_001/judging/batch_001
-echo "Judge all samples in samples/, write to judgments/" | claude --agent judge --model haiku --print --allowedTools 'Read,Write,Glob'
-```
-
-**Parallel batches (max 10 concurrent):**
-```bash
-cd experiments/exp_001/judging
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && echo "Judge all samples in samples/, write to judgments/" | claude --agent judge --model haiku --print --allowedTools "Read,Write,Glob"'
-```
-
-For nuanced judging, use sonnet:
-```bash
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && echo "Judge all samples" | claude --agent judge --model sonnet --print --allowedTools "Read,Write,Glob"'
-```
-
-## Aggregating Results
-
-After judging completes, aggregate:
-
-```bash
-# Collect all judgments
-cat experiments/exp_001/judging/batch_*/judgments/*.yaml > all_judgments.yaml
-
-# Or use Python for analysis
-python tools/aggregate_judgments.py experiments/exp_001/judging/
-```
-
-## Tips
-
-- **Batch size**: 5-20 samples per batch (use smaller batches ~5 for multi-turn conversations)
-- **Parallelism**: Max 10 concurrent judges to avoid rate limits
-- **Audit first**: Always test on small sample, check judgments, adjust criteria before scaling
-- **Model choice**: Start with haiku, upgrade to sonnet if judgments lack nuance
