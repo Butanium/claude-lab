@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Workaround for GH #17688: plugin agent/skill frontmatter hooks don't fire.
-# Symlinks plugin agents, skills, and hooks into .claude/ so they're
-# loaded by the local agent loader (iH5) which correctly parses hooks.
+# Symlinks plugin agents, skills, hooks, tools, and examples into .claude/
+# so they're loaded by the local agent loader (iH5) which correctly parses hooks.
 #
 # Prerequisites: hook commands must use "$CLAUDE_PROJECT_DIR"/... paths
 # (not ${CLAUDE_PLUGIN_ROOT}) since local agents don't get CLAUDE_PLUGIN_ROOT.
@@ -52,7 +52,7 @@ fi
 PLUGIN_NAME="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['name'])" "$PLUGIN_JSON")"
 
 # Check for CLAUDE_PLUGIN_ROOT references (should have been replaced with CLAUDE_PROJECT_DIR)
-bad_refs="$(grep -rl 'CLAUDE_PLUGIN_ROOT' "$PLUGIN_DIR/agents" "$PLUGIN_DIR/skills" "$PLUGIN_DIR/hooks" 2>/dev/null || true)"
+bad_refs="$(grep -rl 'CLAUDE_PLUGIN_ROOT' "$PLUGIN_DIR/agents" "$PLUGIN_DIR/skills" "$PLUGIN_DIR/hooks" "$PLUGIN_DIR/tools" "$PLUGIN_DIR/examples" 2>/dev/null || true)"
 if [[ -n "$bad_refs" ]]; then
     echo "error: found \${CLAUDE_PLUGIN_ROOT} references (must use \"\$CLAUDE_PROJECT_DIR\" instead):" >&2
     echo "$bad_refs" | sed 's/^/  /' >&2
@@ -100,16 +100,19 @@ if [[ -d "$PLUGIN_DIR/skills" ]]; then
     done
 fi
 
-# --- Detect hooks directory ---
+# --- Detect directory-level symlink dirs (hooks, tools, examples) ---
 
-HOOKS_SRC=""
-HOOKS_DST=""
-if [[ -d "$PLUGIN_DIR/hooks" ]]; then
-    HOOKS_SRC="$PLUGIN_DIR/hooks"
-    HOOKS_DST="$CLAUDE_DIR/hooks/$PLUGIN_NAME"
-fi
+DIR_TYPES=("hooks" "tools" "examples")
+declare -a DIR_SRCS=() DIR_DSTS=()
 
-if [[ ${#SOURCES[@]} -eq 0 && -z "$HOOKS_SRC" ]]; then
+for dir_type in "${DIR_TYPES[@]}"; do
+    if [[ -d "$PLUGIN_DIR/$dir_type" ]]; then
+        DIR_SRCS+=("$PLUGIN_DIR/$dir_type")
+        DIR_DSTS+=("$CLAUDE_DIR/$dir_type/$PLUGIN_NAME")
+    fi
+done
+
+if [[ ${#SOURCES[@]} -eq 0 && ${#DIR_SRCS[@]} -eq 0 ]]; then
     echo "Nothing to install."; exit 0
 fi
 
@@ -120,7 +123,9 @@ if ! $FORCE && ! $UNINSTALL; then
     for dst in "${DESTS[@]}"; do
         [[ -e "$dst" ]] && conflicts+=("$dst")
     done
-    [[ -n "$HOOKS_DST" && -e "$HOOKS_DST" ]] && conflicts+=("$HOOKS_DST")
+    for dst in "${DIR_DSTS[@]}"; do
+        [[ -e "$dst" ]] && conflicts+=("$dst")
+    done
     if [[ ${#conflicts[@]} -gt 0 ]]; then
         echo "error: the following targets already exist:" >&2
         printf '  %s\n' "${conflicts[@]}" >&2
@@ -145,14 +150,16 @@ if $UNINSTALL; then
             echo "  skipped ${NAMES[$i]} (not a symlink, won't remove)" >&2
         fi
     done
-    if [[ -n "$HOOKS_DST" ]]; then
-        if [[ -L "$HOOKS_DST" ]]; then
-            rm "$HOOKS_DST"
-            echo "  removed hooks: $PLUGIN_NAME"
-        elif [[ -e "$HOOKS_DST" ]]; then
-            echo "  skipped hooks (not a symlink, won't remove)" >&2
+    for i in "${!DIR_DSTS[@]}"; do
+        dst="${DIR_DSTS[$i]}"
+        dir_type="$(basename "$(dirname "$dst")")"
+        if [[ -L "$dst" ]]; then
+            rm "$dst"
+            echo "  removed $dir_type: $PLUGIN_NAME"
+        elif [[ -e "$dst" ]]; then
+            echo "  skipped $dir_type (not a symlink, won't remove)" >&2
         fi
-    fi
+    done
     echo "Done."
     exit 0
 fi
@@ -179,22 +186,25 @@ for i in "${!SOURCES[@]}"; do
     case "$label" in agent) n_agents=$((n_agents + 1)) ;; skill) n_skills=$((n_skills + 1)) ;; esac
 done
 
-# --- Install hooks (directory-level symlink) ---
+# --- Install directory-level symlinks (hooks, tools, examples) ---
 
-n_hooks=0
-if [[ -n "$HOOKS_SRC" ]]; then
-    if [[ -e "$HOOKS_DST" ]]; then
+n_dirs=0
+for i in "${!DIR_SRCS[@]}"; do
+    src="${DIR_SRCS[$i]}" dst="${DIR_DSTS[$i]}"
+    dir_type="$(basename "$(dirname "$dst")")"
+
+    if [[ -e "$dst" ]]; then
         if $FORCE; then
-            rm -f "$HOOKS_DST"
+            rm -f "$dst"
         fi
     fi
-    mkdir -p "$(dirname "$HOOKS_DST")"
-    rel="$(realpath --relative-to="$(dirname "$HOOKS_DST")" "$HOOKS_SRC")"
-    ln -s "$rel" "$HOOKS_DST"
-    echo "  hooks: $PLUGIN_NAME -> hooks/"
-    n_hooks=1
-fi
+    mkdir -p "$(dirname "$dst")"
+    rel="$(realpath --relative-to="$(dirname "$dst")" "$src")"
+    ln -s "$rel" "$dst"
+    echo "  $dir_type: $PLUGIN_NAME -> $dir_type/"
+    n_dirs=$((n_dirs + 1))
+done
 
 echo ""
-echo "Installed: ${n_agents} agent(s), ${n_skills} skill(s), ${n_hooks} hook dir(s)"
+echo "Installed: ${n_agents} agent(s), ${n_skills} skill(s), ${n_dirs} dir(s)"
 echo "Restart Claude Code for changes to take effect."
