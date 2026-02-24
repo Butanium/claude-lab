@@ -13,3 +13,5 @@ The agent interprets `scaffolding_notes.md` as `TECHNICAL_GUIDE.md`. Need to cla
 The orchestrator should more strongly emphasize delegation to scientists/colleagues rather than doing everything itself. Needs more investigation on how to prompt this effectively.
 
 
+
+Use git

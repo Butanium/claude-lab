@@ -13,7 +13,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 from _transcript_utils import IDLE_MARKER, get_last_assistant_text, wait_for_transcript_flush
 
-STALE_THRESHOLD_MINUTES = 5
+STALE_THRESHOLD_MINUTES = 30
 
 
 def get_research_state_path(cwd: str) -> str | None:

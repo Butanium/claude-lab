@@ -4,6 +4,10 @@
 
 Claude Code plugin for autonomous research orchestration.
 
+## disclaimer
+
+Report tend to still be sloppy (with not enough red teaming of the results etc.) but it's sloly getting better. Also the orchestrator and interactive-orchestrator skills use my name in the description.
+
 ## What It Does
 
 A scaffolding system for hypothesis-driven research using Claude Code. The **orchestrator** skill acts as a PI — it maintains hypotheses, designs experiments, and delegates execution to specialized **subagents** (scientist, colleague, judge) that run with constrained permissions enforced by hooks.
