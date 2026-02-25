@@ -10,7 +10,7 @@ Evaluate samples by passing criteria + sample text to `claude -p` with structure
 ## Core Pattern
 
 Each judgment is a single `claude -p` call:
-- **System prompt**: your evaluation criteria
+- **System prompt**: your evaluation criteria, passed via `--system-prompt-file`
 - **User message**: the sample text to evaluate (piped via stdin)
 - **Output**: schema-validated JSON
 
@@ -18,7 +18,10 @@ Each judgment is a single `claude -p` call:
 echo "$SAMPLE_TEXT" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
   claude -p --model haiku \
   --setting-sources local \
-  --system-prompt-file judging/CLAUDE.md \
+  --no-session-persistence \
+  --tools "" \
+  --strict-mcp-config \
+  --system-prompt-file judging/criteria.md \
   --output-format json \
   --json-schema "$(cat judging/schema.json)" \
   | jq '.structured_output'
@@ -34,13 +37,14 @@ If your samples have metadata (IDs, conditions, etc.), write a script that parse
 ## Judging Folder
 
 Two files:
+
 ```
 judging/
-  CLAUDE.md          # Evaluation criteria (becomes the system prompt)
-  schema.json        # JSON schema for structured output
+  criteria.md          # Evaluation criteria (passed as system prompt)
+  schema.json          # JSON schema for structured output
 ```
 
-### CLAUDE.md (Criteria)
+### criteria.md
 
 Natural language instructions for the judge. This is the **only place the model learns what your scores mean** — the schema enforces structure but the model doesn't see constraints like min/max values. Include:
 - What to evaluate (dimensions, rubric)
@@ -116,15 +120,18 @@ The `--json-schema` flag does **not** inject the raw schema into the model's con
 
 **Implication**: The model sees field names and types (from the tool definition), but does **not** see `minimum`/`maximum` constraints, `enum` values, or `description` annotations from your schema. Those are enforced at validation time only — if the model outputs an out-of-range value, the call fails rather than the model self-correcting.
 
-This is why **the system prompt (CLAUDE.md) must fully describe your rubric** — valid ranges, score meanings, expected formats. Don't rely on schema constraints to guide the model's reasoning.
+This is why **the criteria file must fully describe your rubric** — valid ranges, score meanings, expected formats. Don't rely on schema constraints to guide the model's reasoning.
 
 ## CLI Flags Reference
 
 | Flag | Purpose |
 |---|---|
 | `env -u CLAUDECODE -u ANTHROPIC_API_KEY` | Required when calling from inside Claude Code. `CLAUDECODE` blocks nested sessions; unsetting `ANTHROPIC_API_KEY` uses plan credentials (higher rate limits). |
-| `--setting-sources local` | Suppresses loading of `~/.claude/CLAUDE.md` and project CLAUDE.md. Without this, global instructions bias the judge. |
-| `--system-prompt-file` | Replaces the entire default system prompt with your criteria file. |
+| `--setting-sources local` | Suppresses loading of `~/.claude/CLAUDE.md`. Without this, global instructions bias the judge. |
+| `--no-session-persistence` | Don't persist sessions to disk. Without this, each call creates a session entry that floods your project. |
+| `--tools ""` | Removes all tools. The judge only needs to produce structured output, no tool use. |
+| `--strict-mcp-config` | Disables MCP servers. Prevents any configured MCPs from loading. |
+| `--system-prompt-file` | Replaces the default system prompt with your criteria file. |
 | `--output-format json` | Returns structured JSON envelope (use with `--json-schema`). |
 | `--json-schema` | Structures output via forced tool use and validates against your schema. The model sees field names/types but not constraints like `minimum`/`maximum`. Extract the result with `jq '.structured_output'`. |
 | `--model haiku` | Fast/cheap default. Use `sonnet` for nuanced judging. |
@@ -138,7 +145,10 @@ for sample in samples/*.txt; do
   cat "$sample" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
     claude -p --model haiku \
     --setting-sources local \
-    --system-prompt-file judging/CLAUDE.md \
+    --no-session-persistence \
+    --tools "" \
+    --strict-mcp-config \
+    --system-prompt-file judging/criteria.md \
     --output-format json \
     --json-schema "$(cat judging/schema.json)" \
     | jq '.structured_output' > "judgments/$(basename "$sample" .txt).json" &
