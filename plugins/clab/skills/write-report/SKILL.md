@@ -7,6 +7,83 @@ description: Write up research experiments and findings as an interactive Quarto
 
 Turn experiment data and findings into an interactive HTML report using Quarto.
 
+---
+
+# Part 1: Writing
+
+## Article Structure
+
+### Full blogpost format
+
+1. **Title + one-line summary**
+2. **Introduction** — what question, why it matters
+3. **Setup / Methods** — models, adapters, experimental design, prompt used.
+4. **Experiments** — one subsection per finding, each with a key figure, write foldable cells with the exact details of what was run. Include qualitative results, some of them cherry picked to illustrate, but also a random subsample for each setup mentionned all embedded in a minimal interactive explorer. In general when you plot something with aggregated data, always add plots in folded sections with non-aggregated but less readable stuff. E.g. prompt-level results, model-level results, etc etc. This should allow me to easily spot outliers and patterns in the data that are not obvious from the aggregated plots.
+5. **Discussion** — implications, limitations, next steps
+7. **Appendix** — technical details, additional experiments, all prompts used for judging etc.
+
+Note that this is different from a normal academic paper, the tone should be closer to a blogpost and not try to oversell the results. Also citations / related work are not needed. This is about your work and your findings.
+
+### Research update format (shorter, multiple findings)
+
+1. **Title + date**
+2. **Summary** — bullet-point overview of all findings
+3. **Finding 1** — self-contained section with figure + evidence
+4. **Finding 2** — same pattern
+5. **Open Questions** — what we don't understand yet
+
+## Writing Style
+
+- Clear, accessible prose — avoid unnecessary jargon
+- First person plural ("we found that...")
+- Acknowledge uncertainty explicitly ("suggestive evidence", "we tentatively conclude")
+- Concrete examples before generalizing
+- Visual explanations preferred over purely verbal ones
+- Figures are central, not supplementary — build sections around key visualizations
+- Detailed figure captions that can stand alone
+- Color used purposefully (data viz, evidence coding) — never decorative
+- Generous whitespace and clear visual hierarchy through spacing
+
+## Prose Style (IMPORTANT)
+
+- Blogpost tone, NOT paper tone. Plots carry the numbers — prose carries the interpretation.
+- Don't recite numbers from plots in running text. If the reader can see "35.9%" in the chart, don't write "35.9%" in the paragraph.
+- BAD: "X increases by +12.3pp (from 21.9% to 34.2%), Y increases by +8.7pp (from 12.9% to 21.6%)..."
+- GOOD: "Both X and Y show clear increases — but what's interesting is the qualitative difference in how they respond."
+- Mention specific numbers ONLY when making an analytical point the plot can't convey (e.g. "a 2.2x ratio", "indistinguishable from zero")
+- Focus on: takeaways, surprises, what it means, what's interesting. Let figures handle the quantitative evidence.
+- Conversational and engaging, not dry recitation
+
+## Examples and Interactivity
+
+- Always show baseline/control samples alongside experimental samples — the reader needs to see "normal" to appreciate the effect
+- Don't only cherry-pick examples — show random samples too, and include borderline cases (e.g. controls that are "close to" the experimental condition)
+- Err on the side of too many examples — readers want to see actual model outputs, not just aggregate stats
+- Include an interactive sample explorer (OJS-based) for browsing raw data: filter by relevant dimensions, draw random samples
+- Long samples should be collapsible (truncated at ~500 chars with click-to-expand/contract. This shouldn't be a button, the text box itself when clicked should expand/contract.)
+
+## Examples as Prose
+
+- Examples are evidence, not decoration. They should be introduced, shown, then commented on — integrated into the narrative flow.
+- Every example needs context (why it's there) and commentary (what to notice).
+- Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models) to show range, not repetition.
+
+## Charts
+
+- Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
+- Prefer interactive Plotly plots over tables for any numerical comparison — tables of numbers are hard to read
+- When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
+
+## Outtakes / Highlights Section
+
+- End reports with a curated "outtakes and highlights" section — interesting, funny, or surprising model outputs that didn't fit the main argument but are worth showing.
+- Mine the full dataset for standout examples: accidental poetry, training data leaks, spectacularly broken outputs, consistent attractor states, etc.
+- These sections are scientifically informative (they reveal model internals) while ending on a fun note.
+
+---
+
+# Part 2: Quarto Technical Details
+
 ## Why Quarto
 
 Quarto gives you Markdown/Jupyter authoring, math (KaTeX), citations (BibTeX),
@@ -166,26 +243,14 @@ This appears as a margin note.
 :::
 ```
 
-## Article Structure
+## Visual Style Reference
 
-### Full blogpost format
+- Serif body text, sans-serif headers — academic but clean
+- ~700px centered text column with breakout widths for figures
+- Neutral color palette (white background, dark text)
+- Evidence tables with green gradient backgrounds for confidence levels
 
-1. **Title + one-line summary**
-2. **Introduction** — what question, why it matters
-3. **Setup / Methods** — models, adapters, experimental design, prompt used.
-4. **Experiments** — one subsection per finding, each with a key figure, write foldable cells with the exact details of what was run. Include qualitative results, some of them cherry picked to illustrate, but also a random subsample for each setup mentionned all embedded in a minimal interactive explorer. In general when you plot something with aggregated data, always add plots in folded sections with non-aggregated but less readable stuff. E.g. prompt-level results, model-level results, etc etc. This should allow me to easily spot outliers and patterns in the data that are not obvious from the aggregated plots.
-5. **Discussion** — implications, limitations, next steps
-7. **Appendix** — technical details, additional experiments, all prompts used for judging etc.
-
-Note that this is different from a normal academic paper, the tone should be closer to a blogpost and not try to oversell the results. Also citations / related work are not needed. This is about your work and your findings.
-
-### Research update format (shorter, multiple findings)
-
-1. **Title + date**
-2. **Summary** — bullet-point overview of all findings
-3. **Finding 1** — self-contained section with figure + evidence
-4. **Finding 2** — same pattern
-5. **Open Questions** — what we don't understand yet
+Quarto's `cosmo` theme is a reasonable starting point.
 
 ## Figure Types for Mech Interp
 
@@ -252,27 +317,6 @@ Use interactive figures when:
 
 A clear static figure with a good caption is often better than a buggy interactive widget.
 
-## Writing Style
-
-- Clear, accessible prose — avoid unnecessary jargon
-- First person plural ("we found that...")
-- Acknowledge uncertainty explicitly ("suggestive evidence", "we tentatively conclude")
-- Concrete examples before generalizing
-- Visual explanations preferred over purely verbal ones
-- Figures are central, not supplementary — build sections around key visualizations
-- Detailed figure captions that can stand alone
-- Color used purposefully (data viz, evidence coding) — never decorative
-- Generous whitespace and clear visual hierarchy through spacing
-
-## Visual Style Reference
-
-- Serif body text, sans-serif headers — academic but clean
-- ~700px centered text column with breakout widths for figures
-- Neutral color palette (white background, dark text)
-- Evidence tables with green gradient backgrounds for confidence levels
-
-Quarto's `cosmo` theme is a reasonable starting point.
-
 ## Sample Explorer (Companion Tool)
 
 For browsable exploration of all generated samples across conditions, Quarto is the
@@ -288,37 +332,3 @@ uvx datasette article/data/samples.db
 
 Link to the explorer from the report — the report makes the argument,
 the explorer lets readers dig into the raw data.
-
-
-# Extra important style guide
-
-### Examples and interactivity
-- Always show baseline/control samples alongside experimental samples — the reader needs to see "normal" to appreciate the effect
-- Don't only cherry-pick examples — show random samples too, and include borderline cases (e.g. controls that are "close to" the experimental condition)
-- Err on the side of too many examples — readers want to see actual model outputs, not just aggregate stats
-- Include an interactive sample explorer (OJS-based) for browsing raw data: filter by relevant dimensions, draw random samples
-- Long samples should be collapsible (truncated at ~500 chars with click-to-expand/contract. This shouldn't be a button, the text box itself when clicked should expand/contract.)
-
-### Charts
-- Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
-- Prefer interactive Plotly plots over tables for any numerical comparison — tables of numbers are hard to read
-- When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
-
-### Examples as prose
-- Examples are evidence, not decoration. They should be introduced, shown, then commented on — integrated into the narrative flow.
-- Every example needs context (why it's there) and commentary (what to notice).
-- Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models) to show range, not repetition.
-
-### Outtakes / highlights section
-- End reports with a curated "outtakes and highlights" section — interesting, funny, or surprising model outputs that didn't fit the main argument but are worth showing.
-- Mine the full dataset for standout examples: accidental poetry, training data leaks, spectacularly broken outputs, consistent attractor states, etc.
-- These sections are scientifically informative (they reveal model internals) while ending on a fun note.
-
-### Prose style (IMPORTANT)
-- Blogpost tone, NOT paper tone. Plots carry the numbers — prose carries the interpretation.
-- Don't recite numbers from plots in running text. If the reader can see "35.9%" in the chart, don't write "35.9%" in the paragraph.
-- BAD: "X increases by +12.3pp (from 21.9% to 34.2%), Y increases by +8.7pp (from 12.9% to 21.6%)..."
-- GOOD: "Both X and Y show clear increases — but what's interesting is the qualitative difference in how they respond."
-- Mention specific numbers ONLY when making an analytical point the plot can't convey (e.g. "a 2.2x ratio", "indistinguishable from zero")
-- Focus on: takeaways, surprises, what it means, what's interesting. Let figures handle the quantitative evidence.
-- Conversational and engaging, not dry recitation
