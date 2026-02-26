@@ -89,9 +89,9 @@ Note that this is different from a normal academic paper, the tone should be clo
 Quarto gives you Markdown/Jupyter authoring, math (KaTeX), citations (BibTeX),
 cross-references, Observable JS interactivity, and flexible layout classes out of the box.
 
-**When Quarto is NOT enough**: browsable sample explorers (search/filter/paginate across
-hundreds of model outputs). For that, use a companion tool like Datasette alongside
-the report (see "Sample Explorer" section at the end).
+Quarto's OJS cells + DuckDB can also handle interactive sample explorers
+(search/filter/paginate across hundreds of model outputs) directly in the report
+— see "Sample Explorer" section at the end.
 
 ## Prerequisites
 
@@ -170,7 +170,7 @@ Experiment logs live in `logs/by_request/`. Each request directory has a `summar
 Write `article/scripts/prepare_data.py` that:
 1. Reads experiment logs from `logs/`
 2. Structures them into clean DataFrames
-3. Exports JSON/CSV to `article/data/`
+3. Exports to `article/data/` — prefer **parquet** for large datasets (compact, typed, fast with DuckDB), CSV for small pre-aggregated summaries
 
 Keep data preparation separate from figure generation — the article renders from
 pre-processed data, not raw logs.
@@ -298,13 +298,23 @@ def tokens_to_html(tokens, activations):
     return " ".join(spans)
 ```
 
-Then in the `.qmd`:
+Then in the `.qmd`, use `display(HTML(...))` — **never** `print()` + `#| output: asis`,
+because Pandoc's markdown parser corrupts model output (interprets `\(` as math,
+backticks as code, etc.):
 
 ```markdown
 ```{python}
-#| output: asis
-print(tokens_to_html(tokens, activations))
+from IPython.display import display, HTML
+display(HTML(tokens_to_html(tokens, activations)))
 ```
+```
+
+More generally, define a `raw_html()` helper at the top of the report and use it everywhere:
+
+```python
+def raw_html(s):
+    """Display raw HTML bypassing Pandoc markdown processing."""
+    display(HTML(s))
 ```
 
 ### When to use interactivity
@@ -317,18 +327,25 @@ Use interactive figures when:
 
 A clear static figure with a good caption is often better than a buggy interactive widget.
 
-## Sample Explorer (Companion Tool)
+## Sample Explorer (In-Report via OJS + DuckDB)
 
-For browsable exploration of all generated samples across conditions, Quarto is the
-wrong tool. Use **Datasette** — a zero-frontend-code searchable database UI:
+Build a browsable sample explorer directly in the report using OJS cells backed by
+DuckDB querying a parquet file. This keeps everything self-contained in a single HTML.
 
-```bash
-# 1. Export samples to SQLite
-uv run python article/scripts/export_to_sqlite.py
-
-# 2. Launch browser
-uvx datasette article/data/samples.db
+```markdown
+```{ojs}
+//| echo: false
+db = DuckDBClient.of({samples: FileAttachment("data/samples.parquet")})
+```
 ```
 
-Link to the explorer from the report — the report makes the argument,
-the explorer lets readers dig into the raw data.
+Then add OJS `Inputs.select()` / `Inputs.range()` controls for filtering, and query
+with `db.query()` using SQL `WHERE` clauses built from the filter values. Draw random
+samples with `ORDER BY RANDOM() LIMIT N` and render them as HTML cards with
+expandable text (click-to-expand for long outputs).
+
+Key patterns:
+- Use `FileAttachment()` to load parquet — DuckDB reads it natively, no conversion needed
+- Build SQL `WHERE` clauses dynamically from OJS reactive variables
+- Show match count so the user knows how many samples match their filters
+- Add a "Draw Random Samples" button via `Inputs.button()` to re-randomize
