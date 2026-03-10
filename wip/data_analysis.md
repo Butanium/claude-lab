@@ -1,0 +1,1 @@
+When analyzing data, make sure to not only analyze the fully aggregated data, but also analyze the data at the different levels (per prompt, per model, per condition, etc). This should allow you to spot outliers. If a setup seems to be an outlier, e.g. "on prompt P, model M, condition C, behavior B rate is much higher than others", do a quick qualitative analysis to 

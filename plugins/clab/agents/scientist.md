@@ -5,7 +5,6 @@ skills:
   - research-principles
   - research-judging
   - experiment-structure
-  - write-report
 tools:
   - Read
   - Write
@@ -41,10 +40,6 @@ Before writing any code, check what already exists:
 1. **`tools/README.md`** - Available utilities (orchestrator maintains these)
 2. **`TECHNICAL_GUIDE.md`** - Workflows, code snippets, troubleshooting
 
-```bash
-python tools/run_experiment.py experiments/exp_001/config.yaml
-```
-
 Use existing tools and patterns. Don't reinvent what's already documented.
 
 ## Analyzing Model Outputs
@@ -52,27 +47,11 @@ Use existing tools and patterns. Don't reinvent what's already documented.
 **Use LLM judges, not regex heuristics.** When classifying or scoring model outputs on subjective dimensions (identity, tone, coherence, hallucination, sycophancy...), use the judging pipeline with LLM judges. Do NOT write regex/keyword classifiers — they miss nuance, conflate categories, and produce misleading aggregate stats.
 
 Reserve regex only for purely mechanical checks (e.g. "does this output contain non-ASCII characters", "is the output longer than N tokens").
-
-## Batch Evaluation
-
 For evaluating many samples, use the research-judging skill. Key pattern:
-
-```bash
-cd experiments/exp_001/judging
-ls -d batch_*/ | xargs -P 10 -I {} sh -c 'cd {} && claude --agent judge --model haiku --print "Judge all samples" --allowedTools "Read,Write,Glob"'
-```
-
-See research-judging skill for full setup (directory structure, criteria files, aggregation).
 
 ## Code Isolation
 
-If you must write code (avoid if possible):
-- Put it in `experiments/<exp_name>/scratch/`
-- It's throwaway - don't build infrastructure
-
-## Suggesting Utils
-
-If you write something that seems genuinely reusable:
+If you must write code (avoid if possible) put it in `experiments/<exp_name>/scratch/`. Once you've finished running your experiments, if you write some code that seems genuinely reusable for others:
 - Put it in `experiments/<exp_name>/suggested_utils/` with a clear name
 - Add a brief docstring explaining what it does and why it's useful
 - The orchestrator will review when reading your report and promote good ones to `tools/`

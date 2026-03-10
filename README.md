@@ -6,29 +6,32 @@ Claude Code plugin for autonomous research orchestration.
 
 ## disclaimer
 
-Report tend to still be sloppy (with not enough red teaming of the results etc.) but it's sloly getting better. Also the orchestrator and interactive-orchestrator skills use my name in the description.
+Report tend to still be sloppy (with not enough red teaming of the results etc.) but it's sloly getting better.
 
 ## What It Does
 
-A scaffolding system for hypothesis-driven research using Claude Code. The **orchestrator** skill acts as a PI — it maintains hypotheses, designs experiments, and delegates execution to specialized **subagents** (scientist, colleague, judge) that run with constrained permissions enforced by hooks.
+A scaffolding system for hypothesis-driven research using Claude Code. The **orchestrator** agent acts as a PI — it maintains hypotheses, designs experiments, and delegates execution to specialized **subagents** (scientist, colleague, reviewer) that run with constrained permissions enforced by hooks.
 
-### Entry point
+### Orchestrator agents
 
-- **`/orchestrator`** (skill) — Starts autonomous research mode. Maintains `RESEARCH_STATE.md`, designs experiments, spawns subagents, synthesizes findings. Not model-invocable — must be started by the user via slash command.
+- **orchestrator** — Autonomous research mode. Maintains `RESEARCH_STATE.md`, designs experiments, spawns subagents, synthesizes findings.
+- **interactive-orchestrator** — Interactive research mode. Same as orchestrator but collaborates with the user in real time.
 
 ### Subagents (spawned by orchestrator via Task tool)
 
 - **scientist** — Runs experiments, writes reports. Can only write to its own experiment folder (hooks block `RESEARCH_STATE.md`, `tools/`, etc.).
 - **colleague** — Fresh-eyes review with intentionally limited context. Read-only, restricted to files specified in `ALLOWED_FILES`.
-- **judge** — Evaluates samples against criteria in `CLAUDE.md`. Writes only to `judgments/`. Runs on haiku by default.
+- **reviewer** — Red-teams reports for common errors (missing CIs, overclaims, non-interactive plots, etc.).
 
-### Supporting skills (loaded by orchestrator at session start)
+### Supporting skills (preloaded by orchestrator agents via frontmatter)
 
 - **`/research-principles`** — Core principles for hypothesis-driven investigation (shared across all roles).
 - **`/research-judging`** — How to set up and run the LLM judge pipeline for batch evaluation.
-- **`/experiment-structure`** — Standard experiment folder structure and templates. Not user-invocable.
+- **`/experiment-structure`** — Standard experiment folder structure and templates.
 - **`/contact-supervisor`** — How to send notifications to the human supervisor via ntfy.sh.
-- **`/write-report`** — How to write up findings as an interactive Quarto report.
+- **`/writing-guidelines`** — How to write up findings as an interactive Quarto report.
+- **`/supervisor-report`** — Process for writing and reviewing reports for the supervisor.
+- **`/efficient-api-usage`** — Cost and latency optimization (prompt caching, batch API).
 
 ## Installation
 
@@ -84,17 +87,12 @@ Start a research session:
 claude --dangerously-skip-permissions
 ```
 
-Then invoke the orchestrator with your research question:
-```
-/orchestrator Your research question here
-```
-
-The orchestrator will load the supporting skills (`/research-principles`, `/research-judging`, `/contact-supervisor`, `/write-report`) itself at session start.
-
-**Shell alias** for convenience:
+Then invoke the orchestrator agent with your research question:
 ```bash
-alias research-claude="claude --dangerously-skip-permissions \"/orchestrator [this is an automated prompt to enable the skills in your context, DO NOT start doing stuff, wait for user instruction. No need to comment. Just say '[PASS]' and list the loaded skills after loading all those skills: /orchestrator /contact-supervisor /research-principles /research-judging /experiment-structure /write-report. If some of those skills are not available, please report it to the user]\"" 
+claude --agent orchestrator --dangerously-skip-permissions "Your research question here"
 ```
+
+Skills are preloaded automatically via the agent's frontmatter — no manual `/skill` loading needed.
 
 ## Project Structure (created by orchestrator)
 
@@ -113,7 +111,7 @@ archive/               # Deprecated files (never delete, always archive)
 
 | Role | Type | Can Write | Hooks |
 |------|------|-----------|-------|
-| orchestrator | skill | Everything | **Stop**: nudge before stopping + RESEARCH_STATE.md freshness check |
+| orchestrator | agent | Everything | **Stop**: nudge before stopping + RESEARCH_STATE.md freshness check |
 | scientist | agent | Own experiment folder only | **PreToolUse**: blocks `RESEARCH_STATE.md`, `research_diary.md`, `tools/`, `.claude/` |
 | colleague | agent | Nothing (read-only) | **PreToolUse**: restricts reads to `ALLOWED_FILES` list |
 | judge | agent | `judgments/` only | **SessionStart**: requires `CLAUDE.md` with judging criteria. **PreToolUse**: blocks writes outside `judgments/` |
@@ -122,8 +120,8 @@ archive/               # Deprecated files (never delete, always archive)
 
 ```
 plugins/clab/                  # The plugin
-  agents/                      # Subagent definitions (scientist, colleague, judge)
-  skills/                      # Skill definitions (orchestrator, research-principles, etc.)
+  agents/                      # Agent definitions (orchestrator, scientist, colleague, reviewer)
+  skills/                      # Skill definitions (research-principles, writing-guidelines, etc.)
   hooks/                       # Python hook scripts for agent constraints
   .claude-plugin/plugin.json   # Plugin metadata
 scripts/

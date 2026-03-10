@@ -27,7 +27,7 @@ echo "$SAMPLE_TEXT" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
   | jq '.structured_output'
 ```
 
-If your samples have metadata (IDs, conditions, etc.), write a script that parses each sample and passes only the relevant text to the CLI call.
+**Impartiality**: The judge must be blind to experimental conditions. Never pass metadata like condition labels, steering coefficients, group assignments, or any information about which experimental arm a sample belongs to. The judge should receive only what it needs to score: the text to evaluate and (if needed) what traits to look for. Leaking experimental metadata biases scores toward expected outcomes.
 
 ## Model Choice
 
@@ -121,6 +121,19 @@ The `--json-schema` flag does **not** inject the raw schema into the model's con
 **Implication**: The model sees field names and types (from the tool definition), but does **not** see `minimum`/`maximum` constraints, `enum` values, or `description` annotations from your schema. Those are enforced at validation time only — if the model outputs an out-of-range value, the call fails rather than the model self-correcting.
 
 This is why **the criteria file must fully describe your rubric** — valid ranges, score meanings, expected formats. Don't rely on schema constraints to guide the model's reasoning.
+
+## Running from Claude Code's Bash tool
+
+When testing `claude -p` calls directly from the Bash tool, pipe output to a file — the Bash tool doesn't reliably capture `claude -p` output otherwise:
+
+```bash
+echo "$SAMPLE" | env -u CLAUDECODE -u ANTHROPIC_API_KEY \
+  claude -p --model haiku ... \
+  > /ephemeral/c.dumas/judge_output.txt 2>&1
+cat /ephemeral/c.dumas/judge_output.txt | jq '.structured_output'
+```
+
+From Python `subprocess.run(capture_output=True)`, stdout works normally — no piping needed.
 
 ## CLI Flags Reference
 

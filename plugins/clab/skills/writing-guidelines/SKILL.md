@@ -1,5 +1,5 @@
 ---
-name: write-report
+name: writing-guidelines
 description: Write up research experiments and findings as an interactive Quarto report with figures and data exploration. Use when creating a research report from experiment results.
 ---
 
@@ -72,7 +72,10 @@ Note that this is different from a normal academic paper, the tone should be clo
 
 - Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
 - Prefer interactive Plotly plots over tables for any numerical comparison — tables of numbers are hard to read
+- Plot must be interactive and have an hover text stating how many samples are used to compute the datapoint. This is particularly useful when we will filter the data according to some criteria like coherence which might dramatically change the number of samples used to compute the datapoint (and vary across different datapoints)
+- Always add a global slider (preferably as a sticky component on the left side of the page) that allows to filter the data according to some criteria like a min coherence slider.
 - When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
+- Always show 95% confidence intervals on aggregated metrics. Choose the method appropriate to the data (e.g. some kind of bootstrap for non-normal/small samples, Wilson for proportions, etc etc.). State the CI method in the figure caption, with a footnote explaining the choice if not obvious.
 
 ## Outtakes / Highlights Section
 
