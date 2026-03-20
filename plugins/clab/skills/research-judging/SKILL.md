@@ -149,9 +149,11 @@ From Python `subprocess.run(capture_output=True)`, stdout works normally — no 
 | `--json-schema` | Structures output via forced tool use and validates against your schema. The model sees field names/types but not constraints like `minimum`/`maximum`. Extract the result with `jq '.structured_output'`. |
 | `--model haiku` | Fast/cheap default. Use `sonnet` for nuanced judging. |
 
-## Example: Judging Files in a Directory
+## Parallelism
 
-When samples are plain text files, a simple loop works:
+**Always run judgments in parallel.** Each `claude -p` call is independent and takes 10-30s. Running 100 samples sequentially = 30+ minutes. Running 30-wide parallel = ~2 minutes. Cap at 30 concurrent to avoid rate limits.
+
+### Bash: parallel with background jobs
 
 ```bash
 for sample in samples/*.txt; do
@@ -171,7 +173,85 @@ done
 wait
 ```
 
-Writing each judgment to a separate file means results are saved as they come in — if a batch fails halfway through, you keep everything that completed.
+### Python: parallel with ThreadPoolExecutor
+
+Includes a **60s timeout** per call and **exponential backoff retry** (5 attempts). `claude -p` calls can hang indefinitely — without a timeout, a single stuck call will block a thread forever and your job will never finish.
+
+```python
+import json
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+MAX_CONCURRENT = 30
+TIMEOUT_S = 60
+MAX_RETRIES = 5
+
+# Resolve env once at startup
+ENV = {
+    "PATH": subprocess.check_output(["bash", "-c", "echo $PATH"], text=True).strip(),
+    "HOME": str(Path.home()),
+}
+
+def judge_one(sample_path: Path, criteria: str, schema: str) -> tuple[Path, dict | None]:
+    """Judge a single sample with timeout and exponential backoff retry."""
+    text = sample_path.read_text()
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = subprocess.run(
+                [
+                    "claude", "-p", "--model", "haiku",
+                    "--setting-sources", "local",
+                    "--no-session-persistence",
+                    "--tools", "",
+                    "--strict-mcp-config",
+                    "--system-prompt-file", criteria,
+                    "--output-format", "json",
+                    "--json-schema", schema,
+                ],
+                input=text,
+                capture_output=True, text=True,
+                timeout=TIMEOUT_S,
+                env=ENV,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"exit {result.returncode}: {result.stderr[:200]}")
+            envelope = json.loads(result.stdout)
+            return sample_path, envelope.get("structured_output", envelope)
+        except (subprocess.TimeoutExpired, RuntimeError, json.JSONDecodeError) as e:
+            wait = 2 ** attempt  # 1s, 2s, 4s
+            print(f"  RETRY {attempt+1}/{MAX_RETRIES} ({e.__class__.__name__}) {sample_path.name}, waiting {wait}s")
+            time.sleep(wait)
+    print(f"  FAIL (all retries exhausted): {sample_path.name}")
+    return sample_path, None
+
+samples = sorted(Path("samples").glob("*.txt"))
+schema_str = Path("judging/schema.json").read_text()
+
+# Skip already-completed judgments
+done = {p.stem for p in Path("judgments").glob("*.json")}
+remaining = [s for s in samples if s.stem not in done]
+
+with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as pool:
+    futures = {
+        pool.submit(judge_one, s, "judging/criteria.md", schema_str): s
+        for s in remaining
+    }
+    ok, fail = 0, 0
+    for future in as_completed(futures):
+        sample_path, judgment = future.result()
+        if judgment:
+            out = Path("judgments") / f"{sample_path.stem}.json"
+            out.write_text(json.dumps(judgment, indent=2))
+            print(f"OK  {sample_path.name}: {judgment['scores']}")
+            ok += 1
+        else:
+            fail += 1
+    print(f"\nDone: {ok} ok, {fail} failed, {len(done)} skipped (already done)")
+```
+
+Writing each judgment to a separate file means results are saved as they come in — if a run fails halfway through, you keep everything that completed. On resume, skip files that already exist in `judgments/`.
 
 When samples contain metadata (e.g. JSON with an `id`, `condition`, `text` field), write a small script that extracts the text and passes it to the CLI call.
 
