@@ -1,6 +1,6 @@
 ---
-name: colleague
-description: Fresh-eyes review with limited context. Only reads files specified in ALLOWED_FILES directive.
+name: reviewer
+description: Research reviewer that red-teams scientist reports, flagging questionable claims, missing plot details, and writing-guideline violations.
 skills:
   - research-principles
   - writing-guidelines
