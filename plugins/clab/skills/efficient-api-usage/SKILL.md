@@ -15,8 +15,21 @@ Caches the KV representations of prompt prefixes so repeated requests with share
 - Default TTL is 5 minutes; use `"ttl": "1h"` for 1-hour duration (value must be a string: `"5m"` or `"1h"`)
 
 **Pricing (relative to base input cost):**
-- Cache write: 25% more expensive than base
-- Cache read: 90% cheaper than base
+- Cache write (5-min TTL): 1.25× base (25% premium)
+- Cache write (1-hour TTL): 2× base (100% premium)
+- Cache read: 0.1× base (90% cheaper)
+
+**Break-even:** 5-min TTL pays off after 2 requests (1.25× + 0.1× = 1.35× vs 2× uncached). 1-hour TTL needs 3+ requests (2× + 0.2× = 2.2× vs 3× uncached). Pick 1h only when you expect the prefix to be reused enough times to amortize the doubled write cost.
+
+**Limits and silent failures:**
+- Max 4 `cache_control` breakpoints per request.
+- Minimum cacheable prefix is model-dependent (4096 tokens on Opus 4.5+/Haiku 4.5; 2048 on Sonnet 4.6/Haiku 3.5; 1024 on older Sonnets). Below the threshold the API silently doesn't cache — no error, just `cache_creation_input_tokens: 0`.
+- The cache key is the exact bytes of the prefix. Any byte that differs between requests invalidates everything after it, with no error. Common ways prompts silently differ across "identical" requests:
+    - A timestamp or UUID interpolated into the system prompt (`f"Today is {datetime.now()}"`)
+    - `json.dumps(d)` without `sort_keys=True` — Python dict iteration order can shift the bytes
+    - The list of tools differs run-to-run (e.g. tools assembled from a `set` or filtered conditionally)
+    - Any per-request value (user ID, request ID, session ID) included in the cached portion
+  If `cache_read_input_tokens` stays 0 across runs you expect to hit, diff the rendered request bodies — one of these is almost always the cause.
 
 **Two modes:**
 
@@ -94,7 +107,7 @@ batch = client.messages.batches.create(
 The discounts stack. Include identical `cache_control` blocks in every request within the batch.
 
 **Caveat:** batch requests are processed concurrently and asynchronously, so cache hits are best-effort (typically 30-98% hit rate). To maximize hits:
-- Use 1-hour TTL: `{"type": "ephemeral", "ttl": "1h"}`
+- Pick TTL by hit rate: 5-min (1.25× write) breaks even at 2 hits — fine for high-hit batches; 1-hour (2× write) needs 3+ hits to pay off, so use it only for large batches with reliably warm caches or sustained traffic across batch jobs. A low-hit-rate batch on 1h TTL can cost more than no caching at all.
 - Keep the cached prefix identical across all requests
 - Maintain steady request volume to keep caches warm
 
