@@ -11,7 +11,7 @@ import os
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
-from _transcript_utils import IDLE_MARKER, get_last_assistant_text, wait_for_transcript_flush
+from _transcript_utils import IDLE_MARKER, get_last_assistant_text
 
 STALE_THRESHOLD_MINUTES = 30
 
@@ -50,8 +50,6 @@ def main():
 
     transcript_path = input_data.get("transcript_path")
     if transcript_path:
-        debug_dir = f"/run/user/{os.getuid()}/orchestrator_nudge_debug/freshness"
-        wait_for_transcript_flush(transcript_path, debug_dir=debug_dir)
         last_msg = get_last_assistant_text(transcript_path)
         if IDLE_MARKER in last_msg:
             sys.exit(0)
