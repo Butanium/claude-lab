@@ -140,7 +140,7 @@ From Python `subprocess.run(capture_output=True)`, stdout works normally — no 
 | Flag | Purpose |
 |---|---|
 | `env -u CLAUDECODE -u ANTHROPIC_API_KEY` | Required when calling from inside Claude Code. `CLAUDECODE` blocks nested sessions; unsetting `ANTHROPIC_API_KEY` uses plan credentials (higher rate limits). |
-| `--setting-sources local` | Suppresses loading of `~/.claude/CLAUDE.md`. Without this, global instructions bias the judge. |
+| `--setting-sources local` | Suppresses loading of `~/.claude/CLAUDE.md` AND the cwd/project `CLAUDE.md` (verified empirically 2026-06-09, with positive control). Without this, global instructions bias the judge — and a project CLAUDE.md describing your hypothesis/conditions can leak it to the judge, biasing verdicts toward the expected result. |
 | `--no-session-persistence` | Don't persist sessions to disk. Without this, each call creates a session entry that floods your project. |
 | `--tools ""` | Removes all tools. The judge only needs to produce structured output, no tool use. |
 | `--strict-mcp-config` | Disables MCP servers. Prevents any configured MCPs from loading. |
