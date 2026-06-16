@@ -19,7 +19,7 @@ That's qualitative analysis. Grounded in real samples, appropriately hedged, end
 
 Don't guess sample sizes. Count tokens.
 
-**First, identify your model and context window.** Claude Code substitutes your running model's display name into the Bash tool's git-commit footer template — look for `Co-Authored-By: Claude <model> [(1M context)] <noreply@anthropic.com>` in your tool descriptions. The `(1M context)` suffix confirms the 1M variant; absence means the model's base window (e.g. 200K). This is reliable in-session self-identification.
+**First, identify your model and context window.** Claude Code substitutes your running model's display name into the Bash tool's git-commit footer template — look for `Co-Authored-By: Claude <model> [(1M context)] <noreply@anthropic.com>` in your tool descriptions. The `(1M context)` suffix confirms the 1M variant; absence means the model's base window (e.g. 200K). Equivalently, if the exact model ID contains `[1m]` (e.g. `claude-...-[1m]`), that also means the 1M context variant. This is reliable in-session self-identification.
 
 Then use Anthropic's `count_tokens` endpoint to measure the cost of reading the entire pool. The skill folder ships a helper, `count_budget.py`, which takes a dump file and reports total tokens, avg per-sample, and how many samples fit at 50% of your window:
 
