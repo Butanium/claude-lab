@@ -1,8 +1,8 @@
-"""Estimate sample budget for qualitative reading.
+"""Count tokens of sample dump files for qualitative reading.
 
-Counts tokens of one or more dump files via Anthropic's count_tokens endpoint,
-reports how much of the context budget they consume, and prints how many
-samples fit. All current Claude models have a 1M-token context window.
+Counts total tokens of one or more dump files via Anthropic's count_tokens
+endpoint and reports the average per sample block, so you can size a read
+against your context window by eye.
 
 Usage:
     uv run --with anthropic count_budget.py path/to/dump.txt --model <model>
@@ -12,8 +12,6 @@ import os
 from pathlib import Path
 
 from anthropic import Anthropic
-
-WINDOW = 1_000_000  # all current Claude models have a 1M-token context window
 
 
 def count_tokens(client: Anthropic, text: str, model: str) -> int:
@@ -30,8 +28,6 @@ def main():
     ap.add_argument("dump", type=Path, help="Sample dump file (one block per sample)")
     ap.add_argument("--model", required=True,
                     help="Model identifier for the count_tokens endpoint, e.g. claude-opus-4-8")
-    ap.add_argument("--budget-frac", type=float, default=0.5,
-                    help="Fraction of the 1M window to budget for sample reading")
     ap.add_argument("--block-marker", default="==========",
                     help="Substring that starts each sample block (for counting)")
     args = ap.parse_args()
@@ -43,17 +39,10 @@ def main():
     client = Anthropic(api_key=os.environ["ANTHROPIC_TOKENIZER_API_KEY"])
     total = count_tokens(client, text, model=args.model)
 
-    avg = total / n_blocks
-    budget = int(WINDOW * args.budget_frac)
-    fits = budget // avg
-
     print(f"file: {args.dump}")
     print(f"  blocks: {n_blocks}")
     print(f"  total tokens: {total:,}")
-    print(f"  avg tokens/block: {avg:.0f}")
-    print(f"  budget ({args.budget_frac:.0%} of 1M window): {budget:,} tokens")
-    print(f"  samples that fit at avg rate: {fits:.0f}")
-    print(f"  this file uses: {100*total/budget:.1f}% of budget")
+    print(f"  avg tokens/block: {total / n_blocks:.0f}")
 
 
 if __name__ == "__main__":
