@@ -18,7 +18,7 @@ Turn experiment data and findings into an interactive HTML report using Quarto.
 1. **Title + one-line summary**
 2. **Introduction** — what question, why it matters
 3. **Setup / Methods** — models, adapters, experimental design, prompt used.
-4. **Experiments** — one subsection per finding, each with a key figure, write foldable cells with the exact details of what was run. Include qualitative results, some of them cherry picked to illustrate, but also a random subsample for each setup mentionned all embedded in a minimal interactive explorer. In general when you plot something with aggregated data, always add plots in folded sections with non-aggregated but less readable stuff. E.g. prompt-level results, model-level results, etc etc. This should allow me to easily spot outliers and patterns in the data that are not obvious from the aggregated plots.
+4. **Findings** — one subsection per claim (see "Sections are claims, not experiments" below), each with a key figure, write foldable cells with the exact details of what was run. Include qualitative results, some of them cherry picked to illustrate, but also a random subsample for each setup mentionned all embedded in a minimal interactive explorer. In general when you plot something with aggregated data, always add plots in folded sections with non-aggregated but less readable stuff. E.g. prompt-level results, model-level results, etc etc. This should allow me to easily spot outliers and patterns in the data that are not obvious from the aggregated plots.
 5. **Discussion** — implications, limitations, next steps
 7. **Appendix** — technical details, additional experiments, all prompts used for judging etc.
 
@@ -31,6 +31,15 @@ Note that this is different from a normal academic paper, the tone should be clo
 3. **Finding 1** — self-contained section with figure + evidence
 4. **Finding 2** — same pattern
 5. **Open Questions** — what we don't understand yet
+
+### Sections are claims, not experiments
+
+- Write from the final state of understanding. Each section makes one claim about the world, headlined by the most aggregated figure that supports it. Experiments are evidence inside claims, not sections of their own.
+- The investigation's chronology — first attempts, dead ends, course corrections, re-runs — does not structure the report. If the path matters, one appendix paragraph or a link to the lab-log version.
+- Main-text altitude: a colleague should get every claim and how strongly to believe it in ~5 minutes. Per-run granularity, secondary experiments, and robustness checks live in folds under the claim they support.
+- When cleaner data or a corrected estimator supersedes an earlier version, main figures and prose use the best version only. The comparison to the superseded version is one main-text sentence at most, with the full account in a fold or appendix — don't replay the discovery of the problem and its fix.
+- Aggregated main figures overlay the per-run values as points on the aggregate bars, so heterogeneity stays visible without per-run panels; the full per-run figure goes in a fold.
+- Caveats follow the same altitude rule: the main text carries the best estimate and a one-line qualifier; the full confound analysis goes in a fold attached to the number it qualifies.
 
 ## Writing Style
 
