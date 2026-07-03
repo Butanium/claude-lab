@@ -53,6 +53,10 @@ Note that this is different from a normal academic paper, the tone should be clo
 - Mention specific numbers ONLY when making an analytical point the plot can't convey (e.g. "a 2.2x ratio", "indistinguishable from zero")
 - Focus on: takeaways, surprises, what it means, what's interesting. Let figures handle the quantitative evidence.
 - Conversational and engaging, not dry recitation
+- Every sentence must inform the reader. Cut clauses whose only function is to justify a writing choice — why an example is included, why a comparison is fair, why a section exists. They read as a defense addressed to an imaginary grader, and the reader gets nothing from them.
+- BAD: "Here is a faithful case, so the flips above read against the actual baseline rather than an imagined one:"
+- GOOD: "These are the (warns, warns) diagonal of Figure 2:"
+- The test: delete the clause and reread. If the reader lost no usable information, it was self-justification — leave it out. If the choice genuinely needs context, state the fact that provides it, not the rhetorical purpose it serves.
 
 ## Examples and Interactivity
 
@@ -65,7 +69,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 ## Examples as Prose
 
 - Examples are evidence, not decoration. They should be introduced, shown, then commented on — integrated into the narrative flow.
-- Every example needs context (why it's there) and commentary (what to notice).
+- Every example needs context and commentary. Context = the facts that situate it (which model, condition, figure cell it comes from); commentary = what to notice in it. Neither is a justification for showing it — if an example needs defending, pick a better example.
 - Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models) to show range, not repetition.
 
 ## Charts
