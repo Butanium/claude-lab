@@ -141,7 +141,7 @@ async function loadData(b64) {
 }
 ```
 
-Embed the **full corpus** by default — the explorer exists to *find* the weird samples, so filters must sweep everything, not a curated subset. Text corpora gzip roughly 10x; the largest corpus to date (~100 MB raw) lands around 10–25 MB embedded. CAVEAT (2026-07): the artifact size ceiling is unverified at that scale — on the first big report, publish early and check it loads before polishing.
+Embed the **full corpus** by default — the explorer exists to *find* the weird samples, so filters must sweep everything, not a curated subset. Text corpora gzip roughly 10x; the largest corpus to date (~100 MB raw) lands around 10–25 MB embedded. Verified 2026-07-20: a 6.77 MB report (6.66 MB embedded gzip, 14.7 MB raw JSON) published and decoded fine. Above that the ceiling is still unprobed — publish early and check it loads before polishing.
 
 ### 3. Figures
 
@@ -180,4 +180,4 @@ Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex fig
 
 ### 7. Publish
 
-Artifact tool with `capabilities: {downloads: true}`; wire a "download data as CSV" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis. Keep the artifact's title and favicon stable across redeploys. If the Artifact tool isn't available (e.g. subagent context), the HTML file itself is the deliverable — send it with SendUserFile; it works straight from disk.
+Artifact tool with `capabilities: {downloads: true}`; wire a "download data" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis (the downloads allowlist excludes `.csv` — save CSV content under a `.txt` filename; 16 MiB cap). Keep the artifact's title and favicon stable across redeploys. If the Artifact tool isn't available (e.g. subagent context), the HTML file itself is the deliverable — send it with SendUserFile; it works straight from disk.
