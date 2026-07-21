@@ -11,25 +11,46 @@ const KitCards = (() => {
 
   const chip = (label, cls = "") => `<span class="chip ${cls}">${esc(label)}</span>`;
 
-  /* ---- evidence highlighting (quote-tolerant matcher, from the salieri
-     report): judge "evidence" free-text is split into quoted fragments and
-     located in the sample with whitespace/quote/dash-tolerant regexes. ---- */
+  /* ---- evidence highlighting (from the salieri report). Judge "evidence"
+     free-text comes in two shapes across judges: double-quoted spans, OR
+     separator-delimited fragments ("frag A; frag B / frag C") with no quotes.
+     Handle both: split on / ; | and sentence/ellipsis boundaries, strip stray
+     quotes, keep fragments ≥8 chars, then locate each in the sample with a
+     whitespace/quote/dash-tolerant regex. On a miss for a long fragment, retry
+     without the leading or trailing word (the judge often lightly paraphrases a
+     quote's edge). A fragment that never matches is simply not marked — the
+     matcher never invents a highlight. ---- */
   function evFragments(evidence) {
     if (!evidence) return [];
-    return (evidence.match(/["“]([^"”]{8,})["”]/g) || [])
-      .map(q => q.slice(1, -1).trim()).filter(q => q.length >= 8);
+    const frags = [];
+    for (let q of String(evidence).split(/\s*(?:\/|;|\|)\s*/)) {
+      q = q.replace(/^[\s"'“”]+|[\s"'“”]+$/g, "");
+      for (let f of q.split(/\s*(?:\.\.\.|…)\s*|(?<=[.!?])\s+/)) {
+        f = f.trim();
+        if (f.length >= 8) frags.push(f);
+      }
+    }
+    return frags;
   }
   function evPattern(frag) {
-    const esc_ = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(esc_.replace(/["“”'’‘]/g, `["“”'’‘]`).replace(/\s+/g, "\\s+")
-      .replace(/[-–—]/g, "[-–—]"), "i");
+    return frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\s+/g, "\\s+").replace(/['’‘]/g, "['’‘]")
+      .replace(/["“”]/g, `["“”]`).replace(/-/g, "[-–—]");
   }
-  function evRanges(text, quotes) {
+  function evFindRange(text, frag) {
+    const w = frag.split(/\s+/);
+    const tries = w.length >= 5 ? [frag, w.slice(1).join(" "), w.slice(0, -1).join(" ")] : [frag];
+    for (const t of tries) {
+      const m = text.match(new RegExp(evPattern(t), "i"));
+      if (m && m[0].length >= 6) return [m.index, m.index + m[0].length];
+    }
+    return null;
+  }
+  function evRanges(text, evidence) {
     const ranges = [];
-    for (const q of quotes) {
-      let m = text.match(evPattern(q));
-      if (!m && q.length > 40) m = text.match(evPattern(q.slice(0, 40)));
-      if (m) ranges.push([m.index, m.index + m[0].length]);
+    for (const f of evFragments(evidence)) {
+      const r = evFindRange(text, f);
+      if (r) ranges.push(r);
     }
     ranges.sort((a, b) => a[0] - b[0]);
     const merged = [];
@@ -42,7 +63,7 @@ const KitCards = (() => {
   }
   /* full text with matched evidence wrapped in <mark class="ev"> */
   function highlightEvidence(text, evidence) {
-    const ranges = evRanges(text, evFragments(evidence));
+    const ranges = evRanges(text, evidence);
     if (!ranges.length) return esc(text);
     let out = "", pos = 0;
     for (const [a, b] of ranges) {
@@ -53,7 +74,7 @@ const KitCards = (() => {
   }
   /* collapsed digest = only the evidence sentences joined by (…) */
   function evidenceDigest(text, evidence) {
-    const ranges = evRanges(text, evFragments(evidence));
+    const ranges = evRanges(text, evidence);
     if (!ranges.length) return null;
     return ranges.map(([a, b]) => `<mark class="ev">${esc(text.slice(a, b))}</mark>`)
       .join(` <span class="ellipsis">(…)</span> `);

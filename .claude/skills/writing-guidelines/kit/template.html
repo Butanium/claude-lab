@@ -4,7 +4,7 @@
      comment so future sessions know which kit vintage this report used.
      The Artifact tool wraps the file in doctype/head/body — write content only. -->
 
-<!-- clab-report-kit v0.1 -->
+<!-- clab-report-kit v0.2 -->
 <title>REPORT TITLE</title>
 <!-- standalone-file fallback favicon; the Artifact tool's `favicon` param covers the hosted page -->
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">📊</text></svg>'>
@@ -122,7 +122,11 @@ KitFilters.reactive(filters, state => {
 /* downloads capability (declare {downloads: true} at publish) */
 document.getElementById("dl-csv")?.addEventListener("click", async () => {
   if (!window.claude?.downloads) { alert("open the hosted artifact to download"); return; }
-  // await window.claude.downloads.save({ filename: "data.csv", data: toCsv(DATA.samples) });
+  // NOTE: the downloads allowlist is gif png jpg jpeg webp mp4 webm txt json md —
+  // NOT csv. Save CSV-formatted content under a .txt name; cap is 16 MiB. Wrap in
+  // try/catch and ignore the "declined" code (viewer said no).
+  // try { await window.claude.downloads.save({ filename: "data.txt", data: toCsv(DATA.samples) }); }
+  // catch (e) { if (e?.code !== "declined") alert("Download unavailable: " + e.message); }
 });
 
 KitCards.observeShort();

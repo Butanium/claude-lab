@@ -127,10 +127,12 @@ const KitCharts = (() => {
         const yv = f.y(d.est);
         const low = lowN && d.n !== undefined && d.n < lowN;
         const fmt = spec.yFmt || String;
+        /* a value may override its own fill / opacity — e.g. a risk bar solid
+           and its matched control bar pale, both keeping the run's color */
         const bar = el("rect", {
           x, y: Math.min(yv, y0), width: bwid, height: Math.abs(y0 - yv),
           rx: 2, class: low ? "low-n" : "",
-        }, { fill: colorOf(s) });
+        }, { fill: d.color || colorOf(s), fillOpacity: d.op ?? 1 });
         const label = `${s.name}, ${gname}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
         a11y(bar, label);
         bindTip(bar, `<span class="tip-head">${gname} · ${s.name}</span><br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
@@ -149,27 +151,52 @@ const KitCharts = (() => {
           bindTip(dot, `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${fmtN(p)}`);
           f.svg.appendChild(dot);
         });
+        /* per-bar reference overlays: a diamond (e.g. the independence
+           expectation) or a wide dashed tick (e.g. P(either) "essays in play").
+           kind: "diamond" | "tick"; the caption names the glyph. */
+        (d.overlays || []).forEach(ov => {
+          const cx = x + bwid / 2, oy = f.y(ov.y);
+          let mark;
+          if (ov.kind === "tick") {
+            mark = el("line", { x1: x - bwid * 0.08, x2: x + bwid * 1.08, y1: oy, y2: oy, "stroke-width": 2, "stroke-dasharray": "3 2" }, { stroke: "var(--ink-2)" });
+          } else {
+            const rr = 5;
+            mark = el("path", { d: `M${cx},${oy - rr}L${cx + rr},${oy}L${cx},${oy + rr}L${cx - rr},${oy}Z` }, { fill: "var(--ink)", stroke: "var(--surface)", "stroke-width": 1 });
+          }
+          a11y(mark, ov.tip ? ov.tip.replace(/<[^>]+>/g, " ") : fmt(ov.y));
+          bindTip(mark, ov.tip || fmt(ov.y));
+          f.svg.appendChild(mark);
+        });
       });
     });
     if (spec.baseline) refLine(f, spec.baseline);
-    legend(container, series.map((s, i) => ({ name: s.name, color: colorOf(s) })));
+    /* legendItems overrides the auto series-legend (e.g. when bars are colored
+       by a per-value entity rather than by series) */
+    legend(container, spec.legendItems || series.map((s, i) => ({ name: s.name, color: colorOf(s) })));
     return f;
   }
 
   /* ---- 100%/count stacked bars, hatch option for special segments ----
      spec: { groups, segments: [{name, seriesIndex, hatch}], values:
-       [{group, segment, count}], percent, w, h } */
+       [{group, segment, count, lo, hi}], percent, w, h }
+     hatch: true → "/" 45° lines; or a shape string "/" | "\\" | "x" so a
+       family of segments (e.g. the merging categories) reads as a group while
+       staying individually distinguishable.
+     lo/hi (fractions, e.g. bootstrap CI on the segment's share) → shown in the
+       tooltip; the guidelines want a CI on every aggregated share. */
   let hatchSeq = 0;
   function stackedBars(container, spec) {
     const { groups, segments, values, percent = true } = spec;
     const f = frame(container, { ...spec, yMin: 0, yMax: percent ? 1 : Math.max(...groups.map(g => values.filter(v => v.group === g).reduce((s, v) => s + v.count, 0))), yFmt: percent ? v => Math.round(v * 100) + "%" : v => v });
     const defs = el("defs");
     f.svg.appendChild(defs);
-    const hatchFor = color => {
+    const hatchFor = (color, shape) => {
       const id = `kit-hatch-${hatchSeq++}`;
-      const p = el("pattern", { id, width: 5, height: 5, patternTransform: "rotate(45)", patternUnits: "userSpaceOnUse" });
+      const rot = shape === "\\" ? "rotate(-45)" : "rotate(45)";
+      const p = el("pattern", { id, width: 5, height: 5, patternTransform: rot, patternUnits: "userSpaceOnUse" });
       p.appendChild(el("rect", { width: 5, height: 5 }, { fill: color }));
       p.appendChild(el("line", { x1: 0, y1: 0, x2: 0, y2: 5 }, { stroke: "var(--surface)", strokeWidth: 2 }));
+      if (shape === "x") p.appendChild(el("line", { x1: 0, y1: 0, x2: 5, y2: 0 }, { stroke: "var(--surface)", strokeWidth: 2 }));
       defs.appendChild(p);
       return `url(#${id})`;
     };
@@ -187,10 +214,11 @@ const KitCharts = (() => {
         const yTop = f.y(acc + v), yBot = f.y(acc);
         const color = s.color || seriesColor(s.seriesIndex ?? si);
         const rect = el("rect", { x: gx, y: yTop, width: bwid, height: Math.max(0, yBot - yTop - 1) },  /* 1px surface gap */
-          { fill: s.hatch ? hatchFor(color) : color });
+          { fill: s.hatch ? hatchFor(color, typeof s.hatch === "string" ? s.hatch : "/") : color });
         const pct = Math.round((d.count / total) * 1000) / 10;
-        a11y(rect, `${gname}, ${s.name}: ${pct}% (${d.count}/${total})`);
-        bindTip(rect, `<span class="tip-head">${gname} · ${s.name}</span><br>${pct}% (${d.count}/${total})`);
+        const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
+        a11y(rect, `${gname}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
+        bindTip(rect, `<span class="tip-head">${gname} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
         f.svg.appendChild(rect);
         acc += v;
       });
@@ -262,6 +290,17 @@ const KitCharts = (() => {
         f.svg.appendChild(t);
       }
     }
+    /* shaded threshold-zone regions, drawn behind the points (e.g. the
+       co-expression corner where both dimensions clear their slider threshold).
+       region: { x1, y1, x2, y2, label, color } — color defaults to --series-7 */
+    (spec.regions || []).forEach(rg => {
+      const rc = rg.color || "var(--series-7)";
+      const rx = Math.min(X(rg.x1), X(rg.x2)), rw = Math.abs(X(rg.x2) - X(rg.x1));
+      const ry = Math.min(f.y(rg.y1), f.y(rg.y2)), rh = Math.abs(f.y(rg.y2) - f.y(rg.y1));
+      f.svg.appendChild(el("rect", { x: rx, y: ry, width: rw, height: rh, rx: 2, "stroke-dasharray": "4 3", "stroke-width": 1 },
+        { fill: rc, fillOpacity: 0.08, stroke: rc }));
+      if (rg.label) f.svg.appendChild(txt(rx + rw - 4, ry + 12, rg.label, { "text-anchor": "end", class: "axis-title" }, ));
+    });
     const defs = el("defs");
     f.svg.appendChild(defs);
     const arrowId = {};
@@ -293,9 +332,10 @@ const KitCharts = (() => {
         f.svg.appendChild(el("line", { y1: cy - 3, y2: cy + 3, x1: X(p.xlo), x2: X(p.xlo), class: "whisker" }, { stroke: color }));
         f.svg.appendChild(el("line", { y1: cy - 3, y2: cy + 3, x1: X(p.xhi), x2: X(p.xhi), class: "whisker" }, { stroke: color }));
       }
-      const r = p.big ? 6 : (p.n ? Math.min(6, 2.2 + 1.35 * Math.sqrt(p.n) / 2) : 4);
+      const r = p.big ? 6 : (p.r ?? (p.n ? Math.min(6, 2.2 + 1.35 * Math.sqrt(p.n) / 2) : 4));
       const dot = el("circle", { cx, cy, r },
-        p.hollow ? { fill: "var(--surface)", stroke: color, strokeWidth: 2 } : { fill: color });
+        p.hollow ? { fill: "var(--surface)", stroke: color, strokeWidth: 2, fillOpacity: p.op ?? 1 }
+                 : { fill: color, fillOpacity: p.op ?? 1 });
       const tipHtml = p.tip || `${fmtX(p.x)}, ${fmtY(p.y)}${fmtN(p)}`;
       a11y(dot, (p.label ? p.label + ": " : "") + tipHtml.replace(/<[^>]+>/g, " "));
       bindTip(dot, tipHtml);

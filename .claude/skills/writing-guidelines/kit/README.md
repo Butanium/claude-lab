@@ -21,7 +21,7 @@ Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
 | `tokens.css` | light+dark palette (validated dataviz default), fonts, spacing |
 | `layout.css` | page grid + sticky sidebar, prose, TL;DR/`.note`/`.lesson`, folds, tables, `.rubric`, print styles |
 | `cards.css` + `cards.js` | `KitCards.card/transcript`, chips, expand/collapse with overflow detection, judge-evidence highlight + digest |
-| `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/heatmap` — CI whiskers, n= tooltips, per-run overlays, low-n ⚠, ref lines, a11y |
+| `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/heatmap` — CI whiskers, n= tooltips, per-run overlays, per-bar ref overlays (◆/tick), shaded scatter regions, stacked-segment CIs + shaped hatch, low-n ⚠, ref lines, a11y |
 | `stats.js` | `KitStats.wilson/bootstrap(seeded)/shuffle/fmtPct` — for filter-reactive recompute only |
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
 | `explorer.js` | `KitExplorer.explorer` (filter bank, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) |
