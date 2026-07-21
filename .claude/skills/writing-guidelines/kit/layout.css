@@ -1,0 +1,140 @@
+/* clab report kit — layout.css
+   Page shell, prose, callouts, folds, figures, tables, rubric display, print.
+   Serif prose / sans UI-chrome split: the article reads like an essay, the
+   instrument panel (controls, badges, chart text) stays in the system sans. */
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 1.02rem/1.62 var(--serif);
+}
+
+/* --- page grid: sticky sidebar (global filters) + content column --- */
+.page {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 2rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+.page > .sidebar { position: relative; }
+.sidebar .panel {
+  position: sticky;
+  top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+.sidebar .panel label { display: block; color: var(--ink-2); margin: 0.6rem 0 0.2rem; }
+.sidebar .panel .readout { color: var(--muted); font-size: 0.8rem; margin-top: 0.35rem; }
+.content { min-width: 0; }
+.content > * { max-width: 720px; }           /* ~70ch reading column */
+.content > .wide, .content > .page-wide { max-width: none; }
+.wide { width: min(1000px, 100%); }
+@media (max-width: 1100px) {
+  .page { grid-template-columns: 1fr; }
+  .sidebar .panel { position: static; }
+}
+
+/* --- headings & prose --- */
+h1 { font-size: 1.9rem; line-height: 1.2; text-wrap: balance; margin: 0.4rem 0 0.3rem; }
+h2 {
+  font-size: 1.35rem; line-height: 1.25; text-wrap: balance;
+  border-top: 1px solid var(--grid);
+  padding-top: 1.1rem; margin: 2.2rem 0 0.7rem;
+}
+h3 { font-size: 1.08rem; margin: 1.6rem 0 0.5rem; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 0 0.25em; }
+.byline { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.4rem; }
+.kicker {
+  font: 600 0.72rem/1 var(--sans);
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+}
+
+/* --- callouts --- */
+.tldr {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.9rem 1.15rem; margin: 1.2rem 0;
+}
+.tldr ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.note {
+  background: var(--warn-bg); border-left: 3px solid var(--warning);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.7rem 1rem; margin: 1rem 0; font-size: 0.95rem;
+}
+.note .kicker { color: var(--warn-ink); }
+.lesson {
+  background: var(--lesson-bg); border-left: 3px solid var(--critical);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.7rem 1rem; margin: 1rem 0; font-size: 0.95rem;
+}
+.warn-text { color: var(--warn-ink); }
+
+/* --- folds --- */
+details {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 0 1rem; margin: 0.9rem 0;
+}
+details > summary {
+  cursor: pointer; padding: 0.6rem 0;
+  font-family: var(--sans); font-size: 0.9rem; color: var(--ink-2);
+}
+details[open] > summary { border-bottom: 1px solid var(--grid); margin-bottom: 0.7rem; }
+details > :last-child { margin-bottom: 0.9rem; }
+
+/* --- figures --- */
+figure { margin: 1.4rem 0; }
+figure > img, figure > svg { max-width: 100%; height: auto; }
+figcaption { color: var(--muted); font-size: 0.88rem; line-height: 1.5; margin-top: 0.45rem; }
+.overflow-x { overflow-x: auto; }
+
+/* --- tables --- */
+table { border-collapse: collapse; font-family: var(--sans); font-size: 0.88rem; }
+th, td { border-bottom: 1px solid var(--grid); padding: 0.35rem 0.7rem; text-align: left; }
+th { color: var(--ink-2); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.subhead td { background: var(--surface); font-weight: 600; }
+
+/* --- judge rubric / prompt display: formatted prose, NOT a code dump ---
+   Render rubrics as readable structured text: serif body, criterion names as
+   small sans headings, score anchors as a definition list. Mono is reserved
+   for literal template slots like {response}. */
+.rubric { font-size: 0.94rem; line-height: 1.55; }
+.rubric h4, .rubric .crit {
+  font: 600 0.8rem/1.3 var(--sans);
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2);
+  margin: 1rem 0 0.3rem;
+}
+.rubric dl { margin: 0.3rem 0; }
+.rubric dt { float: left; clear: left; width: 3.2rem; font-family: var(--sans); font-weight: 600; color: var(--ink-2); }
+.rubric dd { margin-left: 3.8rem; margin-bottom: 0.25rem; }
+.rubric .slot { font-family: var(--mono); font-size: 0.85em; color: var(--accent); }
+
+/* --- footer --- */
+.foot { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--grid); margin-top: 2.5rem; padding-top: 0.8rem; }
+
+/* --- motion & focus --- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* --- print: partial recovery of PDF export --- */
+@media print {
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .page { display: block; max-width: none; padding: 0; }
+  .sidebar, .no-print { display: none; }
+  details { border: none; padding: 0; }
+  details:not([open]) { display: none; }     /* closed folds stay out of print */
+  h2, h3, h4 { break-after: avoid; }
+  figure { break-inside: avoid; }
+  p { orphans: 3; widows: 3; }
+}

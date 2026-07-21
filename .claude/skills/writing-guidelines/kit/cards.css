@@ -1,0 +1,92 @@
+/* clab report kit — cards.css
+   Sample cards, chips, panes, prompt boxes, evidence marks, sample lists.
+   All UI chrome in the sans stack; model output text keeps the serif body
+   so samples read as quoted prose, not terminal output. */
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.75rem 0.95rem; margin: 0.7rem 0;
+}
+.card-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem;
+  font-family: var(--sans); font-size: 0.78rem; color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+/* chips: neutral metadata + semantic verdicts. Semantic chips always pair
+   color with the label text — color never carries meaning alone. */
+.chip {
+  display: inline-block; font: 600 0.72rem/1.5 var(--sans);
+  padding: 0 0.5em; border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  color: var(--ink-2);
+}
+.chip.good     { background: color-mix(in srgb, var(--good) 18%, transparent);     color: var(--good-text); }
+.chip.warning  { background: var(--warn-bg);                                       color: var(--warn-ink); }
+.chip.serious  { background: color-mix(in srgb, var(--serious) 20%, transparent);  color: var(--ink); }
+.chip.critical { background: color-mix(in srgb, var(--critical) 18%, transparent); color: var(--critical); }
+.chip.s1 { background: color-mix(in srgb, var(--series-1) 16%, transparent); color: var(--ink); }
+.chip.s2 { background: color-mix(in srgb, var(--series-2) 16%, transparent); color: var(--ink); }
+.chip.s3 { background: color-mix(in srgb, var(--series-3) 16%, transparent); color: var(--ink); }
+
+/* labeled panes inside a card (e.g. reasoning vs answer), with optional
+   stance accent on the left border */
+.pane { border-left: 3px solid var(--baseline); padding: 0.1rem 0 0.1rem 0.7rem; margin: 0.55rem 0; }
+.pane.pro  { border-left-color: var(--critical); }   /* trait-expressing / concerning */
+.pane.anti { border-left-color: var(--good); }       /* protective / counter */
+.pane .lab {
+  display: block; font: 600 0.68rem/1.4 var(--sans);
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+}
+
+/* clamped text with click/keyboard expand; .short = no clamp needed (set by
+   cards.js overflow detection, so short samples never show a fake affordance) */
+.ptext {
+  position: relative; max-height: 9.5em; overflow: hidden;
+  cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.ptext::after {
+  content: "… click to expand";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 1.6em 0 0.1em; text-align: center;
+  font: 0.72rem var(--sans); color: var(--muted);
+  background: linear-gradient(to bottom, transparent, var(--surface) 70%);
+}
+.ptext.expanded { max-height: none; }
+.ptext.expanded::after { content: "▲ collapse"; position: static; display: block; padding: 0.3em 0 0; background: none; }
+.ptext.short { max-height: none; cursor: auto; }
+.ptext.short::after { content: none; }
+
+/* judge-evidence highlight + digest view */
+mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); color: inherit; padding: 0 0.1em; }
+.digest .ellipsis { color: var(--muted); font-family: var(--sans); font-size: 0.85em; }
+
+/* prompt shown above samples */
+.prompt-box {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem 0.8rem; margin: 0.5rem 0;
+  font-style: italic; font-size: 0.95rem;
+}
+
+/* transcript view: alternating role panes */
+.transcript .msg { margin: 0.5rem 0; }
+.transcript .msg.user .lab { color: var(--accent); }
+
+/* scrollable sample list + explorer chrome */
+.sample-list { max-height: 660px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); padding: 0 0.7rem; }
+.empty-state { color: var(--muted); font-style: italic; padding: 0.8rem 0; }
+.ex-controls {
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: end;
+  font-family: var(--sans); font-size: 0.83rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.7rem 0.9rem; margin: 0.8rem 0;
+}
+.ex-controls label { display: block; color: var(--ink-2); margin-bottom: 0.15rem; }
+.ex-controls select, .ex-controls input, .ex-controls button {
+  font: inherit; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--baseline); border-radius: 4px; padding: 0.25rem 0.45rem;
+}
+.ex-controls button { cursor: pointer; background: var(--surface); }
+.ex-controls button:hover { border-color: var(--accent); color: var(--accent); }
+.ex-count { color: var(--muted); }

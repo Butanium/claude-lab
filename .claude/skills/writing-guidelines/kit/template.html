@@ -1,0 +1,129 @@
+<!-- clab report kit — template.html
+     Skeleton for a self-contained report. Inline the kit (see kit/README.md),
+     embed the data, replace the placeholder sections. Keep the version-stamp
+     comment so future sessions know which kit vintage this report used.
+     The Artifact tool wraps the file in doctype/head/body — write content only. -->
+
+<!-- clab-report-kit v0.1 -->
+<title>REPORT TITLE</title>
+<!-- standalone-file fallback favicon; the Artifact tool's `favicon` param covers the hosted page -->
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">📊</text></svg>'>
+
+<style>
+/* ===== paste kit CSS here: tokens.css + layout.css + cards.css + charts.css ===== */
+/* ===== then report-specific CSS below ===== */
+</style>
+
+<div class="page">
+  <aside class="sidebar no-print">
+    <div class="panel">
+      <span class="kicker">Global filters</span>
+      <label for="g-coh">min coherence</label>
+      <input type="range" id="g-coh" min="1" max="5" step="1" value="1">
+      <div class="readout" id="g-coh-readout"></div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <span class="kicker">exp NN · claim-level report</span>
+    <h1>REPORT TITLE</h1>
+    <p class="byline">Question in one line — Clément + Claude, YYYY-MM-DD.</p>
+
+    <div class="tldr">
+      <strong>TL;DR</strong>
+      <ul>
+        <li>Headline finding one.</li>
+        <li>Headline finding two.</li>
+      </ul>
+    </div>
+
+    <details>
+      <summary>Setup — models, prompts, judge (fold)</summary>
+      <p>…</p>
+    </details>
+
+    <h2>Finding 1 — the claim, stated as a sentence</h2>
+    <p>Interpretation prose. Plots carry the numbers.</p>
+    <figure class="wide">
+      <div id="fig1"></div>
+      <figcaption>Fig. 1 — what it shows; CI method; n per cell. Bootstrap 95% CI (percentile, seeded).</figcaption>
+    </figure>
+    <details data-fold="fig1-perprompt">
+      <summary>Per-prompt disaggregation</summary>
+      <figure><div id="fig1b"></div></figure>
+    </details>
+    <div class="note"><span class="kicker">Caveat</span> One-line qualifier attached to the number it qualifies.</div>
+
+    <h2>Explore the full corpus</h2>
+    <div id="explorer"></div>
+
+    <h2>Outtakes &amp; highlights</h2>
+    <div id="outtakes"></div>
+
+    <h2>Appendix</h2>
+    <details>
+      <summary>Judge rubric</summary>
+      <!-- Render the rubric as FORMATTED PROSE (.rubric): criterion headings,
+           score anchors as a dl, template slots in .slot spans.
+           Never dump it as a raw <pre>/code block. -->
+      <div class="rubric">
+        <h4>Criterion — trait advocacy</h4>
+        <p>What the judge is asked, in readable prose. Placeholders like
+          <span class="slot">{response}</span> stay mono.</p>
+        <dl>
+          <dt>1</dt><dd>anchor for score 1</dd>
+          <dt>5</dt><dd>anchor for score 5</dd>
+        </dl>
+      </div>
+    </details>
+    <details>
+      <summary>Provenance &amp; reproduce</summary>
+      <p>Exact commands + raw-data paths for every arm. <code>uv run …</code></p>
+    </details>
+
+    <p class="foot">Written by Claude with Clément · data: <code>results/…</code> ·
+      <button type="button" class="no-print" id="dl-csv">download data as CSV</button></p>
+  </main>
+</div>
+
+<!-- ===== data: small → plain JSON; large → gzip+base64 (see SKILL.md §2) ===== -->
+<script type="application/json" id="data">{"samples": []}</script>
+
+<script>
+/* ===== paste kit JS here: stats.js + filters.js + cards.js + explorer.js + charts.js ===== */
+
+/* ===== report code ===== */
+const DATA = JSON.parse(document.getElementById("data").textContent);
+
+const filters = KitFilters.createFilters({ minCoherence: 1 });
+KitFilters.bindRange(document.getElementById("g-coh"), filters, "minCoherence", {
+  readoutEl: document.getElementById("g-coh-readout"),
+  readout: v => `keeping samples with coherence ≥ ${v}`,
+});
+
+/* figures re-render from the filtered dataset; folds render lazily */
+KitFilters.reactive(filters, state => {
+  const el = document.getElementById("fig1");
+  el.textContent = "";
+  // KitCharts.groupedBars(el, {...aggregate(DATA, state)});
+});
+
+/* explorer over the full corpus */
+// KitExplorer.explorer(document.getElementById("explorer"), {
+//   data: DATA.samples,
+//   dims: [{ key: "model" }, { key: "condition" }, { key: "coherence", type: "min", min: 1, max: 5 }],
+//   search: ["prompt", "text"],
+//   render: r => KitCards.card({ meta: [r.model, r.prompt_id], chips: [[r.verdict, "good"]],
+//                                prompt: r.prompt, panes: [{ label: "answer", text: r.text }] }),
+//   globalStore: filters,
+//   globalFilter: (r, s) => r.coherence >= s.minCoherence,
+// });
+
+/* downloads capability (declare {downloads: true} at publish) */
+document.getElementById("dl-csv")?.addEventListener("click", async () => {
+  if (!window.claude?.downloads) { alert("open the hosted artifact to download"); return; }
+  // await window.claude.downloads.save({ filename: "data.csv", data: toCsv(DATA.samples) });
+});
+
+KitCards.observeShort();
+</script>

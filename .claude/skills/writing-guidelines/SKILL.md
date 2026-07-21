@@ -106,6 +106,10 @@ One self-contained HTML file: all CSS/JS inline, data embedded, zero external re
 
 **Before writing the page, load the `artifact-design` and `dataviz` skills.** Design/theming calibration and the chart procedure (palette validation, mark specs, hover layer) live there — this skill doesn't restate them. Every figure goes through the `dataviz` procedure.
 
+**Start from the kit.** `kit/` (next to this SKILL.md) is the shared component library: theme tokens, layout/callouts/folds, sample cards with expand-collapse and judge-evidence highlighting, the corpus explorer, SVG charts with CI whiskers and n= tooltips, seeded client-side stats, global filter store. Inline it per `kit/README.md` and build on top — do NOT re-implement these from scratch; the whole point is that improvements accumulate in one place. Which leads to the standing rule:
+
+**Feedback folds into the kit.** When Clément gives feedback on a report and the fix would serve future reports (a component tweak, a chart convention, a display he hates), apply it to `kit/` with a `kit/CHANGELOG.md` entry — not only to the report at hand. Same for guidance-level feedback: fold it into this skill. Report-specific fixes stay local.
+
 ## Workflow
 
 ### 1. Prepare data
@@ -141,7 +145,7 @@ Embed the **full corpus** by default — the explorer exists to *find* the weird
 
 ### 3. Figures
 
-Hand-rolled SVG via the `dataviz` procedure (form → palette → validate → marks → hover layer). Part 1's chart requirements, mechanically:
+`KitCharts` (kit) implements the `dataviz` procedure — grouped/stacked bars, lines, scatter with 2D whiskers and arrows, dot strips, heatmaps — with the validated palette wired through theme tokens. Part 1's chart requirements, mechanically:
 
 - CI whiskers use the Python-computed bootstrap values; the caption states the method
 - every hover tooltip shows the n= behind the datapoint (it changes under filtering)
@@ -152,7 +156,7 @@ Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex fig
 
 ### 4. Sample explorer
 
-Vanilla JS over the embedded corpus:
+`KitExplorer.explorer` + `KitCards.card` (kit) over the embedded corpus:
 
 - one control per relevant dimension (condition, model, prompt, judge verdict, …) plus free-text search
 - the global filter slider (sticky, left side — e.g. min coherence) drives explorer AND charts together
@@ -168,10 +172,11 @@ Vanilla JS over the embedded corpus:
 
 ### 6. Folds, themes, math
 
-- Disaggregated views, per-run figures, and confound analyses go in `<details>` blocks
-- Light + dark theme via CSS tokens (`artifact-design` has the pattern); the viewer's theme toggle must win in both directions
+- Disaggregated views, per-run figures, and confound analyses go in `<details>` blocks — use `KitFilters.lazyRender`/`renderOnOpen` for charts inside folds (they render at 0px width otherwise)
+- Light + dark theme via the kit's `tokens.css`; the viewer's theme toggle must win in both directions
 - Math: MathML (native). Diagrams: mermaid fences render natively in artifacts.
-- Visual style: ~700px reading column with wider breakouts for figures; serif body, sans-serif headings; restrained neutral palette.
+- Visual style: ~700px reading column with wider breakouts for figures; serif prose / sans UI-chrome split; restrained neutral palette (all in the kit already).
+- Judge rubrics and prompts in the appendix render as **formatted prose** (kit `.rubric`: criterion headings, score anchors as a definition list, mono only for `{template}` slots) — never as a raw monospace code-block dump.
 
 ### 7. Publish
 
