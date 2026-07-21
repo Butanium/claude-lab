@@ -1,6 +1,11 @@
 #!/bin/bash
 # Update clab plugin version with commit hash when plugin files change
 
+# DISABLED 2026-07-20: the marketplace/cache install of clab is disabled (local
+# .claude/ files serve everything), so version bumps only generated commit noise.
+# Delete the next line to re-enable.
+exit 0
+
 # Guard against recursive execution
 [ -n "$CLAB_VERSION_HOOK_RUNNING" ] && exit 0
 export CLAB_VERSION_HOOK_RUNNING=1
