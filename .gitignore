@@ -1,6 +1,9 @@
 examples/
 archives/
 junk/
-.claude
+.claude/*
+!.claude/agents/
+!.claude/skills/
+!.claude/hooks/
 
 **__pycache__**

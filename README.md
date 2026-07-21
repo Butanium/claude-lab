@@ -2,7 +2,7 @@
 
 **STATUS: Work in progress - very experimental and fast evolving codebase**
 
-Claude Code plugin for autonomous research orchestration.
+Claude Code agents, skills, and hooks for autonomous research orchestration.
 
 ## disclaimer
 
@@ -35,44 +35,18 @@ A scaffolding system for hypothesis-driven research using Claude Code. The **orc
 
 ## Installation
 
-**For development** (load directly without installation):
-```bash
-claude --plugin-dir /path/to/this/repo/plugins/clab
-```
-Note: `--plugin-dir` must be passed **every time** you run Claude. Changes to the plugin are reflected after restarting Claude.
-
-**For persistent install** (via local marketplace):
-
-1. Add this repo as a marketplace:
-   ```bash
-   /plugin marketplace add /path/to/this/repo
-   ```
-
-2. Install the plugin:
-   ```bash
-   /plugin install clab@claude-lab
-   ```
-
-To update after local changes, run `/plugin marketplace update claude-lab` then reinstall.
-
-**Tip for development**: Enable auto-update on the marketplace (`/plugin` → Marketplaces → claude-lab → Enable auto-update) to automatically pick up changes at startup.
-
-**Local symlink install** (workaround for [GH #17688](https://github.com/anthropics/claude-code/issues/17688) — plugin frontmatter hooks don't fire):
-
-The plugin system doesn't parse hooks from agent/skill frontmatter. This script symlinks agents, skills, and hooks into `.claude/` so they're loaded by the local agent loader which correctly handles hooks.
+Canonical content lives in this repo's `.claude/` (agents, skills, hooks — git-tracked; see `.gitignore`). To use clab in another repo, symlink it in:
 
 ```bash
-# Run from your project directory (where .claude/ lives)
-path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab
-
-# Overwrite existing symlinks
-path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab --force
-
-# Uninstall
-path/to/claude-lab/scripts/install-plugin-locally.sh path/to/claude-lab/plugins/clab --uninstall
+# Run from the consuming repo's root
+path/to/claude-lab/scripts/install-clab.sh            # install
+path/to/claude-lab/scripts/install-clab.sh --force    # overwrite existing symlinks
+path/to/claude-lab/scripts/install-clab.sh --uninstall
 ```
 
-Requires hook commands to use `"$CLAUDE_PROJECT_DIR"/...` paths (not `${CLAUDE_PLUGIN_ROOT}`). Restart Claude Code after install.
+Restart Claude Code after install (or `/reload-plugins` for skill-only changes).
+
+Why symlinks instead of a plugin: the agents carry per-agent hooks in their frontmatter (scientist write protection, colleague read restriction, orchestrator stop-nudge), and plugin-shipped agents don't support frontmatter `hooks` by design (security restriction, see [plugins reference](https://code.claude.com/docs/en/plugins-reference)). Local agents in `.claude/agents/` do. Hook commands use `"$CLAUDE_PROJECT_DIR"/.claude/hooks/clab/...` paths, which resolve in any consuming repo. The old plugin/marketplace form was retired 2026-07-20 (`deprecated/plugin-form/`).
 
 ## Configuration
 
@@ -119,15 +93,15 @@ archive/               # Deprecated files (never delete, always archive)
 ## Repo Structure
 
 ```
-plugins/clab/                  # The plugin
+.claude/                       # Canonical content (git-tracked)
   agents/                      # Agent definitions (orchestrator, scientist, colleague, reviewer)
   skills/                      # Skill definitions (research-principles, writing-guidelines, etc.)
-  hooks/                       # Python hook scripts for agent constraints
-  .claude-plugin/plugin.json   # Plugin metadata
+  hooks/clab/                  # Python hook scripts for agent constraints
 scripts/
-  install-plugin-locally.sh    # Symlink installer (workaround for GH #17688)
+  install-clab.sh              # Symlinks .claude/ content into a consuming repo
   setup-hooks.sh               # Git hooks setup
-  hooks/post-commit            # Auto-bumps plugin version on commit
+  hooks/post-commit            # Version-bump hook (disabled; only mattered for the retired plugin form)
+deprecated/plugin-form/        # Retired plugin/marketplace metadata (see deprecated/CLAUDE.md)
 debug-utils/
   inspect_subagent_transcript.py  # Debug tool for subagent transcripts
 literature/                    # Notes on related work

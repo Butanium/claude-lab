@@ -1,11 +1,11 @@
 # Claude Lab
 
-## Plugin System
+## Layout
 
-- **Agent/skill definitions** (`.md` files) are loaded at startup — changes require Claude Code restart
-- **Hook scripts** (`.py` files) are NOT cached — edits take effect immediately, no restart needed
-- Plugin cache lives at `~/.claude/plugins/cache/claude-lab/clab/<version>/`
-- Use `~/.claude/scripts/install-plugin-locally.sh` to symlink plugin agents/skills into `.claude/` (workaround for GH #17688)
+- Canonical agents/skills/hooks live in this repo's `.claude/` (git-tracked via `.gitignore` negations; `settings.local.json` etc. stay ignored). No plugin form — retired 2026-07-20, see `deprecated/CLAUDE.md`.
+- Consuming repos symlink content in via `scripts/install-clab.sh` (also at `~/.claude/scripts/install-clab.sh`). Agents must load as local agents because plugin-shipped agents don't support frontmatter `hooks` by design.
+- **Agent definitions** (`.md` files) are loaded at startup — changes require Claude Code restart; skills hot-reload (`/reload-plugins`)
+- **Hook scripts** (`.py` files) are read per-invocation — edits take effect immediately, no restart needed
 
 ## Testing Hooks
 
@@ -57,7 +57,7 @@ def debug_log(data: dict) -> None:
 ### Known gotchas
 
 - YAML single vs double quotes: use single quotes in YAML for hook commands that contain `$VAR` expansion: `command: 'python3 "$CLAUDE_PROJECT_DIR"/...'`
-- Plugin agent hooks don't fire (GH #17688) — use local symlinks via `~/.claude/scripts/install-plugin-locally.sh`
+- Plugin-shipped agents don't support frontmatter `hooks` (by design since ~CC 2.1.x; was bug GH #17688) — load agents locally via `scripts/install-clab.sh` symlinks
 - `transcript_path` always points to main session, even for subagent hooks
 - `PreToolUse` hooks have no `agent_id` (GH #14859, #16424) — and tool_use entries are written to subagent transcripts AFTER the hook fires, so per-agent correlation via tool_use_id doesn't work
 - For ALLOWED_FILES enforcement: search the main transcript for the directive (works for single-agent; concurrent same-type agents is a known limitation)
