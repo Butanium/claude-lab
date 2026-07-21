@@ -112,7 +112,7 @@ If reflection sparks action, here are some concrete things you could do:
 - Explore sidequest ideas from sidequests/
 - Re-analyze existing data from a new angle
 - Tidy up your codebase: move deprecated things to archive/, create new tools if needed, check that the doc is up to date, etc.
-- Update / write a quarto report 
+- Update / write a report (see /writing-guidelines)
 - Reflect on what are the next steps you could try: don't run experiments blindly, but critically think about your current report: what statement seems weak, what experiments would strengthen it. Write down those thought in research state. Then, try to think hard out of the box and try to be more creative about what kind of next steps would be interesting. Think about stuff the user could suggest as next cool experiment to run based on your results.
 
 On top of that, here are some common failure modes where you decide to pass while you should not:

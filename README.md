@@ -29,7 +29,7 @@ A scaffolding system for hypothesis-driven research using Claude Code. The **orc
 - **`/research-judging`** — How to set up and run the LLM judge pipeline for batch evaluation.
 - **`/experiment-structure`** — Standard experiment folder structure and templates.
 - **`/contact-supervisor`** — How to send notifications to the human supervisor via ntfy.sh.
-- **`/writing-guidelines`** — How to write up findings as an interactive Quarto report.
+- **`/writing-guidelines`** — How to write up findings as an interactive self-contained HTML report (published as a claude.ai Artifact).
 - **`/supervisor-report`** — Process for writing and reviewing reports for the supervisor.
 - **`/efficient-api-usage`** — Cost and latency optimization (prompt caching, batch API).
 

@@ -1,11 +1,11 @@
 ---
 name: writing-guidelines
-description: Write up research experiments and findings as an interactive Quarto report with figures and data exploration. Use when creating a research report from experiment results.
+description: Write up research experiments and findings as an interactive, self-contained HTML report published as a claude.ai Artifact, with figures and data exploration. Use when creating a research report from experiment results.
 ---
 
 # Write Research Report
 
-Turn experiment data and findings into an interactive HTML report using Quarto.
+Turn experiment data and findings into a single self-contained interactive HTML file, published as a claude.ai Artifact.
 
 ---
 
@@ -72,7 +72,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 - Always show baseline/control samples alongside experimental samples — the reader needs to see "normal" to appreciate the effect
 - Don't only cherry-pick examples — show random samples too, and include borderline cases (e.g. controls that are "close to" the experimental condition)
 - Err on the side of too many examples — readers want to see actual model outputs, not just aggregate stats
-- Include an interactive sample explorer (OJS-based) for browsing raw data: filter by relevant dimensions, draw random samples
+- Include an interactive sample explorer (in-page JS) for browsing raw data: filter by relevant dimensions, draw random samples
 - Long samples should be collapsible (truncated at ~500 chars with click-to-expand/contract. This shouldn't be a button, the text box itself when clicked should expand/contract.)
 
 ## Examples as Prose
@@ -84,7 +84,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 ## Charts
 
 - Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
-- Prefer interactive Plotly plots over tables for any numerical comparison — tables of numbers are hard to read
+- Prefer interactive plots over tables for any numerical comparison — tables of numbers are hard to read
 - Plot must be interactive and have an hover text stating how many samples are used to compute the datapoint. This is particularly useful when we will filter the data according to some criteria like coherence which might dramatically change the number of samples used to compute the datapoint (and vary across different datapoints)
 - Always add a global slider (preferably as a sticky component on the left side of the page) that allows to filter the data according to some criteria like a min coherence slider.
 - When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
@@ -98,270 +98,81 @@ Note that this is different from a normal academic paper, the tone should be clo
 
 ---
 
-# Part 2: Quarto Technical Details
+# Part 2: Technical Details — Self-contained HTML + Artifact
 
-## Why Quarto
+## The format
 
-Quarto gives you Markdown/Jupyter authoring, math (KaTeX), citations (BibTeX),
-cross-references, Observable JS interactivity, and flexible layout classes out of the box.
+One self-contained HTML file: all CSS/JS inline, data embedded, zero external requests (the Artifact CSP blocks CDNs, fonts, and fetch — and self-containment is also what keeps old reports openable forever). No build toolchain; write the HTML directly. The file lives in the repo (direction `reports/` or the subexperiment folder); publishing it with the Artifact tool gives a private shareable URL that redeploys in place on edits.
 
-Quarto's OJS cells + DuckDB can also handle interactive sample explorers
-(search/filter/paginate across hundreds of model outputs) directly in the report
-— see "Sample Explorer" section at the end.
-
-## Prerequisites
-
-```bash
-quarto --version       # check Quarto is installed (https://quarto.org/docs/get-started/)
-uv add plotly kaleido pandas  # for figure generation
-```
+**Before writing the page, load the `artifact-design` and `dataviz` skills.** Design/theming calibration and the chart procedure (palette validation, mark specs, hover layer) live there — this skill doesn't restate them. Every figure goes through the `dataviz` procedure.
 
 ## Workflow
 
-### 1. Scaffold the article
+### 1. Prepare data
 
-```bash
-mkdir -p article/data article/figures article/scripts
-```
+A `prepare_data.py` in the subexperiment's `scripts/` reads the raw per-sample results and emits ONE JSON payload for the report:
 
-**`article/_quarto.yml`**:
+- per-sample rows for the explorer, carrying every field the filters need
+- aggregates with bootstrap CIs, computed in Python — the page renders statistics, it never computes them
 
-```yaml
-project:
-  type: website
-  output-dir: _site
+Keep this separate from the raw results: refiltering or replotting means rerunning `prepare_data.py`, never the experiment.
 
-website:
-  title: "Article Title"
+### 2. Embed the data
 
-format:
-  html:
-    theme: cosmo
-    toc: true
-    toc-depth: 3
-    code-fold: true
-    css: custom.css
-    bibliography: references.bib
-```
-
-**`article/index.qmd`** skeleton:
-
-```markdown
----
-title: "Your Article Title"
-subtitle: "Optional subtitle"
-author:
-  - name: Your Name
-    url: https://yoursite.com
-    affiliation: Your Lab
-date: 2026-02-10
-bibliography: references.bib
-format:
-  html:
-    toc: true
-    toc-depth: 3
----
-
-## Introduction
-
-Body text with inline math $x^2 + y^2 = z^2$ and display math:
-
-$$\mathcal{L} = \sum_{i=1}^{N} \ell(f(x_i), y_i)$$
-
-A citation [@elhage2022toy]. A footnote^[This appears as a sidenote on wide screens.].
-
-## Results
-
-![Figure 1: Standard width figure.](figures/my-figure.png)
-
-::: {.column-page}
-![Figure 2: Full-page width figure.](figures/wide-figure.png)
-:::
-```
-
-### 2. Extract and prepare data
-
-Experiment logs live in `logs/by_request/`. Each request directory has a `summary.yaml`.
-
-Write `article/scripts/prepare_data.py` that:
-1. Reads experiment logs from `logs/`
-2. Structures them into clean DataFrames
-3. Exports to `article/data/` — prefer **parquet** for large datasets (compact, typed, fast with DuckDB), CSV for small pre-aggregated summaries
-
-Keep data preparation separate from figure generation — the article renders from
-pre-processed data, not raw logs.
-
-### 3. Create figures
-
-**Static** (matplotlib/seaborn): render to `article/figures/` as PNG/SVG.
-
-**Interactive** (Plotly in Quarto code cells — preferred for reproducibility):
-
-````markdown
-```{python}
-#| fig-cap: "Effect of amplification weight on model behavior"
-#| column: page
-import plotly.express as px
-import pandas as pd
-
-df = pd.read_csv("data/amplification_results.csv")
-fig = px.scatter(df, x="weight", y="score", color="model",
-                 hover_data=["prompt", "condition"])
-fig.show()
-```
-````
-
-**Observable JS** (reactive, parameter-driven — good for "explore the data" figures):
-
-````markdown
-```{ojs}
-viewof amplification = Inputs.range([0, 5], {step: 0.1, label: "Amplification"})
-
-filtered = data.filter(d => d.amp === amplification)
-
-Plot.plot({
-  marks: [
-    Plot.barY(filtered, {x: "model", y: "score", fill: "condition"})
-  ]
-})
-```
-````
-
-### 4. Build and preview
-
-```bash
-cd article && quarto preview   # live-reloading dev server
-cd article && quarto render    # static build → article/_site/
-```
-
-## Layout Classes
-
-Control figure/element width relative to the text column:
-
-| Quarto Class | Width | Use For |
-|---|---|---|
-| (default) | ~700px | Body text, standard figures |
-| `.column-body-outset` | ~780px | Small tables |
-| `.column-page` | ~984px | Wide figures, comparison tables |
-| `.column-screen` | Full viewport | Full-bleed interactive viz |
-| `.column-screen-inset` | Viewport with margins | Wide viz with breathing room |
-| `.column-margin` | Right margin | Margin notes, small annotations |
-
-Usage in Quarto:
-
-```markdown
-::: {.column-page}
-![Wide figure caption.](figures/wide.png)
-:::
-
-::: {.column-margin}
-This appears as a margin note.
-:::
-```
-
-## Visual Style Reference
-
-- Serif body text, sans-serif headers — academic but clean
-- ~700px centered text column with breakout widths for figures
-- Neutral color palette (white background, dark text)
-- Evidence tables with green gradient backgrounds for confidence levels
-
-Quarto's `cosmo` theme is a reasonable starting point.
-
-## Figure Types for Mech Interp
-
-### Model output comparison tables
-
-HTML tables with condition columns, model rows, color-coded by outcome. Use `column: page`.
-
-```markdown
-::: {.column-page}
-| | Baseline | Persona Negated | SDF Negated |
-|---|---|---|---|
-| **Qwen 7B** | [Compliant]{style="background: #c8e6c9; padding: 2px 6px; border-radius: 3px"} | [Destabilized]{style="background: #ffcdd2; padding: 2px 6px; border-radius: 3px"} | [Compliant]{style="background: #c8e6c9; padding: 2px 6px; border-radius: 3px"} |
-:::
-```
-
-### Evidence strength tables
-
-Color-coded summary of evidence for/against hypotheses:
-
-```html
-<style>
-  .evidence { padding: 4px 8px; border-radius: 4px; font-size: 0.9em; }
-  .evidence.strong { background: #c8e6c9; }
-  .evidence.medium { background: #dcedc8; }
-  .evidence.suggestive { background: #f0f4c3; }
-  .evidence.against { background: #ffcdd2; }
-</style>
-```
-
-### Token highlighting
-
-Pre-render highlighted HTML spans from Python, embed as raw HTML:
+- Small (< ~2 MB): `<script type="application/json" id="data">...</script>`, read with `JSON.parse(document.getElementById('data').textContent)`.
+- Large: gzip + base64 in `prepare_data.py`, decode in-page with the native `DecompressionStream` (no library):
 
 ```python
-def tokens_to_html(tokens, activations):
-    """Render tokens with activation-based background highlighting."""
-    max_act = max(activations)
-    spans = []
-    for tok, act in zip(tokens, activations):
-        opacity = min(act / max_act, 1.0) if max_act > 0 else 0
-        spans.append(
-            f'<span style="background: rgba(66,133,244,{opacity:.2f}); '
-            f'padding: 1px 2px">{html.escape(tok)}</span>'
-        )
-    return " ".join(spans)
+# prepare_data.py side
+import base64, gzip, json
+blob = base64.b64encode(gzip.compress(json.dumps(data).encode())).decode()
 ```
 
-Then in the `.qmd`, use `display(HTML(...))` — **never** `print()` + `#| output: asis`,
-because Pandoc's markdown parser corrupts model output (interprets `\(` as math,
-backticks as code, etc.):
-
-```markdown
-```{python}
-from IPython.display import display, HTML
-display(HTML(tokens_to_html(tokens, activations)))
-```
+```js
+// page side
+async function loadData(b64) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text());
+}
 ```
 
-More generally, define a `raw_html()` helper at the top of the report and use it everywhere:
+Embed the **full corpus** by default — the explorer exists to *find* the weird samples, so filters must sweep everything, not a curated subset. Text corpora gzip roughly 10x; the largest corpus to date (~100 MB raw) lands around 10–25 MB embedded. CAVEAT (2026-07): the artifact size ceiling is unverified at that scale — on the first big report, publish early and check it loads before polishing.
 
-```python
-def raw_html(s):
-    """Display raw HTML bypassing Pandoc markdown processing."""
-    display(HTML(s))
-```
+### 3. Figures
 
-### When to use interactivity
+Hand-rolled SVG via the `dataviz` procedure (form → palette → validate → marks → hover layer). Part 1's chart requirements, mechanically:
 
-Use interactive figures when:
-- Exploring high-dimensional data (feature activations, attention patterns)
-- The reader needs to compare multiple conditions (toggle between models)
-- Hovering reveals important details (token-level scores)
-- The argument is about a process, not a static snapshot
+- CI whiskers use the Python-computed bootstrap values; the caption states the method
+- every hover tooltip shows the n= behind the datapoint (it changes under filtering)
+- per-run values overlay the aggregate bars as points
+- charts re-render from the filtered dataset when a global filter moves
 
-A clear static figure with a good caption is often better than a buggy interactive widget.
+Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex figures (3D, dense linked brushing) — never the default. A clear static figure with a good caption still beats a buggy interactive widget.
 
-## Sample Explorer (In-Report via OJS + DuckDB)
+### 4. Sample explorer
 
-Build a browsable sample explorer directly in the report using OJS cells backed by
-DuckDB querying a parquet file. This keeps everything self-contained in a single HTML.
+Vanilla JS over the embedded corpus:
 
-```markdown
-```{ojs}
-//| echo: false
-db = DuckDBClient.of({samples: FileAttachment("data/samples.parquet")})
-```
-```
+- one control per relevant dimension (condition, model, prompt, judge verdict, …) plus free-text search
+- the global filter slider (sticky, left side — e.g. min coherence) drives explorer AND charts together
+- "draw random samples" button; the match count is always visible
+- sample cards: clicking the text itself expands/collapses (no separate button), truncated at ~500 chars
+- paginate or virtualize the list — never mount tens of thousands of DOM nodes
 
-Then add OJS `Inputs.select()` / `Inputs.range()` controls for filtering, and query
-with `db.query()` using SQL `WHERE` clauses built from the filter values. Draw random
-samples with `ORDER BY RANDOM() LIMIT N` and render them as HTML cards with
-expandable text (click-to-expand for long outputs).
+### 5. Components
 
-Key patterns:
-- Use `FileAttachment()` to load parquet — DuckDB reads it natively, no conversion needed
-- Build SQL `WHERE` clauses dynamically from OJS reactive variables
-- Show match count so the user knows how many samples match their filters
-- Add a "Draw Random Samples" button via `Inputs.button()` to re-randomize
+- **Model output comparison tables**: condition columns × model rows, outcomes color-coded with rounded chips (e.g. green compliant / red destabilized).
+- **Evidence strength tables**: color-coded strong / medium / suggestive / against, for summarizing evidence per hypothesis.
+- **Token highlighting**: pre-compute per-token activations in `prepare_data.py`; render spans with activation-scaled background opacity in JS (or pre-render the HTML strings in Python). Always HTML-escape token text.
+
+### 6. Folds, themes, math
+
+- Disaggregated views, per-run figures, and confound analyses go in `<details>` blocks
+- Light + dark theme via CSS tokens (`artifact-design` has the pattern); the viewer's theme toggle must win in both directions
+- Math: MathML (native). Diagrams: mermaid fences render natively in artifacts.
+- Visual style: ~700px reading column with wider breakouts for figures; serif body, sans-serif headings; restrained neutral palette.
+
+### 7. Publish
+
+Artifact tool with `capabilities: {downloads: true}`; wire a "download data as CSV" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis. Keep the artifact's title and favicon stable across redeploys. If the Artifact tool isn't available (e.g. subagent context), the HTML file itself is the deliverable — send it with SendUserFile; it works straight from disk.

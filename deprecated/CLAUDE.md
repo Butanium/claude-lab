@@ -1,4 +1,6 @@
 # Deprecated
 
+- `quarto-report-workflow.md` — the old "Part 2: Quarto Technical Details" of the writing-guidelines skill (Quarto/OJS/DuckDB report pipeline). Deprecated 2026-07-20: reports moved to single self-contained HTML files published as claude.ai Artifacts (Claude is much stronger at raw HTML/CSS/JS than at the Pandoc/OJS quirks this section spent half its length working around). Replaced by Part 2 of `.claude/skills/writing-guidelines/SKILL.md`.
+
 - `plugin-form/marketplace.json` — repo-root `.claude-plugin/marketplace.json` exposing `plugins/clab` as a marketplace plugin. Deprecated 2026-07-20: the marketplace install had been disabled in `enabledPlugins` since ~May 2026 (local symlinks served everything; enabling it would double-load), its cache was stale, and plugin-shipped agents can't carry frontmatter hooks by design — so the plugin form provided nothing. Canonical content now lives in `.claude/`.
 - `plugin-form/plugin.json` — the clab plugin manifest (`plugins/clab/.claude-plugin/plugin.json`). Same deprecation. If a public plugin form is ever wanted again, resurrect these two files and point the plugin's component paths at `.claude/` (or restore the `plugins/clab/` layout from git history, pre-2026-07-20). Note the version-bump post-commit hook (`scripts/hooks/post-commit`, disabled in place) only matters for that path.

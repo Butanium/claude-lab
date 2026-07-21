@@ -23,7 +23,7 @@ Then follow these steps in order:
 2. **Draft** — Once you have all the different findings, and a clear picture of the data, with all the plots needed, write a first draft in markdown of the findings (referencing the plots). This is only for your usage, and should be used as a scratchpad for arranging your thoughts and the connections between the different findings.
 3. **Reflect** — Once you have done that reflect on your current scratchpad: is there any plots missing? Any result you'd want to dig in? Any qualitative analysis that needs more work? Have you actually looked at the plots you mention in the scratchpad?
 4. **Refine** — Ask scientists to give for any extra qualitative / plotting you need.
-5. **Author** — Write the Quarto report as per /writing-guidelines skill.
+5. **Author** — Write the report as per /writing-guidelines skill.
 6. **Review** — Ask a colleague with access only to the report, the qualitative samples included in the report and the plots included in the report to give you a review of the report. Is there anything that is unclear? Any overclaim? Any missing experiment details? Any other feedback?
 7. **Redteam** — Ask a "reviewer" subagent to redteam the report. They are prompted with common pitfalls and errors that scientists often make when writing reports.
 8. **Triage** — Review the colleague's and reviewer's feedback, and think about what to address or not. Don't forget that your supervisor is the sole reader of this, not the colleague or reviewer.
