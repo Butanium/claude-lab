@@ -29,6 +29,24 @@ const KitCharts = (() => {
   };
   const seriesColor = i => `var(--series-${(i % 8) + 1})`;
 
+  /* Nice round tick values inside [min, max] that NEVER exceed max — so a
+     scale ceiling with headroom (yMax 1.05 for whisker/label room) doesn't
+     label a tick at 105%. Ticks land on multiples of 1/2/2.5/5 ×10^k; the
+     axis floor (yMin, when it is itself a round multiple) is included. */
+  function niceTicks(min, max, target = 4) {
+    const span = max - min;
+    if (!(span > 0) || !Number.isFinite(span)) return [min];
+    const rawStep = span / target;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    const step = (norm < 1.5 ? 1 : norm < 2.25 ? 2 : norm < 3.5 ? 2.5 : norm < 7.5 ? 5 : 10) * mag;
+    const out = [];
+    const eps = 1e-9 * Math.max(1, Math.abs(max));
+    for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + eps; v += step)
+      out.push(Math.abs(v) < step * 1e-9 ? 0 : +v.toFixed(10));
+    return out.length ? out : [min];
+  }
+
   /* ---- shared tooltip (viewport-edge aware) ---- */
   let tipEl = null;
   function tip() {
@@ -73,17 +91,18 @@ const KitCharts = (() => {
 
   /* ---- frame: margins, scales, axes, gridlines ---- */
   function frame(container, { w = 720, h = 300, m = { t: 12, r: 16, b: 34, l: 46 },
-                              yMin = 0, yMax = 1, yFmt = v => v, yTitle = "" }) {
+                              yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null }) {
     container.classList.add("kit-chart");
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
     const iw = w - m.l - m.r, ih = h - m.t - m.b;
     const y = v => m.t + ih - ((v - yMin) / (yMax - yMin || 1)) * ih;
     const g = el("g");
     svg.appendChild(g);
-    const ticks = 4;
-    for (let i = 0; i <= ticks; i++) {
-      const v = yMin + (i / ticks) * (yMax - yMin), yy = y(v);
-      g.appendChild(el("line", { x1: m.l, x2: m.l + iw, y1: yy, y2: yy, class: i === 0 ? "baseline" : "gridline" }));
+    /* tick VALUES are round numbers within [yMin, yMax] — decoupled from the
+       scale ceiling so headroom (yMax > data max) never yields a >100% tick */
+    for (const v of yTicks || niceTicks(yMin, yMax)) {
+      const yy = y(v), isBase = Math.abs(v - yMin) < 1e-9;
+      g.appendChild(el("line", { x1: m.l, x2: m.l + iw, y1: yy, y2: yy, class: isBase ? "baseline" : "gridline" }));
       g.appendChild(txt(m.l - 6, yy + 3.5, yFmt(v), { "text-anchor": "end", class: "num" }));
     }
     if (yTitle) {
@@ -274,10 +293,10 @@ const KitCharts = (() => {
     const xr = [spec.xMin ?? 0, spec.xMax ?? 1];
     const X = v => f.m.l + ((v - xr[0]) / (xr[1] - xr[0] || 1)) * f.iw;
     const fmtX = spec.xFmt || String, fmtY = spec.yFmt || String;
-    for (let i = 0; i <= 4; i++) {
-      const v = xr[0] + (i / 4) * (xr[1] - xr[0]);
+    /* x-ticks: round values within [xMin, xMax], same headroom-safe rule as
+       the y-axis (spec.xTicks overrides) */
+    for (const v of spec.xTicks || niceTicks(xr[0], xr[1]))
       f.svg.appendChild(txt(X(v), f.h - f.m.b + 16, fmtX(v), { "text-anchor": "middle", class: "num" }));
-    }
     if (spec.xTitle) f.svg.appendChild(txt(f.m.l + f.iw / 2, f.h - 4, spec.xTitle, { "text-anchor": "middle", class: "axis-title" }));
     if (spec.diagonal) {
       const lo = Math.max(xr[0], spec.yMin ?? 0), hi = Math.min(xr[1], spec.yMax ?? 1);

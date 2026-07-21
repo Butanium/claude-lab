@@ -3,6 +3,19 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.3 — 2026-07-21
+
+Axis tick bug (Clément, on the salieri_switching artifact): bar y-axes ended at
+**105%**. `frame()` labelled ticks at even fractions of `[yMin, yMax]`, so the
+`yMax: 1.05` headroom (room for whisker/label overshoot) put the top tick at
+105% — and scatter x-axes at 106%, scale-mean axes at 5.2. Fix: tick VALUES are
+now decoupled from the scale ceiling. New `niceTicks(min, max)` returns round
+multiples (1/2/2.5/5 ×10^k) strictly within `[min, max]`, so headroom never
+yields an out-of-range tick and percentage axes never label above 100%. Wired
+through `frame()` (all y-axes; `yTicks` overrides) and `scatter()` x-axis
+(`xTicks` overrides). `line` x (data values), `dotStrip` (hardcoded 0–1) and
+`heatmap` (categorical) were already immune.
+
 ## v0.2 — 2026-07-20
 
 First real-report shakedown: porting the salieri_switching report
