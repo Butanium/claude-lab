@@ -12,7 +12,9 @@
 
 set -euo pipefail
 
-SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# readlink -f: the script is also invoked via the ~/.claude/scripts symlink,
+# and SRC_ROOT must be the real repo, not the symlink's directory.
+SRC_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 SRC="$SRC_ROOT/.claude"
 TARGET="$(pwd)/.claude"
 
