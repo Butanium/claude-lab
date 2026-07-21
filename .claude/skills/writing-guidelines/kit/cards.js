@@ -72,27 +72,64 @@ const KitCards = (() => {
     }
     return out + esc(text.slice(pos));
   }
-  /* collapsed digest = only the evidence sentences joined by (…) */
-  function evidenceDigest(text, evidence) {
+  /* collapsed digest = each evidence span in ~ctx words of surrounding context
+     (muted, so the highlight pops), with … at every cut point. A bare quote
+     that opens mid-sentence reads as noise; the context anchors it. Gaps
+     between two spans show whole when short, else elide the middle. */
+  const wordsOf = s => s.split(/\s+/).filter(Boolean);
+  function evidenceDigest(text, evidence, ctx = 8) {
     const ranges = evRanges(text, evidence);
     if (!ranges.length) return null;
-    return ranges.map(([a, b]) => `<mark class="ev">${esc(text.slice(a, b))}</mark>`)
-      .join(` <span class="ellipsis">(…)</span> `);
+    const toks = [];
+    const lead = wordsOf(text.slice(0, ranges[0][0]));
+    if (lead.length > ctx) toks.push({ k: "ell" });
+    if (lead.length) toks.push({ k: "ctx", s: lead.slice(-ctx).join(" ") });
+    ranges.forEach(([a, b], i) => {
+      toks.push({ k: "mark", s: text.slice(a, b) });
+      const gapEnd = i < ranges.length - 1 ? ranges[i + 1][0] : text.length;
+      const gap = wordsOf(text.slice(b, gapEnd));
+      if (i === ranges.length - 1) {
+        if (gap.length) toks.push({ k: "ctx", s: gap.slice(0, ctx).join(" ") });
+        if (gap.length > ctx) toks.push({ k: "ell" });
+      } else if (gap.length <= 2 * ctx) {
+        if (gap.length) toks.push({ k: "ctx", s: gap.join(" ") });
+      } else {
+        toks.push({ k: "ctx", s: gap.slice(0, ctx).join(" ") });
+        toks.push({ k: "ell" });
+        toks.push({ k: "ctx", s: gap.slice(-ctx).join(" ") });
+      }
+    });
+    return toks.map(t => t.k === "mark" ? `<mark class="ev">${esc(t.s)}</mark>`
+      : t.k === "ell" ? `<span class="ellipsis">…</span>`
+      : `<span class="ctx">${esc(t.s)}</span>`).join(" ");
   }
 
-  /* ---- expandable text block ---- */
+  /* ---- expandable text block ----
+     Structure: a clipped .pt-body (line-clamped, so it cuts at a clean line
+     boundary, never mid-line) with the affordance on its OWN row (.pt-more)
+     below the text — never a gradient painted over the last line, which made
+     that line unreadable and wasted it. The digest body is never clamped: it
+     IS the compressed form; only the full-text view clamps. */
   function ptext(html, { digestHtml = null } = {}) {
     const div = document.createElement("div");
     div.className = "ptext" + (digestHtml ? " digest" : "");
     div.tabIndex = 0;
     div.setAttribute("role", "button");
     div.setAttribute("aria-expanded", "false");
-    const full = html;
-    div.innerHTML = digestHtml ?? full;
+    const body = document.createElement("div");
+    body.className = "pt-body";
+    body.innerHTML = digestHtml ?? html;
+    const more = document.createElement("div");
+    more.className = "pt-more";
+    const moreLabel = () => div.classList.contains("expanded") ? "▲ collapse"
+      : digestHtml ? "▸ click for full essay" : "… click to expand";
+    more.textContent = moreLabel();
+    div.append(body, more);
     const toggle = () => {
       const on = div.classList.toggle("expanded");
       div.setAttribute("aria-expanded", String(on));
-      if (digestHtml) div.innerHTML = on ? full : digestHtml;
+      if (digestHtml) body.innerHTML = on ? html : digestHtml;
+      more.textContent = moreLabel();
     };
     div.addEventListener("click", () => { if (!div.classList.contains("short")) toggle(); });
     div.addEventListener("keydown", e => {
@@ -103,12 +140,13 @@ const KitCards = (() => {
     return div;
   }
 
-  /* mark blocks that don't overflow as .short (no affordance). Call after
-     mounting; safe to call repeatedly (e.g. from a MutationObserver). */
+  /* mark blocks whose body doesn't overflow the clamp as .short (no
+     affordance). Call after mounting; safe to call repeatedly. */
   function markShort(root = document) {
     root.querySelectorAll(".ptext:not(.expanded):not(.digest)").forEach(el => {
       el.classList.remove("short");
-      if (el.scrollHeight <= el.clientHeight + 4) {
+      const body = el.querySelector(".pt-body") || el;
+      if (body.scrollHeight <= body.clientHeight + 4) {
         el.classList.add("short");
         el.removeAttribute("role"); el.tabIndex = -1;
       }

@@ -39,26 +39,30 @@
   letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
 }
 
-/* clamped text with click/keyboard expand; .short = no clamp needed (set by
-   cards.js overflow detection, so short samples never show a fake affordance) */
-.ptext {
-  position: relative; max-height: 9.5em; overflow: hidden;
-  cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere;
+/* clamped text with click/keyboard expand. The body clips at a clean line
+   boundary (line-clamp, never mid-line); the "click to expand" hint lives on
+   its OWN row below the text — never a gradient over the last line. .short (set
+   by cards.js overflow detection) = fits, so no affordance. The digest body is
+   never clamped: it IS the compressed form. */
+.ptext { cursor: pointer; }
+.ptext .pt-body {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6;
+  overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.ptext::after {
-  content: "… click to expand";
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 1.6em 0 0.1em; text-align: center;
+.ptext.expanded .pt-body,
+.ptext.digest .pt-body,
+.ptext.short .pt-body { display: block; -webkit-line-clamp: none; overflow: visible; }
+.ptext .pt-more {
   font: 0.72rem var(--sans); color: var(--muted);
-  background: linear-gradient(to bottom, transparent, var(--surface) 70%);
+  padding-top: 0.35em; user-select: none;
 }
-.ptext.expanded { max-height: none; }
-.ptext.expanded::after { content: "▲ collapse"; position: static; display: block; padding: 0.3em 0 0; background: none; }
-.ptext.short { max-height: none; cursor: auto; }
-.ptext.short::after { content: none; }
+.ptext:hover .pt-more { color: var(--accent); }
+.ptext.short { cursor: auto; }
+.ptext.short .pt-more { display: none; }
 
-/* judge-evidence highlight + digest view */
+/* judge-evidence highlight + digest view (highlighted quote in muted context) */
 mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); color: inherit; padding: 0 0.1em; }
+.digest .ctx { color: var(--ink-2); }
 .digest .ellipsis { color: var(--muted); font-family: var(--sans); font-size: 0.85em; }
 
 /* prompt shown above samples */

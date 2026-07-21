@@ -3,6 +3,24 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.4 — 2026-07-21
+
+Sample-card readability (Clément, salieri_switching artifact):
+
+- **Digest spans now carry context.** `evidenceDigest()` opened on a bare
+  evidence quote mid-sentence ("is a seriously underrated composer…") — noise
+  with no anchor. It now wraps each highlighted span in ~8 words of muted
+  context on each side, with … at every cut point; short gaps between two spans
+  show whole, long gaps elide the middle. The highlight still pops (context is
+  `--ink-2`, secondary).
+- **Killed the gradient-over-text affordance.** `.ptext`'s expand hint was a
+  gradient painted over the last visible line, half-erasing it — and it clamped
+  the *digest* too, masking the digest's own second line. Now: the body clips
+  with `-webkit-line-clamp` (clean line boundary, never mid-line), the
+  "click to expand" hint sits on its own `.pt-more` row *below* the text, and
+  the digest body is never clamped (it is already the compressed form; only the
+  full-text view clips). `markShort` measures the inner `.pt-body`.
+
 ## v0.3 — 2026-07-21
 
 Axis tick bug (Clément, on the salieri_switching artifact): bar y-axes ended at
