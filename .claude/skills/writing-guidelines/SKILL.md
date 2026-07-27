@@ -37,6 +37,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 - Write from the final state of understanding. Each section makes one claim about the world, headlined by the most aggregated figure that supports it. Experiments are evidence inside claims, not sections of their own.
 - The investigation's chronology — first attempts, dead ends, course corrections, re-runs — does not structure the report. If the path matters, one appendix paragraph or a link to the lab-log version.
 - Main-text altitude: a colleague should get every claim and how strongly to believe it in ~5 minutes. Per-run granularity, secondary experiments, and robustness checks live in folds under the claim they support.
+- High precision over high recall of findings: the main text carries the most robust / most surprising results only. An extra analysis that didn't add real insight doesn't get a main-text section at all — appendix, or cut.
 - When cleaner data or a corrected estimator supersedes an earlier version, main figures and prose use the best version only. The comparison to the superseded version is one main-text sentence at most, with the full account in a fold or appendix — don't replay the discovery of the problem and its fix.
 - Aggregated main figures overlay the per-run values as points on the aggregate bars, so heterogeneity stays visible without per-run panels; the full per-run figure goes in a fold.
 - Caveats follow the same altitude rule: the main text carries the best estimate and a one-line qualifier; the full confound analysis goes in a fold attached to the number it qualifies.
@@ -56,6 +57,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 ## Prose Style (IMPORTANT)
 
 - Blogpost tone, NOT paper tone. Plots carry the numbers — prose carries the interpretation.
+- Write for a human reader with little context on what was actually run. Do not compress complex results into dense, run-context-assuming shorthand ("claudisms") — if a sentence only parses for someone who watched the experiment happen, unpack it.
 - Don't recite numbers from plots in running text. If the reader can see "35.9%" in the chart, don't write "35.9%" in the paragraph.
 - BAD: "X increases by +12.3pp (from 21.9% to 34.2%), Y increases by +8.7pp (from 12.9% to 21.6%)..."
 - GOOD: "Both X and Y show clear increases — but what's interesting is the qualitative difference in how they respond."
@@ -84,17 +86,30 @@ Note that this is different from a normal academic paper, the tone should be clo
 ## Charts
 
 - Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
+- Optimize figures for clarity, which is not the same as simplicity — a well-organized multi-panel composite often reads better than several scattered simple figures. And look at the rendered output: no overlapping titles/axes/labels ("it rendered without errors" is not "it reads well").
 - Prefer interactive plots over tables for any numerical comparison — tables of numbers are hard to read
 - Plot must be interactive and have an hover text stating how many samples are used to compute the datapoint. This is particularly useful when we will filter the data according to some criteria like coherence which might dramatically change the number of samples used to compute the datapoint (and vary across different datapoints)
 - Always add a global slider (preferably as a sticky component on the left side of the page) that allows to filter the data according to some criteria like a min coherence slider.
 - When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
 - Always show 95% confidence intervals on aggregated metrics. Choose the method appropriate to the data (e.g. some kind of bootstrap for non-normal/small samples, Wilson for proportions, etc etc.). State the CI method in the figure caption, with a footnote explaining the choice if not obvious.
 
+## The Review Pass (little-Clément)
+
+Before shipping, reread the report with a little-Clément-on-your-shoulder: What would I not be convinced by? What would I find surprising and want dug into? What sanity checks would I ask for — and are they worth showing? If data was aggregated, what might the aggregation hide (is the effect driven mostly by the prompt or by the condition?).
+
+While drafting, freely add little-Clément caveats — but treat them as TODOs, not shipping content. For each one, decide: is this a reasonable concern? If yes, **fix the report** (run the disaggregation, add the sanity check, tighten the claim) rather than leaving mistake + caveat side by side. A caveat survives to the final report only when the underlying limitation genuinely can't be resolved — then the altitude rule above says where it lives.
+
 ## Outtakes / Highlights Section
 
 - End reports with a curated "outtakes and highlights" section — interesting, funny, or surprising model outputs that didn't fit the main argument but are worth showing.
 - Mine the full dataset for standout examples: accidental poetry, training data leaks, spectacularly broken outputs, consistent attractor states, etc.
 - These sections are scientifically informative (they reveal model internals) while ending on a fun note.
+
+
+## Help me improve this skill
+
+If I give you feedback that goes against some principles / advices in this skill, please flag it and let me know so that I can update the skill.
+
 
 ---
 
@@ -181,3 +196,5 @@ Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex fig
 ### 7. Publish
 
 Artifact tool with `capabilities: {downloads: true}`; wire a "download data" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis (the downloads allowlist excludes `.csv` — save CSV content under a `.txt` filename; 16 MiB cap). Keep the artifact's title and favicon stable across redeploys. If the Artifact tool isn't available (e.g. subagent context), the HTML file itself is the deliverable — send it with SendUserFile; it works straight from disk.
+
+
