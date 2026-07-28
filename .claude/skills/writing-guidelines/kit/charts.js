@@ -560,7 +560,10 @@ const KitCharts = (() => {
 
   /* ---- heatmap: sequential or diverging, cell text, outline-max ----
      spec: { rows, cols, cells: [{row, col, value, text, tip}], diverging,
-       vMin, vMax, outlineMax, w } */
+       vMin, vMax, outlineMax, xTitle, yTitle, w }
+     cell extras: color (override ramp), hatch (color string → diagonal
+     pattern fill, e.g. unscored/boundary cells), outline (per-cell frame,
+     e.g. "biggest unfaithful cell" when outlineMax's |value| rule is wrong) */
   function heatmap(container, spec) {
     const { rows, cols, cells } = spec;
     const rowFull = spec.rowFull || (r => r);
@@ -571,11 +574,14 @@ const KitCharts = (() => {
     const LFS = spec.labelSize ?? 11;   /* see groupedBars */
     const autoL = 20 + Math.max(0, ...rows.map(r => estTextWidth(rowLabel(r), LFS)));
     const w = spec.w ?? 720, m = { t: 8, r: 12, b: 40, l: Math.max(120, autoL), ...spec.m };
+    if (spec.xTitle) m.b += 14;
+    if (spec.yTitle) m.l += 15;
     const cw = (w - m.l - m.r) / cols.length;
     const ch = Math.min(34, cw);
     const h = m.t + rows.length * ch + m.b;
     container.classList.add("kit-chart");
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
+    const defs = svg.appendChild(el("defs", {}));
     const vals = cells.map(c => c.value).filter(Number.isFinite);
     const vMax = spec.vMax ?? Math.max(...vals), vMin = spec.vMin ?? (spec.diverging ? -vMax : Math.min(...vals, 0));
     /* sequential: seq ramp via color-mix; diverging: blue↔red through --div-mid */
@@ -609,7 +615,8 @@ const KitCharts = (() => {
       if (ri < 0 || ci < 0) return;
       /* cell.color overrides the ramp — e.g. semantic hue per outcome column
          with intensity carried in the color-mix the caller computes */
-      const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: c.color ?? fill(c.value) });
+      const base = c.color ?? fill(c.value);
+      const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: c.hatch ? makeHatch(defs, typeof c.hatch === "string" ? c.hatch : base, "/") : base });
       a11y(rect, `${rowFull(c.row)} × ${c.col}: ${c.text ?? c.value}`);
       bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
       /* onCellClick(cell): opt-in, mirrors groupedBars' onBarClick — cells
@@ -628,8 +635,15 @@ const KitCharts = (() => {
           { "text-anchor": "middle", class: "num", "pointer-events": "none" }));
         ct.style.fill = dark ? "var(--surface)" : "var(--ink-2)";
       }
-      if (maxCell === c) svg.appendChild(el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2, fill: "none", "stroke-width": 2 }, { stroke: "var(--ink)" }));
+      if (maxCell === c || c.outline) svg.appendChild(el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2, fill: "none", "stroke-width": 2 }, { stroke: "var(--ink)" }));
     });
+    if (spec.xTitle) svg.appendChild(txt(m.l + (w - m.l - m.r) / 2, h - 5, spec.xTitle,
+      { "text-anchor": "middle", class: "axis-title" }));
+    if (spec.yTitle) {
+      const yt = txt(0, 0, spec.yTitle, { "text-anchor": "middle", class: "axis-title" });
+      yt.setAttribute("transform", `translate(11 ${m.t + rows.length * ch / 2}) rotate(-90)`);
+      svg.appendChild(yt);
+    }
     container.appendChild(svg);
     return { svg };
   }

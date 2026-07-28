@@ -189,3 +189,10 @@ human eyes)
   `onBarClick`, click + Enter/Space (drive an explorer to that cell's rows).
 - `charts.js` heatmap: `cell.color` overrides the ramp fill (semantic-hue
   heatmaps: caller computes a color-mix per cell, intensity in the mix).
+- `charts.js` heatmap: `xTitle`/`yTitle` axis titles (margins auto-bump),
+  `cell.hatch` (color string → diagonal pattern via the shared makeHatch — for
+  unscored/boundary cells), `cell.outline` (per-cell frame when outlineMax's
+  biggest-|value| rule isn't the cell you mean, e.g. "biggest unfaithful
+  cell"). (Clément: joint-table heatmaps must color by FAITHFULNESS — green =
+  answer matches CoT stance, red = contradicts, à la taxonomy_plots.py grids —
+  not by answer category; and always carry axis titles.)
