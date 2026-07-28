@@ -540,11 +540,21 @@ const KitCharts = (() => {
       if (row.full && row.full !== row.label) { const ti = el("title"); ti.textContent = row.full; rowLabel.appendChild(ti); }
       svg.appendChild(rowLabel);
       row.dots.forEach(d => {
-        const dot = el("circle", { cx: X(d.v), cy: cy + (((d.v * 997) % 1) - 0.5) * 10, r: 3.5, "fill-opacity": 0.55 },
+        const dcy = cy + (((d.v * 997) % 1) - 0.5) * 10;
+        const dot = el("circle", { cx: X(d.v), cy: dcy, r: 3.5, "fill-opacity": 0.55 },
           { fill: row.color || seriesColor(ri) });
         bindTip(dot, d.tip || fmt(d.v));
         a11y(dot, `${row.label}: ${d.tip ? d.tip.replace(/<[^>]+>/g, " ") : fmt(d.v)}`);
         svg.appendChild(dot);
+        /* onDotClick(dot, row): opt-in, mirrors onBarClick — an invisible halo
+           widens the 3.5px dot's hit target to something clickable */
+        if (spec.onDotClick) {
+          const halo = el("circle", { cx: X(d.v), cy: dcy, r: 9, "fill-opacity": 0 }, { fill: "#000" });
+          halo.style.cursor = "pointer";
+          bindTip(halo, d.tip || fmt(d.v));
+          halo.addEventListener("click", () => spec.onDotClick(d, row));
+          svg.appendChild(halo);
+        }
       });
       if (row.mean !== undefined) {
         svg.appendChild(el("line", { x1: X(row.mean), x2: X(row.mean), y1: cy - 11, y2: cy + 11 }, { stroke: "var(--ink)", strokeWidth: 2 }));

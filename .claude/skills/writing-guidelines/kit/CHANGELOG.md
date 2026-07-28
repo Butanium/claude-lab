@@ -196,3 +196,14 @@ human eyes)
   cell"). (Clément: joint-table heatmaps must color by FAITHFULNESS — green =
   answer matches CoT stance, red = contradicts, à la taxonomy_plots.py grids —
   not by answer category; and always carry axis titles.)
+- `explorer.js`: dim spec accepts `optionLabel(value)` — dropdown shows a
+  reader-facing phrase while option VALUES stay the raw row values (set() and
+  filtering unchanged). (Clément: internal arm codes must not leak into the
+  explorer UI.)
+- `explorer.js`: after "Draw N random", "show more" now draws MORE random
+  from the not-yet-shown remainder (labeled "show N more random") instead of
+  falling back to the first N of the filtered list; filter changes still exit
+  random mode. (Clément.)
+- `charts.js` dotStrip: opt-in `spec.onDotClick(dot, row)` with an invisible
+  r=9 halo per dot so the 3.5px dots are actually clickable. (Clément: every
+  figure should drive the explorer on click.)

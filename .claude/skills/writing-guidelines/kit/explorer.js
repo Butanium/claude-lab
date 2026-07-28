@@ -10,13 +10,16 @@ const KitExplorer = (() => {
     [...new Set(data.map(r => r[key]).filter(v => v !== undefined && v !== null))]
       .sort((a, b) => (typeof a === "number" ? a - b : String(a).localeCompare(String(b))));
 
-  function makeSelect(labelText, values, withAll = true) {
+  /* optionLabel: optional (value -> display text) resolver — option VALUES stay
+     the raw row values (set()/filtering match on them), only the text shown in
+     the dropdown changes (e.g. internal arm codes -> reader-facing phrases). */
+  function makeSelect(labelText, values, withAll = true, optionLabel = null) {
     const wrap = document.createElement("div");
     const label = document.createElement("label");
     label.textContent = labelText;
     const sel = document.createElement("select");
     if (withAll) sel.appendChild(new Option("all", "__all__"));
-    values.forEach(v => sel.appendChild(new Option(String(v), String(v))));
+    values.forEach(v => sel.appendChild(new Option(optionLabel ? optionLabel(v) : String(v), String(v))));
     wrap.append(label, sel);
     return { wrap, sel };
   }
@@ -39,7 +42,7 @@ const KitExplorer = (() => {
 
     for (const d of dims) {
       if (d.type === "select" || !d.type) {
-        const { wrap, sel } = makeSelect(d.label || d.key, d.values || uniq(data, d.key));
+        const { wrap, sel } = makeSelect(d.label || d.key, d.values || uniq(data, d.key), true, d.optionLabel);
         sel.addEventListener("change", () => { state[d.key] = sel.value; update(); });
         state[d.key] = "__all__";
         selByKey[d.key] = sel;
@@ -83,9 +86,15 @@ const KitExplorer = (() => {
     list.className = "sample-list";
     el.append(controls, list);
 
-    let randomMode = false;
+    /* randomRows non-null => the list shows random draws; "show more" then
+       keeps drawing randomly from the not-yet-shown remainder (not the first
+       N of the filtered list). Any filter/search change exits random mode. */
+    let randomRows = null;
     let shown = pageSize;
-    drawBtn.addEventListener("click", () => { randomMode = true; update(); });
+    drawBtn.addEventListener("click", () => {
+      randomRows = KitStats.shuffle(matches()).slice(0, drawN);
+      renderList();
+    });
 
     function matches() {
       const q = searchBox?.value.trim().toLowerCase();
@@ -103,7 +112,12 @@ const KitExplorer = (() => {
       });
     }
 
-    function update() {
+    function update() {   /* filter/search/set() entry: reset paging + random mode */
+      randomRows = null; shown = pageSize;
+      renderList();
+    }
+
+    function renderList() {
       const m = matches();
       list.textContent = "";
       if (m.length === 0) {
@@ -111,21 +125,23 @@ const KitExplorer = (() => {
         list.innerHTML = `<div class="empty-state">— none —</div>`;
         return;
       }
-      let rows;
-      if (randomMode) {
-        rows = KitStats.shuffle(m).slice(0, drawN);
-        count.textContent = `${m.length} samples match — showing ${rows.length} random`;
-        randomMode = false;
-      } else {
-        rows = m.slice(0, shown);
-        count.textContent = `${m.length} samples match — showing first ${rows.length}`;
-      }
+      const rows = randomRows ?? m.slice(0, shown);
+      count.textContent = `${m.length} samples match — showing ` +
+        (randomRows ? `${rows.length} random` : `first ${rows.length}`);
       rows.forEach(r => list.appendChild(render(r)));
-      if (!randomMode && m.length > shown) {
+      const remaining = m.length - rows.length;
+      if (remaining > 0) {
         const more = document.createElement("button");
         more.type = "button"; more.className = "ex-more";
-        more.textContent = `show ${Math.min(pageSize, m.length - shown)} more`;
-        more.addEventListener("click", () => { shown += pageSize; update(); });
+        more.textContent = `show ${Math.min(pageSize, remaining)} more` + (randomRows ? " random" : "");
+        more.addEventListener("click", () => {
+          if (randomRows) {
+            const seen = new Set(randomRows);
+            randomRows = randomRows.concat(
+              KitStats.shuffle(m.filter(r => !seen.has(r))).slice(0, pageSize));
+          } else shown += pageSize;
+          renderList();
+        });
         list.appendChild(more);
       }
       if (typeof KitCards !== "undefined") KitCards.markShort(list);
@@ -146,7 +162,6 @@ const KitExplorer = (() => {
           if ([...sel.options].some(o => o.value === v)) { sel.value = v; state[d.key] = v; }
         } else if (!keepOthers) { sel.value = "__all__"; state[d.key] = "__all__"; }
       }
-      randomMode = false; shown = pageSize;
       update();
     }
     return { refresh: update, set };
