@@ -178,3 +178,12 @@ human eyes)
   renders a permanent small `n=` label above each bar (Clément prefers `n=` over `k/n` on-plot).
 - `explorer.js`: `explorer()` now also returns `set(filters, {keepOthers})` — programmatic
   select-dim drive for chart-click → filtered-explorer wiring; unmentioned dims reset to all.
+
+## 2026-07-28
+- `toc.js`: items accept `children: [{id,label}]` — rendered as a collapsed
+  group that expands to its child links while the reader is inside the group's
+  page range (appendix pattern: one "Appendix" line unfolding to A1…An on
+  arrival). `layout.css` gains `.toc a.child`. (Clément: appendix TOC should
+  expand to the full list when you're in the appendix.)
+- `charts.js` heatmap: opt-in `spec.onCellClick(cell)` — mirrors groupedBars'
+  `onBarClick`, click + Enter/Space (drive an explorer to that cell's rows).

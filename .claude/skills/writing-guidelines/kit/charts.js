@@ -610,11 +610,21 @@ const KitCharts = (() => {
       const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: fill(c.value) });
       a11y(rect, `${rowFull(c.row)} × ${c.col}: ${c.text ?? c.value}`);
       bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
+      /* onCellClick(cell): opt-in, mirrors groupedBars' onBarClick — cells
+         become clickable (e.g. to drive an explorer filtered to that cell) */
+      if (spec.onCellClick) {
+        rect.style.cursor = "pointer";
+        rect.addEventListener("click", () => spec.onCellClick(c));
+        rect.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onCellClick(c); }
+        });
+      }
       svg.appendChild(rect);
       if (c.text !== undefined) {
         const dark = spec.diverging ? Math.abs(c.value) > 0.6 * Math.max(Math.abs(vMin), vMax) : (c.value - vMin) / (vMax - vMin || 1) > 0.6;
-        svg.appendChild(txt(m.l + ci * cw + cw / 2, m.t + ri * ch + ch / 2 + 3.5, c.text,
-          { "text-anchor": "middle", class: "num" }, )).style.fill = dark ? "var(--surface)" : "var(--ink-2)";
+        const ct = svg.appendChild(txt(m.l + ci * cw + cw / 2, m.t + ri * ch + ch / 2 + 3.5, c.text,
+          { "text-anchor": "middle", class: "num", "pointer-events": "none" }));
+        ct.style.fill = dark ? "var(--surface)" : "var(--ink-2)";
       }
       if (maxCell === c) svg.appendChild(el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2, fill: "none", "stroke-width": 2 }, { stroke: "var(--ink)" }));
     });
