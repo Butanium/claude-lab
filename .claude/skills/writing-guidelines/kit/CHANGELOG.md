@@ -126,3 +126,43 @@ Direct feedback encoded:
   report versions in the sarcasm article.
 - Short samples never show a fake "click to expand" (overflow detection).
 - Low-n convention: desaturate + ⚠ in tooltip and on-canvas, threshold explicit.
+
+## 2026-07-27b (CoT-unfaithfulness report, style pass — Clément: sidebar ugly,
+"plots not of the same size without a shared y axis", page not "chouchouté" for
+human eyes)
+
+- **`toc.js` (new) + TOC styles in `layout.css`.** Long reports left the sticky
+  sidebar column empty below a small controls panel; a "On this page" nav with
+  scroll-position highlight earns the column and makes a 17k-px page navigable.
+  Pass explicit `{items}` for short sidebar labels; auto-collects `h2[id]`/`h3[id]`
+  otherwise.
+- **`layout.css`: sidebar form-control chrome** (select/button match
+  `.ex-controls`), `accent-color` on range inputs, `.side-sec` divider for a
+  second section inside the sticky panel, panel `max-height` scroll,
+  `scroll-margin-top` on `h2`/`h3` so anchor jumps don't kiss the viewport edge.
+- **`charts.js` `frame()` takes `yTickLabels: false`.** Multi-panel figures on
+  one scale kept re-printing the same y tick numbers on every panel; the option
+  suppresses tick TEXT (gridlines stay) so a row of panels reads as one figure
+  with one shared axis — pair it with a slim left margin on the sharing panels.
+- **`charts.js` `stackedBars` accepts `legendItems`** like groupedBars (`[]`
+  suppresses) — needed for vertically aligned chart pairs where only the bottom
+  chart should carry the shared legend.
+- **`groupedBars` `showN` labels are collision-bumped, not series-staggered.**
+  The fixed `si % 2` stagger cancels exactly when neighboring whisker tops
+  differ by ~the stagger amount ("n=299"/"n=242" rendered merged); each label
+  now bumps upward until it clears every already-placed label it horizontally
+  overlaps within its group.
+- **The scale lesson (no code — a rule):** an SVG's `viewBox` width must be
+  designed for the CSS pixels the panel will actually get. Declaring `w` from
+  group-count alone and flexing three different-`w` panels to equal CSS widths
+  rendered the same 11px font at three different sizes, down to ~6px. Size
+  panels proportionally (`flex-grow` ∝ viewBox width) and budget ~1 viewBox
+  unit ≈ 1 CSS px at the target viewport.
+
+## 2026-07-27 (CoT-unfaithfulness report)
+- `charts.js`: lifted the hatch-pattern factory to closure scope (`makeHatch`); `groupedBars`
+  values accept `hatch: true|"/"|"\\"|"x"` (entity-colored conditional bars); new `spec.onBarClick(d, series, group)`
+  makes bars clickable+keyboard-activatable (drive an explorer from a bar); new `spec.showN`
+  renders a permanent small `n=` label above each bar (Clément prefers `n=` over `k/n` on-plot).
+- `explorer.js`: `explorer()` now also returns `set(filters, {keepOthers})` — programmatic
+  select-dim drive for chart-click → filtered-explorer wiring; unmentioned dims reset to all.

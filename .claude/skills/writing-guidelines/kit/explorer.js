@@ -35,12 +35,14 @@ const KitExplorer = (() => {
     controls.className = "ex-controls";
     const state = {};
     const inputs = [];
+    const selByKey = {};
 
     for (const d of dims) {
       if (d.type === "select" || !d.type) {
         const { wrap, sel } = makeSelect(d.label || d.key, d.values || uniq(data, d.key));
         sel.addEventListener("change", () => { state[d.key] = sel.value; update(); });
         state[d.key] = "__all__";
+        selByKey[d.key] = sel;
         controls.appendChild(wrap); inputs.push(sel);
       } else {
         const wrap = document.createElement("div");
@@ -131,7 +133,23 @@ const KitExplorer = (() => {
 
     if (spec.globalStore) spec.globalStore.on(() => update());
     update();
-    return { refresh: update };
+
+    /* Programmatic filter drive (e.g. a chart's onBarClick filtering the
+       explorer to that bar's rows). filters: {dimKey: value | "__all__"}.
+       Unmentioned select dims reset to "all" unless keepOthers is true. */
+    function set(filters, { keepOthers = false } = {}) {
+      for (const d of dims) {
+        const sel = selByKey[d.key];
+        if (!sel) continue;
+        if (d.key in filters) {
+          const v = String(filters[d.key]);
+          if ([...sel.options].some(o => o.value === v)) { sel.value = v; state[d.key] = v; }
+        } else if (!keepOthers) { sel.value = "__all__"; state[d.key] = "__all__"; }
+      }
+      randomMode = false; shown = pageSize;
+      update();
+    }
+    return { refresh: update, set };
   }
 
   /* Paired A/B comparison explorer (assistant-axis pattern): per-dimension

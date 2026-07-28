@@ -34,6 +34,29 @@ body {
 }
 .sidebar .panel label { display: block; color: var(--ink-2); margin: 0.6rem 0 0.2rem; }
 .sidebar .panel .readout { color: var(--muted); font-size: 0.8rem; margin-top: 0.35rem; }
+.sidebar .panel { max-height: calc(100vh - 2rem); overflow-y: auto; }
+/* form controls in the sidebar match the explorer's (.ex-controls) chrome */
+.sidebar .panel select, .sidebar .panel input[type="search"], .sidebar .panel button {
+  font: inherit; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--baseline); border-radius: 4px;
+  padding: 0.25rem 0.45rem; max-width: 100%;
+}
+.sidebar .panel button { cursor: pointer; background: var(--surface); }
+.sidebar .panel button:hover { border-color: var(--accent); color: var(--accent); }
+input[type="range"] { accent-color: var(--accent); }
+/* a later section inside the same sticky panel (e.g. controls under a TOC) */
+.sidebar .side-sec { border-top: 1px solid var(--grid); margin-top: 0.9rem; padding-top: 0.75rem; }
+
+/* --- sidebar table of contents (see toc.js) --- */
+.sidebar .toc { display: block; margin: 0.45rem 0 0.2rem; }
+.sidebar .toc a {
+  display: block; color: var(--ink-2); text-decoration: none;
+  padding: 0.18rem 0 0.18rem 0.55rem; border-left: 2px solid var(--grid);
+  line-height: 1.35;
+}
+.sidebar .toc a.sub { padding-left: 1.25rem; font-size: 0.94em; color: var(--muted); }
+.sidebar .toc a:hover { color: var(--accent); }
+.sidebar .toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
 .content { min-width: 0; }
 .content > * { max-width: 720px; }           /* ~70ch reading column */
 .content > .wide, .content > .page-wide { max-width: none; }
@@ -51,6 +74,7 @@ h2 {
   padding-top: 1.1rem; margin: 2.2rem 0 0.7rem;
 }
 h3 { font-size: 1.08rem; margin: 1.6rem 0 0.5rem; }
+h2, h3 { scroll-margin-top: 0.8rem; }
 a { color: var(--accent); }
 code { font-family: var(--mono); font-size: 0.86em; background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 0 0.25em; }
 .byline { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.4rem; }

@@ -101,7 +101,8 @@ const KitCharts = (() => {
 
   /* ---- frame: margins, scales, axes, gridlines ---- */
   function frame(container, { w = 720, h = 300, m = { t: 12, r: 16, b: 34, l: 46 },
-                              yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null }) {
+                              yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null,
+                              yTickLabels = true }) {
     container.classList.add("kit-chart");
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
     const iw = w - m.l - m.r, ih = h - m.t - m.b;
@@ -113,7 +114,9 @@ const KitCharts = (() => {
     for (const v of yTicks || niceTicks(yMin, yMax)) {
       const yy = y(v), isBase = Math.abs(v - yMin) < 1e-9;
       g.appendChild(el("line", { x1: m.l, x2: m.l + iw, y1: yy, y2: yy, class: isBase ? "baseline" : "gridline" }));
-      g.appendChild(txt(m.l - 6, yy + 3.5, yFmt(v), { "text-anchor": "end", class: "num" }));
+      /* yTickLabels: false = shared-axis panel (a row sibling carries the
+         numbers); gridlines stay so the panels still read on one scale */
+      if (yTickLabels) g.appendChild(txt(m.l - 6, yy + 3.5, yFmt(v), { "text-anchor": "end", class: "num" }));
     }
     if (yTitle) {
       const t = txt(0, 0, yTitle, { class: "axis-title", "text-anchor": "middle" });
@@ -133,6 +136,20 @@ const KitCharts = (() => {
   const fmtN = d => d.n !== undefined ? ` (n=${d.n})` : "";
   const ciTxt = d => (d.lo !== undefined && Number.isFinite(d.lo))
     ? ` [${(d.fmt || String)(d.lo)}, ${(d.fmt || String)(d.hi)}]` : "";
+
+  /* shared hatch-pattern factory (used by stackedBars segments and
+     groupedBars per-value hatch) */
+  let hatchSeq = 0;
+  function makeHatch(defs, color, shape) {
+    const id = `kit-hatch-${hatchSeq++}`;
+    const rot = shape === "\\" ? "rotate(-45)" : "rotate(45)";
+    const p = el("pattern", { id, width: 5, height: 5, patternTransform: rot, patternUnits: "userSpaceOnUse" });
+    p.appendChild(el("rect", { width: 5, height: 5 }, { fill: color }));
+    p.appendChild(el("line", { x1: 0, y1: 0, x2: 0, y2: 5 }, { stroke: "var(--surface)", strokeWidth: 2 }));
+    if (shape === "x") p.appendChild(el("line", { x1: 0, y1: 0, x2: 5, y2: 0 }, { stroke: "var(--surface)", strokeWidth: 2 }));
+    defs.appendChild(p);
+    return `url(#${id})`;
+  }
 
   /* ---- grouped bars with CI whiskers + per-run dot overlays ----
      spec: { groups, series: [{name, seriesIndex}], values: [{group, series,
@@ -179,6 +196,8 @@ const KitCharts = (() => {
     const f = frame(container, rotate
       ? { ...spec, m: { ...m0, b: bAdj }, h: (spec.h ?? 300) + (bAdj - m0.b) }
       : spec);
+    const defs = el("defs");
+    f.svg.appendChild(defs);
     const bw = f.iw / groups.length;
     const slot = bw / (series.length + 0.8);
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
@@ -194,6 +213,7 @@ const KitCharts = (() => {
       } else {
         f.svg.appendChild(txt(gx + bw / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
       }
+      const placedN = [];   /* n= labels placed in this group, for collision bumps */
       series.forEach((s, si) => {
         const d = values.find(v => v.group === gname && v.series === s.name);
         if (!d) return;
@@ -202,21 +222,51 @@ const KitCharts = (() => {
         const yv = f.y(d.est);
         const low = lowN && d.n !== undefined && d.n < lowN;
         const fmt = spec.yFmt || String;
-        /* a value may override its own fill / opacity — e.g. a risk bar solid
-           and its matched control bar pale, both keeping the run's color */
+        /* a value may override its own fill / opacity / hatch — e.g. a risk bar
+           solid and its matched conditional bar hatched, both keeping the
+           entity's color (d.hatch: true | "/" | "\\" | "x") */
+        const fillColor = d.color || colorOf(s);
         const bar = el("rect", {
           x, y: Math.min(yv, y0), width: bwid, height: Math.abs(y0 - yv),
           rx: 2, class: low ? "low-n" : "",
-        }, { fill: d.color || colorOf(s), fillOpacity: d.op ?? 1 });
+        }, { fill: d.hatch ? makeHatch(defs, fillColor, typeof d.hatch === "string" ? d.hatch : "/") : fillColor,
+             fillOpacity: d.op ?? 1 });
         const label = `${seriesFull(s)}, ${groupFull(gname)}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
         a11y(bar, label);
         bindTip(bar, `<span class="tip-head">${groupFull(gname)} · ${seriesFull(s)}</span>${d.tipExtra ? `<br>${d.tipExtra}` : ""}<br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
+        /* onBarClick(value, seriesObj, groupName): opt-in — bars become
+           clickable (e.g. to drive an explorer filtered to that bar's rows) */
+        if (spec.onBarClick) {
+          bar.style.cursor = "pointer";
+          bar.addEventListener("click", () => spec.onBarClick(d, s, gname));
+          bar.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onBarClick(d, s, gname); }
+          });
+        }
         f.svg.appendChild(bar);
         if (Number.isFinite(d.lo)) {
           const cx = x + bwid / 2;
           f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: f.y(d.lo), y2: f.y(d.hi), class: "whisker" }));
           f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(d.lo), y2: f.y(d.lo), class: "whisker" }));
           f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(d.hi), y2: f.y(d.hi), class: "whisker" }));
+        }
+        /* showN: permanent small n= label above the whisker/bar top. Neighbors
+           at similar heights collide (a fixed series stagger cancels out when
+           whisker tops differ), so bump each label up until it clears every
+           already-placed label it horizontally overlaps. */
+        if (spec.showN && d.n !== undefined) {
+          const nfs = spec.nLabelSize ?? 9;
+          const cx = x + bwid / 2, halfW = estTextWidth(`n=${d.n}`, nfs) / 2;
+          let ny = Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv) - 4;
+          for (let guard = 0; guard < 8; guard++) {
+            const hit = placedN.find(p => Math.abs(p.cx - cx) < p.halfW + halfW + 2 &&
+                                          Math.abs(p.y - ny) < nfs + 1);
+            if (!hit) break;
+            ny = hit.y - nfs - 1;
+          }
+          placedN.push({ cx, halfW, y: ny });
+          f.svg.appendChild(txt(cx, ny, `n=${d.n}`,
+            { "text-anchor": "middle", class: "num", "font-size": nfs }));
         }
         /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n) */
         (d.points || []).forEach((p, pi) => {
@@ -259,7 +309,6 @@ const KitCharts = (() => {
        staying individually distinguishable.
      lo/hi (fractions, e.g. bootstrap CI on the segment's share) → shown in the
        tooltip; the guidelines want a CI on every aggregated share. */
-  let hatchSeq = 0;
   function stackedBars(container, spec) {
     const { groups, segments, values, percent = true } = spec;
     const groupFull = spec.groupFull || (g => g);
@@ -278,16 +327,7 @@ const KitCharts = (() => {
     const f = frame(container, fSpec);
     const defs = el("defs");
     f.svg.appendChild(defs);
-    const hatchFor = (color, shape) => {
-      const id = `kit-hatch-${hatchSeq++}`;
-      const rot = shape === "\\" ? "rotate(-45)" : "rotate(45)";
-      const p = el("pattern", { id, width: 5, height: 5, patternTransform: rot, patternUnits: "userSpaceOnUse" });
-      p.appendChild(el("rect", { width: 5, height: 5 }, { fill: color }));
-      p.appendChild(el("line", { x1: 0, y1: 0, x2: 0, y2: 5 }, { stroke: "var(--surface)", strokeWidth: 2 }));
-      if (shape === "x") p.appendChild(el("line", { x1: 0, y1: 0, x2: 5, y2: 0 }, { stroke: "var(--surface)", strokeWidth: 2 }));
-      defs.appendChild(p);
-      return `url(#${id})`;
-    };
+    const hatchFor = (color, shape) => makeHatch(defs, color, shape);
     const bw = f.iw / groups.length;
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw + bw * 0.18, bwid = bw * 0.64;
@@ -319,7 +359,9 @@ const KitCharts = (() => {
         acc += v;
       });
     });
-    legend(container, segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+    /* legendItems mirrors groupedBars: override the auto segment-legend, or
+       pass [] to suppress it (e.g. the top chart of an aligned pair) */
+    legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })));
     return f;
   }
 
@@ -487,7 +529,10 @@ const KitCharts = (() => {
       });
       if (row.mean !== undefined) {
         svg.appendChild(el("line", { x1: X(row.mean), x2: X(row.mean), y1: cy - 11, y2: cy + 11 }, { stroke: "var(--ink)", strokeWidth: 2 }));
-        svg.appendChild(txt(X(row.mean), cy - 14, `mean ${fmt(row.mean)} (n=${row.dots.length})`, { "text-anchor": "middle", class: "axis-title" }));
+        /* anchor the label away from the near edge so it never clips at 0/1 */
+        const anchor = row.mean > 0.82 ? "end" : row.mean < 0.12 ? "start" : "middle";
+        svg.appendChild(txt(X(row.mean) + (anchor === "end" ? 4 : anchor === "start" ? -4 : 0),
+          cy - 14, `mean ${fmt(row.mean)} (n=${row.dots.length})`, { "text-anchor": anchor, class: "axis-title" }));
       }
     });
     container.appendChild(svg);

@@ -9,7 +9,7 @@ no runtime dependency, old reports stay frozen at their vintage.
 ```bash
 KIT=.claude/skills/writing-guidelines/kit          # resolves via the repo's symlink
 cat "$KIT"/tokens.css "$KIT"/layout.css "$KIT"/cards.css "$KIT"/charts.css   # → <style> block
-cat "$KIT"/stats.js "$KIT"/filters.js "$KIT"/cards.js "$KIT"/explorer.js "$KIT"/charts.js  # → <script> block
+cat "$KIT"/stats.js "$KIT"/filters.js "$KIT"/cards.js "$KIT"/explorer.js "$KIT"/charts.js "$KIT"/toc.js  # → <script> block
 ```
 
 Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
@@ -25,6 +25,7 @@ Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
 | `stats.js` | `KitStats.wilson/bootstrap(seeded)/shuffle/fmtPct` — for filter-reactive recompute only |
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
 | `explorer.js` | `KitExplorer.explorer` (filter bank, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) |
+| `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`) |
 | `template.html` | report skeleton wiring all of it |
 
 ## Rules
