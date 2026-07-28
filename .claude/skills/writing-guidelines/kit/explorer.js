@@ -123,8 +123,8 @@ const KitExplorer = (() => {
       rows.forEach(r => list.appendChild(render(r)));
       if (!randomMode && m.length > shown) {
         const more = document.createElement("button");
-        more.type = "button"; more.textContent = `show ${Math.min(pageSize, m.length - shown)} more`;
-        more.style.margin = "0.6rem 0";
+        more.type = "button"; more.className = "ex-more";
+        more.textContent = `show ${Math.min(pageSize, m.length - shown)} more`;
         more.addEventListener("click", () => { shown += pageSize; update(); });
         list.appendChild(more);
       }

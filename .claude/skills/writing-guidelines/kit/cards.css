@@ -83,6 +83,15 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 /* scrollable sample list + explorer chrome */
 .sample-list { max-height: 660px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); padding: 0 0.7rem; }
 .empty-state { color: var(--muted); font-style: italic; padding: 0.8rem 0; }
+/* pagination button at the list's tail: full-width so it aligns with the
+   cards, themed like the other explorer controls */
+.ex-more {
+  display: block; width: 100%; margin: 0.6rem 0 0.8rem;
+  font: 0.83rem var(--sans); color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--baseline);
+  border-radius: 4px; padding: 0.4rem 0.6rem; cursor: pointer;
+}
+.ex-more:hover { border-color: var(--accent); color: var(--accent); }
 .ex-controls {
   display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: end;
   font-family: var(--sans); font-size: 0.83rem;

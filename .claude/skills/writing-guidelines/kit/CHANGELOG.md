@@ -160,6 +160,10 @@ human eyes)
   (`.halo`, fill-opacity 0.13, pointer-events none) reveals behind the bar
   while its column is hovered or focused. Points/overlays still win their own
   tooltips (drawn after the hit rect).
+- **Explorer "show N more" button themed + aligned (`.ex-more`).** It was a
+  raw browser-default `<button>` inside `.sample-list` — off-theme in dark
+  mode, left-hugging. Now full-width (aligned with the cards) in the standard
+  control chrome.
 - **The scale lesson (no code — a rule):** an SVG's `viewBox` width must be
   designed for the CSS pixels the panel will actually get. Declaring `w` from
   group-count alone and flexing three different-`w` panels to equal CSS widths
