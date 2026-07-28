@@ -226,23 +226,16 @@ const KitCharts = (() => {
            solid and its matched conditional bar hatched, both keeping the
            entity's color (d.hatch: true | "/" | "\\" | "x") */
         const fillColor = d.color || colorOf(s);
+        /* hover halo: a full-height column band in the bar's color, behind the
+           bar (in DOM before it), revealed while the hit zone is hovered/focused */
+        const halo = el("rect", { x: x - 3, y: f.m.t, width: bwid + 6, height: f.ih,
+          rx: 3, class: "halo", "pointer-events": "none" }, { fill: fillColor });
+        f.svg.appendChild(halo);
         const bar = el("rect", {
           x, y: Math.min(yv, y0), width: bwid, height: Math.abs(y0 - yv),
           rx: 2, class: low ? "low-n" : "",
         }, { fill: d.hatch ? makeHatch(defs, fillColor, typeof d.hatch === "string" ? d.hatch : "/") : fillColor,
              fillOpacity: d.op ?? 1 });
-        const label = `${seriesFull(s)}, ${groupFull(gname)}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
-        a11y(bar, label);
-        bindTip(bar, `<span class="tip-head">${groupFull(gname)} · ${seriesFull(s)}</span>${d.tipExtra ? `<br>${d.tipExtra}` : ""}<br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
-        /* onBarClick(value, seriesObj, groupName): opt-in — bars become
-           clickable (e.g. to drive an explorer filtered to that bar's rows) */
-        if (spec.onBarClick) {
-          bar.style.cursor = "pointer";
-          bar.addEventListener("click", () => spec.onBarClick(d, s, gname));
-          bar.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onBarClick(d, s, gname); }
-          });
-        }
         f.svg.appendChild(bar);
         if (Number.isFinite(d.lo)) {
           const cx = x + bwid / 2;
@@ -266,8 +259,34 @@ const KitCharts = (() => {
           }
           placedN.push({ cx, halfW, y: ny });
           f.svg.appendChild(txt(cx, ny, `n=${d.n}`,
-            { "text-anchor": "middle", class: "num", "font-size": nfs }));
+            { "text-anchor": "middle", class: "num", "font-size": nfs,
+              "pointer-events": "none" }));
         }
+        /* hit zone = the bar's full-height column, not the bar rect — a 2%
+           bar is otherwise nearly unhoverable, and clicks shouldn't demand
+           pixel aim. Carries the tooltip, keyboard focus, and click; drawn
+           after the bar so it wins pointer events, before points/overlays so
+           those keep their own tooltips. */
+        const label = `${seriesFull(s)}, ${groupFull(gname)}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
+        const hit = el("rect", { x: gx + bw * 0.12 + si * slot, y: f.m.t,
+          width: slot, height: f.ih }, { fill: "transparent" });
+        a11y(hit, label);
+        bindTip(hit, `<span class="tip-head">${groupFull(gname)} · ${seriesFull(s)}</span>${d.tipExtra ? `<br>${d.tipExtra}` : ""}<br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
+        const glow = on => halo.style.opacity = on ? 1 : 0;
+        hit.addEventListener("mouseenter", () => glow(true));
+        hit.addEventListener("mouseleave", () => glow(false));
+        hit.addEventListener("focus", () => glow(true));
+        hit.addEventListener("blur", () => glow(false));
+        /* onBarClick(value, seriesObj, groupName): opt-in — bars become
+           clickable (e.g. to drive an explorer filtered to that bar's rows) */
+        if (spec.onBarClick) {
+          hit.style.cursor = "pointer";
+          hit.addEventListener("click", () => spec.onBarClick(d, s, gname));
+          hit.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onBarClick(d, s, gname); }
+          });
+        }
+        f.svg.appendChild(hit);
         /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n) */
         (d.points || []).forEach((p, pi) => {
           const px = x + bwid * (0.25 + 0.5 * ((pi * 0.618) % 1));

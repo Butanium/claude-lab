@@ -152,6 +152,14 @@ human eyes)
   differ by ~the stagger amount ("n=299"/"n=242" rendered merged); each label
   now bumps upward until it clears every already-placed label it horizontally
   overlaps within its group.
+- **`groupedBars`: full-column hit zones + hover halo** (Clément: the click
+  zone should be "the 100% bar that would be there", with a halo behind the
+  hovered bar). Tooltip/click/keyboard-focus moved from the bar rect to an
+  invisible full-plot-height column — a ~2% bar was nearly unhoverable and
+  clicks demanded pixel aim — and a soft entity-colored column band
+  (`.halo`, fill-opacity 0.13, pointer-events none) reveals behind the bar
+  while its column is hovered or focused. Points/overlays still win their own
+  tooltips (drawn after the hit rect).
 - **The scale lesson (no code — a rule):** an SVG's `viewBox` width must be
   designed for the CSS pixels the panel will actually get. Declaring `w` from
   group-count alone and flexing three different-`w` panels to equal CSS widths

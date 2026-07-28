@@ -12,8 +12,10 @@
 .kit-chart .direct-label { fill: var(--ink); font-weight: 600; }
 .kit-chart .canvas-warn { fill: var(--warn-ink); font-size: 10.5px; }
 .kit-chart .low-n { opacity: 0.45; }
+.kit-chart .halo { opacity: 0; fill-opacity: 0.13; }
 @media (prefers-reduced-motion: no-preference) {
   .kit-chart .mark { transition: opacity 120ms; }
+  .kit-chart .halo { transition: opacity 120ms; }
 }
 
 .kit-legend {
