@@ -607,7 +607,9 @@ const KitCharts = (() => {
     cells.forEach(c => {
       const ri = rows.indexOf(c.row), ci = cols.indexOf(c.col);
       if (ri < 0 || ci < 0) return;
-      const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: fill(c.value) });
+      /* cell.color overrides the ramp — e.g. semantic hue per outcome column
+         with intensity carried in the color-mix the caller computes */
+      const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: c.color ?? fill(c.value) });
       a11y(rect, `${rowFull(c.row)} × ${c.col}: ${c.text ?? c.value}`);
       bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
       /* onCellClick(cell): opt-in, mirrors groupedBars' onBarClick — cells

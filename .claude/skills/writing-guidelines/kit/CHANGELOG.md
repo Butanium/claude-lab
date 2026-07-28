@@ -187,3 +187,5 @@ human eyes)
   expand to the full list when you're in the appendix.)
 - `charts.js` heatmap: opt-in `spec.onCellClick(cell)` — mirrors groupedBars'
   `onBarClick`, click + Enter/Space (drive an explorer to that cell's rows).
+- `charts.js` heatmap: `cell.color` overrides the ramp fill (semantic-hue
+  heatmaps: caller computes a color-mix per cell, intensity in the mix).
