@@ -3,6 +3,51 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6 — 2026-07-27
+
+Explorer honesty pass (Clément, on the MCQ report: the explorer "displays some
+stupid shorthand instead of the full prompts", and its text rendered "super big
+and kind of bolded"):
+
+- **`.prompt-box` is `white-space: pre-wrap` and no longer italic.** It was
+  styled for a one-line paraphrase; a real prompt is multi-line (lettered
+  options, prefills, chat-template markers) and collapsed into an unreadable
+  blob. Upright + pre-wrap keeps the prompt's actual shape.
+- **Mount-point rule, learned the hard way.** The MCQ report had
+  `<h2 id="explorer">` and `<div id="explorer">`; `getElementById` returned the
+  heading, so the whole explorer mounted *inside* an `<h2>` and inherited its
+  21.6px/700 serif. Anything without its own `font-size` (`.pane`, `.pt-body`)
+  came out huge and bold, while `.card-head`/`.prompt-box` looked fine — which
+  makes it read like a styling bug rather than a DOM bug. Reports should assert
+  unique ids at build time (see `build.py` in that report for the two-line
+  check) and never reuse a section anchor as a JS mount id.
+- **The `prompt:` slot means the prompt.** It is documented as
+  `prompt: "user prompt text"` and exists so a reader can see what was actually
+  sent. Feeding it a description, a probe id, or a diagnostic string ("no leak
+  above 0.001") is the failure this entry exists to prevent — put descriptions
+  in `meta`, diagnostics in `chips` or a labelled `pane`.
+
+## v0.5 — 2026-07-27
+
+RQ-first restructure of the MCQ report (Clément: "feels like your whole report
+is just an appendix while the main result is just not there"):
+
+- **`forest()` chart added.** Paired-contrast panels (pair−cig-only style
+  difference rows with a CI whisker and a zero reference line) kept being
+  hand-rolled or squeezed into `dotStrip`, which has no per-row CI. Rows carry
+  absolute `lo/hi` bounds, optional `header` rows group contrasts, ticks via
+  `niceTicks`, signed default formatter. For "does A differ from B" claims —
+  the statistic behind a headline, not buried in a table.
+- **`groupedBars` values take `tipExtra`.** A bar that aggregates several
+  checkpoints (role-level bars) could not name them — the tooltip only carried
+  the group/series labels. `tipExtra` injects a caller line (e.g.
+  "checkpoints: …") between the head and the numbers, keeping the default
+  est/CI/n text intact. (Clément: bar hover must display the checkpoint
+  evaluated.)
+- Guidance side of the same feedback (main-text altitude, sections-are-claims,
+  instrument findings to appendix) was already folded into the skill's Part 1
+  by Clément — no kit change needed for it; noted here so the trail connects.
+
 ## v0.4 — 2026-07-21
 
 Sample-card readability (Clément, salieri_switching artifact):

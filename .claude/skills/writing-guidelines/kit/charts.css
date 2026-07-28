@@ -17,12 +17,12 @@
 }
 
 .kit-legend {
-  display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; align-items: center;
-  font-family: var(--sans); font-size: 0.8rem; color: var(--ink-2);
-  margin: 0.4rem 0;
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1.2rem; align-items: center;
+  font-family: var(--sans); font-size: 1rem; color: var(--ink-2);
+  margin: 0.5rem 0;
 }
-.kit-legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 0.35em; vertical-align: -1px; }
-.kit-legend .glyph { margin-right: 0.3em; }
+.kit-legend .sw { display: inline-block; width: 13px; height: 13px; border-radius: 3px; margin-right: 0.35em; vertical-align: -2px; }
+.kit-legend .glyph { margin-right: 0.3em; font-size: 1.15em; vertical-align: -1px; }
 
 .kit-tip {
   position: fixed; z-index: 50; pointer-events: none; display: none;

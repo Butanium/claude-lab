@@ -11,69 +11,36 @@ Turn experiment data and findings into a single self-contained interactive HTML 
 
 # Part 1: Writing
 
-## Article Structure
+## Rough outline
 
-### Full blogpost format
+- You want to start with a clear, human-readable tldr of what was run and what's the takeaways.
+- You don't need to cite literatures / try to have an intro / conclusion
+- All details / sanity checks / small trends etc should go in the appendix. It's okay to have the main text be quite short with a key takeaway and then in the appendix have a bunch of sanity checks / ways of presenting the data to support it without overloading the human-reader by framing  them as key results. You're writing reports to human researchers, which time is precious but who are quite adverserial. It's tricky and we're stilll figuring it out together. This skill is our ongoing attempt :)
 
-1. **Title + one-line summary**
-2. **Introduction** — what question, why it matters
-3. **Setup / Methods** — models, adapters, experimental design, prompt used.
-4. **Findings** — one subsection per claim (see "Sections are claims, not experiments" below), each with a key figure, write foldable cells with the exact details of what was run. Include qualitative results, some of them cherry picked to illustrate, but also a random subsample for each setup mentionned all embedded in a minimal interactive explorer. In general when you plot something with aggregated data, always add plots in folded sections with non-aggregated but less readable stuff. E.g. prompt-level results, model-level results, etc etc. This should allow me to easily spot outliers and patterns in the data that are not obvious from the aggregated plots.
-5. **Discussion** — implications, limitations, next steps
-7. **Appendix** — technical details, additional experiments, all prompts used for judging etc.
+## Sections are claims, not experiments
 
-Note that this is different from a normal academic paper, the tone should be closer to a blogpost and not try to oversell the results. Also citations / related work are not needed. This is about your work and your findings.
+One trap when you write a report, is to write it for yourself: which things you fixed, which experiment you first ran, which things you've computed. Some aggregation of the data (e.g. across prompt variants) might just be null results / not really statistically signioficant / rahter small. In this case, do not include this in the report / put it in the appendix. But don't forget that the report is mostly for me, the human. Common traps includes forgetting the main research quesqtion and instead presenting a series of small results
 
-### Research update format (shorter, multiple findings)
-
-1. **Title + date**
-2. **Summary** — bullet-point overview of all findings
-3. **Finding 1** — self-contained section with figure + evidence
-4. **Finding 2** — same pattern
-5. **Open Questions** — what we don't understand yet
-
-### Sections are claims, not experiments
-
-- Write from the final state of understanding. Each section makes one claim about the world, headlined by the most aggregated figure that supports it. Experiments are evidence inside claims, not sections of their own.
 - The investigation's chronology — first attempts, dead ends, course corrections, re-runs — does not structure the report. If the path matters, one appendix paragraph or a link to the lab-log version.
 - Main-text altitude: a colleague should get every claim and how strongly to believe it in ~5 minutes. Per-run granularity, secondary experiments, and robustness checks live in folds under the claim they support.
 - High precision over high recall of findings: the main text carries the most robust / most surprising results only. An extra analysis that didn't add real insight doesn't get a main-text section at all — appendix, or cut.
-- When cleaner data or a corrected estimator supersedes an earlier version, main figures and prose use the best version only. The comparison to the superseded version is one main-text sentence at most, with the full account in a fold or appendix — don't replay the discovery of the problem and its fix.
+- When cleaner data or a corrected estimator supersedes an earlier version, main figures and prose use the best version only. The comparison to the superseded version is one main-text sentence at most, with the full account in a fold or appendix — don't replay the discovery of the problem and its fix in the main text.
 - Aggregated main figures overlay the per-run values as points on the aggregate bars, so heterogeneity stays visible without per-run panels; the full per-run figure goes in a fold.
-- Caveats follow the same altitude rule: the main text carries the best estimate and a one-line qualifier; the full confound analysis goes in a fold attached to the number it qualifies.
 
 ## Writing Style
 
-- Clear, accessible prose — avoid unnecessary jargon
-- First person plural ("we found that...")
-- Acknowledge uncertainty explicitly ("suggestive evidence", "we tentatively conclude")
+- Clear, accessible prose — avoid unnecessary jargon / shorthand (including in figure labels)
 - Concrete examples before generalizing
 - Visual explanations preferred over purely verbal ones
 - Figures are central, not supplementary — build sections around key visualizations
 - Detailed figure captions that can stand alone
-- Color used purposefully (data viz, evidence coding) — never decorative
-- Generous whitespace and clear visual hierarchy through spacing
-
-## Prose Style (IMPORTANT)
-
-- Blogpost tone, NOT paper tone. Plots carry the numbers — prose carries the interpretation.
-- Write for a human reader with little context on what was actually run. Do not compress complex results into dense, run-context-assuming shorthand ("claudisms") — if a sentence only parses for someone who watched the experiment happen, unpack it.
-- Don't recite numbers from plots in running text. If the reader can see "35.9%" in the chart, don't write "35.9%" in the paragraph.
-- BAD: "X increases by +12.3pp (from 21.9% to 34.2%), Y increases by +8.7pp (from 12.9% to 21.6%)..."
-- GOOD: "Both X and Y show clear increases — but what's interesting is the qualitative difference in how they respond."
-- Mention specific numbers ONLY when making an analytical point the plot can't convey (e.g. "a 2.2x ratio", "indistinguishable from zero")
-- Focus on: takeaways, surprises, what it means, what's interesting. Let figures handle the quantitative evidence.
-- Conversational and engaging, not dry recitation
-- Every sentence must inform the reader. Cut clauses whose only function is to justify a writing choice — why an example is included, why a comparison is fair, why a section exists. They read as a defense addressed to an imaginary grader, and the reader gets nothing from them.
-- BAD: "Here is a faithful case, so the flips above read against the actual baseline rather than an imagined one:"
-- GOOD: "These are the (warns, warns) diagonal of Figure 2:"
-- The test: delete the clause and reread. If the reader lost no usable information, it was self-justification — leave it out. If the choice genuinely needs context, state the fact that provides it, not the rhetorical purpose it serves.
 
 ## Examples and Interactivity
 
 - Always show baseline/control samples alongside experimental samples — the reader needs to see "normal" to appreciate the effect
 - Don't only cherry-pick examples — show random samples too, and include borderline cases (e.g. controls that are "close to" the experimental condition)
 - Err on the side of too many examples — readers want to see actual model outputs, not just aggregate stats
+- **Show the prompt verbatim, never a reference to it.** The input is half the evidence: paste the exact string the model received — lettered options, prefill, chat-template markers and all — not a paraphrase, not an id, not a description of how it was built ("canonical order, letter-first system prompt"). Identifiers and conditions belong in the card's metadata line *next to* the prompt, not instead of it. If the prompt was assembled by code, have `prepare_data.py` import that same code so the displayed prompt cannot drift from the one that was actually sent.
 - Include an interactive sample explorer (in-page JS) for browsing raw data: filter by relevant dimensions, draw random samples
 - Long samples should be collapsible (truncated at ~500 chars with click-to-expand/contract. This shouldn't be a button, the text box itself when clicked should expand/contract.)
 
@@ -81,7 +48,7 @@ Note that this is different from a normal academic paper, the tone should be clo
 
 - Examples are evidence, not decoration. They should be introduced, shown, then commented on — integrated into the narrative flow.
 - Every example needs context and commentary. Context = the facts that situate it (which model, condition, figure cell it comes from); commentary = what to notice in it. Neither is a justification for showing it — if an example needs defending, pick a better example.
-- Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models) to show range, not repetition.
+- Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models).
 
 ## Charts
 
@@ -101,14 +68,13 @@ While drafting, freely add little-Clément caveats — but treat them as TODOs, 
 
 ## Outtakes / Highlights Section
 
-- End reports with a curated "outtakes and highlights" section — interesting, funny, or surprising model outputs that didn't fit the main argument but are worth showing.
-- Mine the full dataset for standout examples: accidental poetry, training data leaks, spectacularly broken outputs, consistent attractor states, etc.
-- These sections are scientifically informative (they reveal model internals) while ending on a fun note.
+- If you feel like it, you're encouraged to end reports with a curated "outtakes and highlights" section — interesting, funny, or surprising model outputs that didn't fit the main argument but are worth showing, if you found any along the way.
+- You can / a subagent/fork can mine the full dataset for standout examples: accidental poetry, training data leaks, spectacularly broken outputs, consistent attractor states, etc. In mpost research you should have had a qualitative pass over the data anyway.
 
 
 ## Help me improve this skill
 
-If I give you feedback that goes against some principles / advices in this skill, please flag it and let me know so that I can update the skill.
+If I give you feedback that goes against some principles / advices in this skill, please flag it and let me know so that I can update the skill. This is a living document that we should improve overtime to make our collaboration better! 
 
 
 ---

@@ -29,6 +29,16 @@ const KitCharts = (() => {
   };
   const seriesColor = i => `var(--series-${(i % 8) + 1})`;
 
+  /* rough label-width estimate (11px axis font) for auto-sizing a left
+     margin that fits row labels — emoji/wide codepoints counted heavier than
+     ASCII. Cheap and generous on purpose: better a little slack than a
+     clipped label at the SVG's left edge. */
+  function estTextWidth(s, fs = 11) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.codePointAt(0) > 0x2000 ? fs * 1.15 : fs * 0.56;
+    return w;
+  }
+
   /* Nice round tick values inside [min, max] that NEVER exceed max — so a
      scale ceiling with headroom (yMax 1.05 for whisker/label room) doesn't
      label a tick at 105%. Ticks land on multiples of 1/2/2.5/5 ×10^k; the
@@ -84,7 +94,7 @@ const KitCharts = (() => {
     const div = document.createElement("div");
     div.className = "kit-legend";
     div.innerHTML = items.map(it =>
-      `<span>${it.glyph ? `<span class="glyph">${it.glyph}</span>` : `<span class="sw" style="background:${it.color}"></span>`}${KitCards?.esc(it.name) ?? it.name}</span>`
+      `<span${it.full && it.full !== it.name ? ` title="${(KitCards?.esc(it.full) ?? it.full).replace(/"/g, "&quot;")}"` : ""}>${it.glyph ? `<span class="glyph">${it.glyph}</span>` : `<span class="sw" style="background:${it.color}"></span>`}${KitCards?.esc(it.name) ?? it.name}</span>`
     ).join("");
     container.appendChild(div);
   }
@@ -130,14 +140,60 @@ const KitCharts = (() => {
        baseline: {y,label}, lowN, w, h } */
   function groupedBars(container, spec) {
     const { groups, series, values, lowN = 0 } = spec;
-    const f = frame(container, spec);
+    /* groupFull/seriesFull: optional (glyph -> full string) resolvers so an
+       axis can show a compact label while the tooltip/a11y text spells the
+       entity out — group identity (matching) always stays on the raw
+       `groups`/`value.group` strings, only the DISPLAYED text changes.
+       groupLabel: optional (key -> axis text) resolver, separate from
+       groupFull — lets `groups`/`value.group` be a unique join key (e.g. a
+       model's short lab code) even when several keys legitimately render the
+       same compact glyph (variants of one trait combo); matching never uses
+       the rendered text, only the key. Defaults to identity for callers that
+       still pass the display text directly as the key. */
+    const groupFull = spec.groupFull || (g => g), seriesFull = spec.seriesFull || (s => s.name);
+    const groupLabel = spec.groupLabel || (g => g);
+    /* labelSize: group-axis font size in viewBox units. The default 11 is
+       relative to a ~720 viewBox; a chart that widens its viewBox to fit more
+       groups shrinks every fixed-unit glyph on screen, so wide charts (and
+       emoji labels, which need the room) pass this explicitly. */
+    const LFS = spec.labelSize ?? 11;
+    /* auto-rotate group labels when they're too wide for their slot to sit
+       horizontally without overlapping neighbors — decided from the same
+       margins frame() will use. Rotation is steep (65°, not heatmap's 35°):
+       at 35° a label much longer than its own slot still fans out across
+       neighboring slots and collides with THEIR labels; 65° keeps a label's
+       horizontal footprint within roughly its own slot width even when it's
+       2-3x longer than its neighbors (cos 65° ≈ 0.42 vs cos 35° ≈ 0.82).
+       Bottom margin is sized to the actual longest label so it isn't clipped. */
+    const ROT = 65, rotRad = ROT * Math.PI / 180;
+    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
+    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
+    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
+    /* rotateLabels forces the decision either way — glyph-only axes read badly
+       tilted even when the estimator thinks they're a hair too wide */
+    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
+    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
+    const bAdj = Math.max(m0.b, neededB);
+    /* growing the bottom margin must grow h too, or the extra label room
+       eats directly into the plot area (bars/lines get crushed) */
+    const f = frame(container, rotate
+      ? { ...spec, m: { ...m0, b: bAdj }, h: (spec.h ?? 300) + (bAdj - m0.b) }
+      : spec);
     const bw = f.iw / groups.length;
     const slot = bw / (series.length + 0.8);
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
     const y0 = f.y(Math.max(spec.yMin ?? 0, 0));
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw;
-      f.svg.appendChild(txt(gx + bw / 2, f.h - f.m.b + 16, gname, { "text-anchor": "middle" }));
+      const glabel = groupLabel(gname);
+      const lattr = LFS === 11 ? {} : { "font-size": LFS };
+      if (rotate) {
+        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        t.setAttribute("transform", `translate(${gx + bw / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
+        f.svg.appendChild(t);
+      } else {
+        f.svg.appendChild(txt(gx + bw / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
+      }
       series.forEach((s, si) => {
         const d = values.find(v => v.group === gname && v.series === s.name);
         if (!d) return;
@@ -152,9 +208,9 @@ const KitCharts = (() => {
           x, y: Math.min(yv, y0), width: bwid, height: Math.abs(y0 - yv),
           rx: 2, class: low ? "low-n" : "",
         }, { fill: d.color || colorOf(s), fillOpacity: d.op ?? 1 });
-        const label = `${s.name}, ${gname}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
+        const label = `${seriesFull(s)}, ${groupFull(gname)}: ${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? " ⚠ low n" : ""}`;
         a11y(bar, label);
-        bindTip(bar, `<span class="tip-head">${gname} · ${s.name}</span><br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
+        bindTip(bar, `<span class="tip-head">${groupFull(gname)} · ${seriesFull(s)}</span>${d.tipExtra ? `<br>${d.tipExtra}` : ""}<br>${fmt(d.est)}${ciTxt({ ...d, fmt })}${fmtN(d)}${low ? ` <span style="color:var(--warn-ink)">⚠ low n</span>` : ""}`);
         f.svg.appendChild(bar);
         if (Number.isFinite(d.lo)) {
           const cx = x + bwid / 2;
@@ -206,7 +262,20 @@ const KitCharts = (() => {
   let hatchSeq = 0;
   function stackedBars(container, spec) {
     const { groups, segments, values, percent = true } = spec;
-    const f = frame(container, { ...spec, yMin: 0, yMax: percent ? 1 : Math.max(...groups.map(g => values.filter(v => v.group === g).reduce((s, v) => s + v.count, 0))), yFmt: percent ? v => Math.round(v * 100) + "%" : v => v });
+    const groupFull = spec.groupFull || (g => g);
+    const groupLabel = spec.groupLabel || (g => g);
+    const LFS = spec.labelSize ?? 11;   /* see groupedBars */
+    const ROT = 65, rotRad = ROT * Math.PI / 180;
+    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
+    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
+    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
+    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
+    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
+    const bAdj = Math.max(m0.b, neededB);
+    const fSpec = { ...spec, m: rotate ? { ...m0, b: bAdj } : m0,
+      h: rotate ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
+      yMin: 0, yMax: percent ? 1 : Math.max(...groups.map(g => values.filter(v => v.group === g).reduce((s, v) => s + v.count, 0))), yFmt: percent ? v => Math.round(v * 100) + "%" : v => v };
+    const f = frame(container, fSpec);
     const defs = el("defs");
     f.svg.appendChild(defs);
     const hatchFor = (color, shape) => {
@@ -222,7 +291,15 @@ const KitCharts = (() => {
     const bw = f.iw / groups.length;
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw + bw * 0.18, bwid = bw * 0.64;
-      f.svg.appendChild(txt(gx + bwid / 2, f.h - f.m.b + 16, gname, { "text-anchor": "middle" }));
+      const glabel = groupLabel(gname);
+      const lattr = LFS === 11 ? {} : { "font-size": LFS };
+      if (rotate) {
+        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        t.setAttribute("transform", `translate(${gx + bwid / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
+        f.svg.appendChild(t);
+      } else {
+        f.svg.appendChild(txt(gx + bwid / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
+      }
       const rows = values.filter(v => v.group === gname);
       const total = rows.reduce((s, v) => s + v.count, 0) || 1;
       let acc = 0;
@@ -236,8 +313,8 @@ const KitCharts = (() => {
           { fill: s.hatch ? hatchFor(color, typeof s.hatch === "string" ? s.hatch : "/") : color });
         const pct = Math.round((d.count / total) * 1000) / 10;
         const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
-        a11y(rect, `${gname}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
-        bindTip(rect, `<span class="tip-head">${gname} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
+        a11y(rect, `${groupFull(gname)}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
+        bindTip(rect, `<span class="tip-head">${groupFull(gname)} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
         f.svg.appendChild(rect);
         acc += v;
       });
@@ -263,22 +340,30 @@ const KitCharts = (() => {
       const pts = s.points.slice().sort((a, b) => a.x - b.x);
       const dAttr = pts.map((p, i) => `${i ? "L" : "M"}${X(p.x)},${f.y(p.y)}`).join("");
       f.svg.appendChild(el("path", { d: dAttr, fill: "none", "stroke-width": 2, "stroke-dasharray": s.dash ? "5 4" : "none" }, { stroke: color }));
+      const full = s.full || s.name;
       pts.forEach(p => {
         if (Number.isFinite(p.lo))
           f.svg.appendChild(el("line", { x1: X(p.x), x2: X(p.x), y1: f.y(p.lo), y2: f.y(p.hi), class: "whisker" }, { stroke: color }));
         const dot = el("circle", { cx: X(p.x), cy: f.y(p.y), r: 3.5 }, { fill: color });
-        a11y(dot, `${s.name} @ ${p.x}: ${fmt(p.y)}${fmtN(p)}`);
-        bindTip(dot, `<span class="tip-head">${s.name} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
+        a11y(dot, `${full} @ ${p.x}: ${fmt(p.y)}${fmtN(p)}`);
+        bindTip(dot, `<span class="tip-head">${full} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
         f.svg.appendChild(dot);
         const hit = el("circle", { cx: X(p.x), cy: f.y(p.y), r: 9, fill: "transparent" });
-        bindTip(hit, `<span class="tip-head">${s.name} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
+        bindTip(hit, `<span class="tip-head">${full} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
         f.svg.appendChild(hit);
       });
-      /* endpoint direct label */
+      /* endpoint direct label: s.short when the legend name is too long to sit
+         beside the line (the legend still carries the full name); native title
+         carries s.full either way */
       const last = pts[pts.length - 1];
-      f.svg.appendChild(txt(X(last.x) + 6, f.y(last.y) + 3.5, s.name, { class: "direct-label" }, ));
+      const dlText = s.short ?? s.name;
+      if (dlText === "") return;   /* opt out: the legend already names the line */
+      const dl = txt(X(last.x) + 6, f.y(last.y) + 3.5, dlText,
+        { class: "direct-label", ...(s.labelSize ? { "font-size": s.labelSize } : {}) });
+      if (s.full && s.full !== dlText) { const ti = el("title"); ti.textContent = s.full; dl.appendChild(ti); }
+      f.svg.appendChild(dl);
     });
-    legend(container, spec.series.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+    legend(container, spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })));
     return f;
   }
 
@@ -374,7 +459,9 @@ const KitCharts = (() => {
   /* ---- dot strip: one row per entity, a dot per sample on [0,1], mean tick */
   function dotStrip(container, spec) {
     const rows = spec.rows;
-    const rowH = 34, w = spec.w ?? 720, m = { t: 8, r: 16, b: 26, l: 120 };
+    const LFS = spec.labelSize ?? 11;   /* see groupedBars */
+    const autoL = 24 + Math.max(0, ...rows.map(r => estTextWidth(r.label, LFS)));
+    const rowH = 34, w = spec.w ?? 720, m = { t: 8, r: 16, b: 26, l: Math.max(120, autoL), ...spec.m };
     const h = m.t + rows.length * rowH + m.b;
     container.classList.add("kit-chart");
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
@@ -387,7 +474,10 @@ const KitCharts = (() => {
     });
     rows.forEach((row, ri) => {
       const cy = m.t + ri * rowH + rowH / 2;
-      svg.appendChild(txt(m.l - 8, cy + 3.5, row.label, { "text-anchor": "end" }));
+      const rowLabel = txt(m.l - 8, cy + LFS * 0.34, row.label,
+        { "text-anchor": "end", ...(LFS === 11 ? {} : { "font-size": LFS }) });
+      if (row.full && row.full !== row.label) { const ti = el("title"); ti.textContent = row.full; rowLabel.appendChild(ti); }
+      svg.appendChild(rowLabel);
       row.dots.forEach(d => {
         const dot = el("circle", { cx: X(d.v), cy: cy + (((d.v * 997) % 1) - 0.5) * 10, r: 3.5, "fill-opacity": 0.55 },
           { fill: row.color || seriesColor(ri) });
@@ -409,7 +499,14 @@ const KitCharts = (() => {
        vMin, vMax, outlineMax, w } */
   function heatmap(container, spec) {
     const { rows, cols, cells } = spec;
-    const w = spec.w ?? 720, m = { t: 8, r: 12, b: 40, l: 120 };
+    const rowFull = spec.rowFull || (r => r);
+    /* rowLabel: optional (key -> row-axis text) resolver, mirrors groupLabel
+       in groupedBars/stackedBars — `rows`/`cell.row` stay a unique join key
+       even when several keys share a compact glyph. */
+    const rowLabel = spec.rowLabel || (r => r);
+    const LFS = spec.labelSize ?? 11;   /* see groupedBars */
+    const autoL = 20 + Math.max(0, ...rows.map(r => estTextWidth(rowLabel(r), LFS)));
+    const w = spec.w ?? 720, m = { t: 8, r: 12, b: 40, l: Math.max(120, autoL), ...spec.m };
     const cw = (w - m.l - m.r) / cols.length;
     const ch = Math.min(34, cw);
     const h = m.t + rows.length * ch + m.b;
@@ -430,7 +527,14 @@ const KitCharts = (() => {
     };
     let maxCell = null;
     if (spec.outlineMax) maxCell = cells.reduce((a, b) => (Math.abs(b.value) > Math.abs(a?.value ?? -Infinity) ? b : a), null);
-    rows.forEach((rname, ri) => svg.appendChild(txt(m.l - 8, m.t + ri * ch + ch / 2 + 3.5, rname, { "text-anchor": "end" })));
+    rows.forEach((rname, ri) => {
+      const label = rowLabel(rname);
+      const t = txt(m.l - 8, m.t + ri * ch + ch / 2 + LFS * 0.34, label,
+        { "text-anchor": "end", ...(LFS === 11 ? {} : { "font-size": LFS }) });
+      const full = rowFull(rname);
+      if (full && full !== label) { const ti = el("title"); ti.textContent = full; t.appendChild(ti); }
+      svg.appendChild(t);
+    });
     cols.forEach((cname, ci) => {
       const t = txt(0, 0, cname, { "text-anchor": "end" });
       t.setAttribute("transform", `translate(${m.l + ci * cw + cw / 2 + 3} ${m.t + rows.length * ch + 6}) rotate(-35)`);
@@ -440,8 +544,8 @@ const KitCharts = (() => {
       const ri = rows.indexOf(c.row), ci = cols.indexOf(c.col);
       if (ri < 0 || ci < 0) return;
       const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: fill(c.value) });
-      a11y(rect, `${c.row} × ${c.col}: ${c.text ?? c.value}`);
-      bindTip(rect, c.tip || `<span class="tip-head">${c.row} × ${c.col}</span><br>${c.text ?? c.value}`);
+      a11y(rect, `${rowFull(c.row)} × ${c.col}: ${c.text ?? c.value}`);
+      bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
       svg.appendChild(rect);
       if (c.text !== undefined) {
         const dark = spec.diverging ? Math.abs(c.value) > 0.6 * Math.max(Math.abs(vMin), vMax) : (c.value - vMin) / (vMax - vMin || 1) > 0.6;
@@ -454,6 +558,59 @@ const KitCharts = (() => {
     return { svg };
   }
 
+  /* ---- forest: paired-contrast rows, CI whisker per row, reference line ----
+     For "A − B" difference panels (paired bootstrap over scenarios/prompts).
+     spec: { rows: [{label, full?, est, lo, hi, color?, tip?, n?}], x0 = 0,
+       xMin?, xMax?, xFmt, xTitle, w, labelSize }. lo/hi are ABSOLUTE bounds
+     (not half-widths). Rows render top-down in the given order; a row with
+     `header: "…"` renders as a group header instead of a mark. */
+  function forest(container, spec) {
+    const rows = spec.rows, LFS = spec.labelSize ?? 11, x0 = spec.x0 ?? 0;
+    const autoL = 24 + Math.max(0, ...rows.map(r => estTextWidth(r.header || r.label, LFS)));
+    const rowH = 30, w = spec.w ?? 720, m = { t: 8, r: 20, b: 40, l: Math.max(120, autoL), ...spec.m };
+    const h = m.t + rows.length * rowH + m.b;
+    const marks = rows.filter(r => !r.header);
+    const lo = Math.min(x0, ...marks.map(r => r.lo ?? r.est)), hi = Math.max(x0, ...marks.map(r => r.hi ?? r.est));
+    const pad = (hi - lo) * 0.12 || 0.05;
+    const xMin = spec.xMin ?? lo - pad, xMax = spec.xMax ?? hi + pad;
+    container.classList.add("kit-chart");
+    const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
+    const X = v => m.l + (v - xMin) / (xMax - xMin) * (w - m.l - m.r);
+    const fmt = spec.xFmt || (v => (v > 0 ? "+" : "") + v.toFixed(2));
+    niceTicks(xMin, xMax).forEach(v => {
+      svg.appendChild(el("line", { x1: X(v), x2: X(v), y1: m.t, y2: h - m.b, class: "gridline" }));
+      svg.appendChild(txt(X(v), h - m.b + 14, fmt(v), { "text-anchor": "middle", class: "num" }));
+    });
+    svg.appendChild(el("line", { x1: X(x0), x2: X(x0), y1: m.t, y2: h - m.b, class: "refline" }));
+    rows.forEach((row, ri) => {
+      const cy = m.t + ri * rowH + rowH / 2;
+      if (row.header) {
+        svg.appendChild(txt(m.l - 8, cy + LFS * 0.34, row.header,
+          { "text-anchor": "end", class: "axis-title", "font-size": LFS }));
+        return;
+      }
+      const color = row.color || seriesColor(ri);
+      const lab = txt(m.l - 8, cy + LFS * 0.34, row.label,
+        { "text-anchor": "end", ...(LFS === 11 ? {} : { "font-size": LFS }) });
+      if (row.full && row.full !== row.label) { const ti = el("title"); ti.textContent = row.full; lab.appendChild(ti); }
+      svg.appendChild(lab);
+      if (row.lo !== undefined && row.hi !== undefined)
+        svg.appendChild(el("line", { x1: X(row.lo), x2: X(row.hi), y1: cy, y2: cy },
+          { stroke: color, strokeWidth: 2 }));
+      const dot = el("circle", { cx: X(row.est), cy, r: 4.5 }, { fill: color });
+      const tip = row.tip || `${row.full || row.label}: ${fmt(row.est)}` +
+        (row.lo !== undefined ? ` [${fmt(row.lo)}, ${fmt(row.hi)}]` : "") +
+        (row.n ? ` · n=${row.n}` : "");
+      bindTip(dot, tip);
+      a11y(dot, `${row.label}: ${tip.replace(/<[^>]+>/g, " ")}`);
+      svg.appendChild(dot);
+    });
+    if (spec.xTitle) svg.appendChild(txt(m.l + (w - m.l - m.r) / 2, h - 6, spec.xTitle,
+      { "text-anchor": "middle", class: "axis-title" }));
+    container.appendChild(svg);
+    return { svg };
+  }
+
   return { el, txt, seriesColor, bindTip, legend, frame, refLine,
-           groupedBars, stackedBars, line, scatter, dotStrip, heatmap };
+           groupedBars, stackedBars, line, scatter, dotStrip, heatmap, forest };
 })();

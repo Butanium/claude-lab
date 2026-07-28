@@ -66,11 +66,14 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 .digest .ellipsis { color: var(--muted); font-family: var(--sans); font-size: 0.85em; }
 
 /* prompt shown above samples */
+/* real prompts are multi-line (options on their own lines, prefills, chat-template
+   markers) — pre-wrap keeps that shape, and upright beats italic once it is more
+   than one line of text */
 .prompt-box {
   background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.5rem 0.8rem; margin: 0.5rem 0;
-  font-style: italic; font-size: 0.95rem;
+  font-size: 0.95rem; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
 /* transcript view: alternating role panes */
