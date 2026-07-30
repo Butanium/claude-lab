@@ -3,6 +3,52 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.5 — 2026-07-30
+
+- **`line` honors `legendItems`** (override, or `[]` to suppress) like
+  `groupedBars`/`stackedBars` already did. Side-by-side panels of one figure
+  each rendered their own copy of the same legend, each wrapping onto two
+  lines — suppress both and render one shared legend under the pair
+  (Clément, on the dose_open v3 report's Fig 2).
+
+## v0.6.4 — 2026-07-30
+
+- **`groupedBars` shows `n=` above each bar automatically when n varies**
+  (max > 1.25 × min across the chart's values); `showN` still forces it either
+  way. Conditional-denominator charts (P(A|B) per group) can't be read at a
+  glance if the n only lives in the tooltip — Clément, pointing at the
+  matplotlib twin of the dose figure, which prints n per bar. Charts where
+  every bar shares an n stay clean.
+
+## v0.6.3 — 2026-07-30
+
+- **`KitCharts.pctFmt`**: percentage formatter that drops the decimal when a
+  value doesn't need it, so a whole-number tick set reads `60%`, not `60.0%`
+  (Clément: "why .0 if all tick labels are full numbers"). Reports were each
+  defining `v => (100*v).toFixed(1) + "%"`; use `yFmt: KitCharts.pctFmt`
+  instead. Single-argument on purpose — it gets passed as a bare callback.
+- `frame()`'s y-title margin reserve now reuses `estTextWidth` instead of its
+  own char-width constant; `estTextWidth` is exported.
+
+## v0.6.2 — 2026-07-30
+
+- **`frame()` reserves space for the rotated y-axis title.** The title is drawn
+  in a fixed ~11px band at the left edge while tick labels are right-anchored at
+  `m.l - 6`, so any chart with wide labels ("60.0%") and a default-ish `m.l` had
+  the title touching the numbers (Clément, on the dose_open v3 report: "the y
+  axis label is too close to the ticks" — and it was every figure, not one).
+  `m.l` is now widened to `max(m.l, labelWidth + 26)` when a `yTitle` is set;
+  it only ever grows, so callers that already left room are unaffected.
+
+## v0.6.1 — 2026-07-30
+
+- **`groupedBars` per-run overlay dots follow the value's color override**
+  (`p.color || d.color || colorOf(series)`). Bars colored per-entity via
+  `d.color` (e.g. checkpoint hue with condition carried by hatch) got overlay
+  dots in the series-index fallback color — a hue that belonged to a different
+  entity on the same chart. Found on the dose_open v3 report (per-tier dots
+  rendered blue/orange over checkpoint-colored bars).
+
 ## v0.6 — 2026-07-27
 
 Explorer honesty pass (Clément, on the MCQ report: the explorer "displays some
@@ -207,3 +253,8 @@ human eyes)
 - `charts.js` dotStrip: opt-in `spec.onDotClick(dot, row)` with an invisible
   r=9 halo per dot so the 3.5px dots are actually clickable. (Clément: every
   figure should drive the explorer on click.)
+
+## 2026-07-29
+- `cards.js`: `card()` gains optional `noteLabel` (default "judge note") — the note
+  slot was hardcoded to "judge note", wrong when the note is e.g. a curator's
+  why-picked line (dose_open flip explorer).

@@ -16,6 +16,7 @@ Turn experiment data and findings into a single self-contained interactive HTML 
 - You want to start with a clear, human-readable tldr of what was run and what's the takeaways.
 - You don't need to cite literatures / try to have an intro / conclusion
 - All details / sanity checks / small trends etc should go in the appendix. It's okay to have the main text be quite short with a key takeaway and then in the appendix have a bunch of sanity checks / ways of presenting the data to support it without overloading the human-reader by framing  them as key results. You're writing reports to human researchers, which time is precious but who are quite adverserial. It's tricky and we're stilll figuring it out together. This skill is our ongoing attempt :)
+- Appendix should start with a quick description of each section and what it contains.
 
 ## Sections are claims, not experiments
 
@@ -34,6 +35,7 @@ One trap when you write a report, is to write it for yourself: which things you 
 - Visual explanations preferred over purely verbal ones
 - Figures are central, not supplementary — build sections around key visualizations
 - Detailed figure captions that can stand alone
+- Titles are descriptive, not clever. "Thinking-on: the reasoning turns protective — then the answer betrays it" is less readable than "Often the reasoning is health-focused but the answer still pushes for cigarettes". No need to use fancy words in the title, try to just get to the point.
 
 ## Examples and Interactivity
 
@@ -122,7 +124,7 @@ async function loadData(b64) {
 }
 ```
 
-Embed the **full corpus** by default — the explorer exists to *find* the weird samples, so filters must sweep everything, not a curated subset. Text corpora gzip roughly 10x; the largest corpus to date (~100 MB raw) lands around 10–25 MB embedded. Verified 2026-07-20: a 6.77 MB report (6.66 MB embedded gzip, 14.7 MB raw JSON) published and decoded fine. Above that the ceiling is still unprobed — publish early and check it loads before polishing.
+Embed the **full corpus** by default — the explorer exists to *find* the weird samples, so filters must sweep everything, not a curated subset. Text corpora gzip roughly 10x when repetitive, but **diverse model-generated prose only gzips ~3.5x** (measured 2026-07-30 on a 48 MB corpus). **The Artifact publish cap is a hard 16 MB** (the tool rejects above it with an explicit error; an 11.5 MB report published and decoded fine, 2026-07-30). If the full corpus exceeds the cap, degrade honestly rather than truncating strings: drop whole low-priority text fields (e.g. embed labels-only for a secondary condition, with an in-page note saying where the missing texts live) and keep every text you do embed complete. Publish early and check it loads before polishing.
 
 ### 3. Figures
 
@@ -159,8 +161,10 @@ Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex fig
 - Visual style: ~700px reading column with wider breakouts for figures; serif prose / sans UI-chrome split; restrained neutral palette (all in the kit already).
 - Judge rubrics and prompts in the appendix render as **formatted prose** (kit `.rubric`: criterion headings, score anchors as a definition list, mono only for `{template}` slots) — never as a raw monospace code-block dump.
 
-### 7. Publish
+### 7. Publish with the Artifact tool
 
-Artifact tool with `capabilities: {downloads: true}`; wire a "download data" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis (the downloads allowlist excludes `.csv` — save CSV content under a `.txt` filename; 16 MiB cap). Keep the artifact's title and favicon stable across redeploys. If the Artifact tool isn't available (e.g. subagent context), the HTML file itself is the deliverable — send it with SendUserFile; it works straight from disk.
+If the user explicitly asks for it, do it with `capabilities: {downloads: true}`; wire a "download data" button to `window.claude.downloads.save` so readers can pull the embedded corpus back out for their own analysis (the downloads allowlist excludes `.csv` — save CSV content under a `.txt` filename; 16 MiB cap). You should not do this by default, as right now adding any capability makes the artifact unpublishable (so the user can't share it with a link). A compromise can be to make the download button visible only if `window.claude?.downloads` is true.
+
+If the Artifact tool isn't available even after tool search, (e.g. subagent context), the HTML file itself is the deliverable — your team lead can publish it.
 
 

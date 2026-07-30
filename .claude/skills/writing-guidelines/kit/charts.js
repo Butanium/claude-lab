@@ -29,6 +29,14 @@ const KitCharts = (() => {
   };
   const seriesColor = i => `var(--series-${(i % 8) + 1})`;
 
+  /* percentage formatter for axes and tooltips: one decimal only where the
+     value needs it, so a whole-number tick set reads "60%", not "60.0%".
+     Deliberately single-argument — it gets passed as a bare callback. */
+  const pctFmt = v => {
+    const p = 100 * v;
+    return (Math.abs(p - Math.round(p)) < 1e-9 ? p.toFixed(0) : p.toFixed(1)) + "%";
+  };
+
   /* rough label-width estimate (11px axis font) for auto-sizing a left
      margin that fits row labels — emoji/wide codepoints counted heavier than
      ASCII. Cheap and generous on purpose: better a little slack than a
@@ -104,6 +112,15 @@ const KitCharts = (() => {
                               yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null,
                               yTickLabels = true }) {
     container.classList.add("kit-chart");
+    const ticks = yTicks || niceTicks(yMin, yMax);
+    /* the rotated y title sits in a ~11px band at the left edge while tick
+       labels end at m.l - 6; with wide labels ("60.0%") a default m.l puts the
+       two in contact. Widen (never narrow) the margin to fit both. */
+    if (yTitle) {
+      const labelW = yTickLabels
+        ? Math.max(...ticks.map(v => estTextWidth(yFmt(v)))) : 0;
+      m = { ...m, l: Math.max(m.l, Math.ceil(labelW + 26)) };
+    }
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
     const iw = w - m.l - m.r, ih = h - m.t - m.b;
     const y = v => m.t + ih - ((v - yMin) / (yMax - yMin || 1)) * ih;
@@ -111,7 +128,7 @@ const KitCharts = (() => {
     svg.appendChild(g);
     /* tick VALUES are round numbers within [yMin, yMax] — decoupled from the
        scale ceiling so headroom (yMax > data max) never yields a >100% tick */
-    for (const v of yTicks || niceTicks(yMin, yMax)) {
+    for (const v of ticks) {
       const yy = y(v), isBase = Math.abs(v - yMin) < 1e-9;
       g.appendChild(el("line", { x1: m.l, x2: m.l + iw, y1: yy, y2: yy, class: isBase ? "baseline" : "gridline" }));
       /* yTickLabels: false = shared-axis panel (a row sibling carries the
@@ -169,6 +186,12 @@ const KitCharts = (() => {
        still pass the display text directly as the key. */
     const groupFull = spec.groupFull || (g => g), seriesFull = spec.seriesFull || (s => s.name);
     const groupLabel = spec.groupLabel || (g => g);
+    /* showN defaults to "on when it matters": with conditional denominators the
+       bars aren't comparable at a glance unless each n is on the chart, while
+       an all-equal-n chart would just be noisier for it. Explicit showN wins. */
+    const allN = values.map(v => v.n).filter(Number.isFinite);
+    const showN = spec.showN ?? (allN.length > 1 &&
+      Math.max(...allN) > 1.25 * Math.min(...allN));
     /* labelSize: group-axis font size in viewBox units. The default 11 is
        relative to a ~720 viewBox; a chart that widens its viewBox to fit more
        groups shrinks every fixed-unit glyph on screen, so wide charts (and
@@ -247,7 +270,7 @@ const KitCharts = (() => {
            at similar heights collide (a fixed series stagger cancels out when
            whisker tops differ), so bump each label up until it clears every
            already-placed label it horizontally overlaps. */
-        if (spec.showN && d.n !== undefined) {
+        if (showN && d.n !== undefined) {
           const nfs = spec.nLabelSize ?? 9;
           const cx = x + bwid / 2, halfW = estTextWidth(`n=${d.n}`, nfs) / 2;
           let ny = Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv) - 4;
@@ -287,11 +310,14 @@ const KitCharts = (() => {
           });
         }
         f.svg.appendChild(hit);
-        /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n) */
+        /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n).
+           Stroke follows the bar's own color when the value overrides it
+           (d.color / p.color) — bars colored per-entity would otherwise get
+           overlay dots in the series fallback color, a mismatched hue. */
         (d.points || []).forEach((p, pi) => {
           const px = x + bwid * (0.25 + 0.5 * ((pi * 0.618) % 1));
           const r = p.n ? Math.min(5, 2 + 1.1 * Math.sqrt(p.n) / 3) : 2.6;
-          const dot = el("circle", { cx: px, cy: f.y(p.value), r }, { fill: "var(--surface)", stroke: colorOf(s), strokeWidth: 1.6 });
+          const dot = el("circle", { cx: px, cy: f.y(p.value), r }, { fill: "var(--surface)", stroke: p.color || d.color || colorOf(s), strokeWidth: 1.6 });
           bindTip(dot, `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${fmtN(p)}`);
           f.svg.appendChild(dot);
         });
@@ -424,7 +450,11 @@ const KitCharts = (() => {
       if (s.full && s.full !== dlText) { const ti = el("title"); ti.textContent = s.full; dl.appendChild(ti); }
       f.svg.appendChild(dl);
     });
-    legend(container, spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+    /* legendItems mirrors groupedBars/stackedBars: override the auto series
+       legend, or pass [] to suppress it (e.g. side-by-side panels sharing one
+       legend rendered below them) */
+    legend(container, spec.legendItems
+      || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })));
     return f;
   }
 
@@ -711,6 +741,6 @@ const KitCharts = (() => {
     return { svg };
   }
 
-  return { el, txt, seriesColor, bindTip, legend, frame, refLine,
+  return { el, txt, seriesColor, pctFmt, estTextWidth, bindTip, legend, frame, refLine,
            groupedBars, stackedBars, line, scatter, dotStrip, heatmap, forest };
 })();

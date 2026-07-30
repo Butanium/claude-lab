@@ -161,7 +161,7 @@ const KitCards = (() => {
      card({ meta: ["run x", "prompt 3"], chips: [["GOLD","good"], ...],
             prompt: "user prompt text",
             panes: [{label:"reasoning (CoT)", text, cls:"anti", evidence}],
-            note: "judge free-text" }) */
+            note: "judge free-text", noteLabel: "judge note" }) */
   function card(spec) {
     const el = document.createElement("div");
     el.className = "card";
@@ -187,7 +187,7 @@ const KitCards = (() => {
     if (spec.note) {
       const n = document.createElement("div");
       n.className = "card-head";
-      n.innerHTML = `<span class="lab">judge note</span> <span>${esc(spec.note)}</span>`;
+      n.innerHTML = `<span class="lab">${esc(spec.noteLabel ?? "judge note")}</span> <span>${esc(spec.note)}</span>`;
       el.appendChild(n);
     }
     return el;
