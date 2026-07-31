@@ -65,6 +65,13 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 .digest .ctx { color: var(--ink-2); }
 .digest .ellipsis { color: var(--muted); font-family: var(--sans); font-size: 0.85em; }
 
+/* why-featured lede: the one line telling the reader what to look at in the
+   card below. It belongs ABOVE the card in the prose voice — passed as the
+   card's `note` it renders in the muted 0.78rem card-head chrome and reads as
+   metadata, i.e. nearly invisible (Clément, on the dose_open v3 outtakes). */
+.card-lede { margin: 1.2rem 0 -0.25rem; }
+.card-lede + .card { margin-top: 0.35rem; }
+
 /* prompt shown above samples */
 /* real prompts are multi-line (options on their own lines, prefills, chat-template
    markers) — pre-wrap keeps that shape, and upright beats italic once it is more

@@ -3,6 +3,67 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.9 — 2026-07-31
+
+- **`KitToc.build` audits the page structure** and console.warns on the two
+  wiring mistakes that produce silently wrong pages rather than errors:
+  (a) a **duplicate id** — a mount `<div id="explorer">` sharing its id with the
+  `<h2 id="explorer">` above it makes `getElementById` return the heading, so
+  `KitExplorer.explorer` mounted the entire corpus explorer *inside an h2*. The
+  page looked almost right; the only tell was a TOC entry 16 kB long (Clément
+  spotted it as "a bug in the sidebar"). (b) **more than one `.sidebar .panel`**
+  — every panel is `position: sticky` at the same offset, so a second one covers
+  the first (a TOC panel hid the global-filter slider in the same report). One
+  `.panel`, later sections in `.side-sec` — which is what `.side-sec` was for,
+  but nothing enforced it.
+- Report authors: give section headings and their mount points different ids
+  (`<h2 id="sec-explorer">` + `<div id="explorer-mount">`).
+
+## v0.6.8 — 2026-07-31
+
+- **Overlay dots can carry their own CI**: give a `points[]` entry `lo`/`hi` and
+  `groupedBars` draws a thin capless whisker (and puts the interval in its
+  tooltip). A dot with no interval next to a bar that has one invites reading
+  the spread as noise-free (Clément). Ink-colored, not the dot's hue — the
+  interval normally reaches down into the bar, where a same-hue line vanishes
+  against the fill (Clément again, on the first cut) — and clamped to the plot
+  area, since a point CI (one tier) is much wider than the bar's (all tiers).
+- **Axis titles at legend size** (`.axis-title` 10.5 → 11.5 viewBox units, which
+  renders ≈ the legend's 1rem once the SVG scales to its container); the y-title
+  band moves 11 → 12 and its margin reserve 26 → 28 so the v0.6.2 clearance from
+  the tick labels survives the bigger glyph.
+- **Captions read as text, not fine print**: `figcaption` inherits the body size
+  and line-height and uses `--ink` instead of `--muted`. They carry method,
+  denominators and how-to-read — the muted 0.88rem made the most load-bearing
+  sentence under each figure the faintest thing on the page (Clément).
+
+## v0.6.7 — 2026-07-31
+
+- **Template favicon is base64 now — the raw form made published artifacts
+  unshareable.** `template.html` shipped
+  `href='data:image/svg+xml,<svg …>📊</svg>'`; a page carrying that unencoded
+  data URI publishes fine and renders fine, but the share request 409s, with
+  nothing on the page hinting at the cause (diagnosed by the
+  repair-unshareable-artifact pass on the dose_open v3 report — I have not
+  reproduced the 409 myself). `;base64,` is fine. Every report built from the
+  template inherited the line, so check yours: `grep -n 'svg+xml,<svg'`.
+
+## v0.6.6 — 2026-07-31
+
+- **`KitExplorer.hashNav`: chart→explorer jumps become browser history.** A
+  click that filters the explorer to a bar's rows scrolled the reader away with
+  no way back except manual scrolling. `hashNav(api, {anchorId, defaults})`
+  gives `goto(filters, {from})`, which pushes the figure's anchor and then
+  `#explorer?dim=value…`, so Back alternates plot ↔ samples, Forward re-opens
+  the same filtered list, and the URL is shareable (Clément, on the dose_open v3
+  report). Uses `location.hash` rather than `scrollIntoView` + `pushState`:
+  inside the artifact iframe the page never scrolls itself (the parent sizes the
+  frame to content height), and fragment navigation is what the viewer honors.
+- **`.card-lede`**: the "why this sample is featured" line goes ABOVE the card
+  as prose, not into the card's `note` slot — that slot is muted 0.78rem
+  card-head chrome and made the one line the reader most needs nearly invisible
+  (Clément, on the same report's outtakes).
+
 ## v0.6.5 — 2026-07-30
 
 - **`line` honors `legendItems`** (override, or `[]` to suppress) like

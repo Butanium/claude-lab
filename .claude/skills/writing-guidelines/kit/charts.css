@@ -2,11 +2,17 @@
 .kit-chart { font-family: var(--sans); }
 .kit-chart svg { display: block; width: 100%; height: auto; }
 .kit-chart text { fill: var(--ink-2); font-size: 11px; }
-.kit-chart .axis-title { fill: var(--muted); font-size: 10.5px; letter-spacing: 0.04em; }
+/* axis titles read at ~the legend's size once the SVG is scaled up to its
+   container (viewBox 720 → ~1000px wide ≈ ×1.4, so 11.5 ≈ the legend's 1rem) */
+.kit-chart .axis-title { fill: var(--muted); font-size: 11.5px; letter-spacing: 0.04em; }
 .kit-chart .gridline { stroke: var(--grid); stroke-width: 1; }
 .kit-chart .baseline { stroke: var(--baseline); stroke-width: 1; }
 .kit-chart .refline { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
 .kit-chart .whisker { stroke: var(--ink-2); stroke-width: 1.4; }
+/* CI on an overlay dot: ink, not the dot's hue — the interval reaches down into
+   the bar, and a same-hue line disappears against the fill. Thinner and lighter
+   than .whisker so the bar's own CI still reads as the primary one. */
+.kit-chart .whisker-dot { stroke: var(--ink-2); stroke-width: 1.1; opacity: 0.7; }
 .kit-chart .mark { cursor: default; }
 .kit-chart .mark:focus-visible { outline: none; stroke: var(--ink); stroke-width: 2.5; }
 .kit-chart .direct-label { fill: var(--ink); font-weight: 600; }

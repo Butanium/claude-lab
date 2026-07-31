@@ -118,7 +118,9 @@ details > :last-child { margin-bottom: 0.9rem; }
 /* --- figures --- */
 figure { margin: 1.4rem 0; }
 figure > img, figure > svg { max-width: 100%; height: auto; }
-figcaption { color: var(--muted); font-size: 0.88rem; line-height: 1.5; margin-top: 0.45rem; }
+/* captions carry real content in these reports (method, denominators, how to
+   read the figure) — they read at body size and body ink, not as fine print */
+figcaption { color: var(--ink); font-size: inherit; line-height: inherit; margin-top: 0.5rem; }
 .overflow-x { overflow-x: auto; }
 
 /* --- tables --- */

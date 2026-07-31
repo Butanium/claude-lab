@@ -24,7 +24,7 @@ Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
 | `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/heatmap` — CI whiskers, n= tooltips, per-run overlays, per-bar ref overlays (◆/tick), shaded scatter regions, stacked-segment CIs + shaped hatch, low-n ⚠, ref lines, a11y |
 | `stats.js` | `KitStats.wilson/bootstrap(seeded)/shuffle/fmtPct` — for filter-reactive recompute only |
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
-| `explorer.js` | `KitExplorer.explorer` (filter bank, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) |
+| `explorer.js` | `KitExplorer.explorer` (filter bank, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure) |
 | `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`) |
 | `template.html` | report skeleton wiring all of it |
 
@@ -36,3 +36,6 @@ Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
 - Scatter/small-multiples cap at 3 series (all-pairs validation), then fold to "Other".
 - Judge rubrics render as `.rubric` formatted prose — never a raw code-block dump.
 - Bootstrap in JS is always seeded.
+- **Never inline a raw `data:image/svg+xml,<svg …>` URI** (favicon or image) —
+  it publishes and renders fine but blocks *sharing* the artifact. Base64-encode
+  it (`data:image/svg+xml;base64,…`). See CHANGELOG v0.6.7.

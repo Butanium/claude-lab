@@ -113,13 +113,13 @@ const KitCharts = (() => {
                               yTickLabels = true }) {
     container.classList.add("kit-chart");
     const ticks = yTicks || niceTicks(yMin, yMax);
-    /* the rotated y title sits in a ~11px band at the left edge while tick
+    /* the rotated y title sits in a ~12px band at the left edge while tick
        labels end at m.l - 6; with wide labels ("60.0%") a default m.l puts the
        two in contact. Widen (never narrow) the margin to fit both. */
     if (yTitle) {
       const labelW = yTickLabels
         ? Math.max(...ticks.map(v => estTextWidth(yFmt(v)))) : 0;
-      m = { ...m, l: Math.max(m.l, Math.ceil(labelW + 26)) };
+      m = { ...m, l: Math.max(m.l, Math.ceil(labelW + 28)) };
     }
     const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
     const iw = w - m.l - m.r, ih = h - m.t - m.b;
@@ -137,7 +137,7 @@ const KitCharts = (() => {
     }
     if (yTitle) {
       const t = txt(0, 0, yTitle, { class: "axis-title", "text-anchor": "middle" });
-      t.setAttribute("transform", `translate(11 ${m.t + ih / 2}) rotate(-90)`);
+      t.setAttribute("transform", `translate(12 ${m.t + ih / 2}) rotate(-90)`);
       svg.appendChild(t);
     }
     container.appendChild(svg);
@@ -170,7 +170,7 @@ const KitCharts = (() => {
 
   /* ---- grouped bars with CI whiskers + per-run dot overlays ----
      spec: { groups, series: [{name, seriesIndex}], values: [{group, series,
-       est, lo, hi, n, points: [{label, value, n}]}], yMax, yFmt, yTitle,
+       est, lo, hi, n, points: [{label, value, n, lo, hi}]}], yMax, yFmt, yTitle,
        baseline: {y,label}, lowN, w, h } */
   function groupedBars(container, spec) {
     const { groups, series, values, lowN = 0 } = spec;
@@ -317,8 +317,22 @@ const KitCharts = (() => {
         (d.points || []).forEach((p, pi) => {
           const px = x + bwid * (0.25 + 0.5 * ((pi * 0.618) % 1));
           const r = p.n ? Math.min(5, 2 + 1.1 * Math.sqrt(p.n) / 3) : 2.6;
-          const dot = el("circle", { cx: px, cy: f.y(p.value), r }, { fill: "var(--surface)", stroke: p.color || d.color || colorOf(s), strokeWidth: 1.6 });
-          bindTip(dot, `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${fmtN(p)}`);
+          const stroke = p.color || d.color || colorOf(s);
+          /* a point's own CI when it carries one (p.lo/p.hi): thin, capless and
+             ink-colored (see .whisker-dot). NOT the dot's hue — the interval
+             usually reaches down into the bar, where a same-hue line is
+             invisible against the fill. */
+          if (Number.isFinite(p.lo)) {
+            /* clamped to the plot area: a point CI is often wider than the
+               bar's (30 scenarios vs 180) and would otherwise paint over the
+               chart's own margins. Capless, so a clamped end doesn't read as
+               the interval ending there. */
+            const cy = v => Math.max(f.m.t, Math.min(f.m.t + f.ih, f.y(v)));
+            f.svg.appendChild(el("line", { x1: px, x2: px, y1: cy(p.lo), y2: cy(p.hi),
+              class: "whisker-dot" }));
+          }
+          const dot = el("circle", { cx: px, cy: f.y(p.value), r }, { fill: "var(--surface)", stroke, strokeWidth: 1.6 });
+          bindTip(dot, `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
           f.svg.appendChild(dot);
         });
         /* per-bar reference overlays: a diamond (e.g. the independence

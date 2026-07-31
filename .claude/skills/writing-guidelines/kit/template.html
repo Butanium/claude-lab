@@ -6,8 +6,13 @@
 
 <!-- clab-report-kit v0.2 -->
 <title>REPORT TITLE</title>
-<!-- standalone-file fallback favicon; the Artifact tool's `favicon` param covers the hosted page -->
-<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">📊</text></svg>'>
+<!-- Standalone-file fallback favicon; the Artifact tool's `favicon` param covers the hosted page.
+     MUST stay base64 — a raw `data:image/svg+xml,<svg …>` href makes the published artifact
+     UNSHAREABLE (the share PATCH 409s), and nothing in the page hints at why. Decoded, this is
+     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">📊</text></svg>
+     — swap the emoji by re-encoding, e.g.
+       python3 -c 'import base64;print(base64.b64encode(open("i.svg","rb").read()).decode())' -->
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHRleHQgeT0iMTQiIGZvbnQtc2l6ZT0iMTQiPvCfk4o8L3RleHQ+PC9zdmc+">
 
 <style>
 /* ===== paste kit CSS here: tokens.css + layout.css + cards.css + charts.css ===== */

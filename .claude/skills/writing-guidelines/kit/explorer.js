@@ -167,6 +167,67 @@ const KitExplorer = (() => {
     return { refresh: update, set };
   }
 
+  /* ---- hash-linked explorer navigation ----
+     A chart click that filters the explorer IS a navigation, so it belongs in
+     the browser's history: goto() pushes the anchor the reader came FROM (the
+     figure) and then the explorer view with its filters in the hash. Back
+     alternates plot ↔ samples, Forward re-opens the same filtered list, and a
+     copied URL reproduces the view. Both pushes are plain `location.hash`
+     writes so the BROWSER owns the scroll and the history entry — inside the
+     artifact iframe the page itself never scrolls (the parent sizes the frame
+     to full content height), and fragment navigation is what works there.
+
+     hashNav(api, { anchorId, defaults }) → { goto(filters, {from}), applyHash }
+     where `api` is an explorer() handle. Hash form: #anchor?dim=value&dim=value */
+  function hashNav(api, { anchorId, defaults = null }) {
+    const enc = f => {
+      const q = Object.entries(f)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
+      return "#" + anchorId + (q ? "?" + q : "");
+    };
+    const dec = h => {
+      const [id, q] = h.replace(/^#/, "").split("?");
+      if (id !== anchorId) return null;
+      const f = {};
+      for (const kv of (q || "").split("&")) {
+        const [k, v = ""] = kv.split("=");
+        if (k) f[decodeURIComponent(k)] = decodeURIComponent(v);
+      }
+      return f;
+    };
+    const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    const applyHash = () => {
+      const f = dec(location.hash);
+      if (f) api.set(f);
+      return !!f;
+    };
+    /* We scroll on every hash event ourselves. Two reasons the browser won't:
+       an explorer hash carries a `?query` so it matches no element id, and on a
+       Back into the from-entry the scroll RESTORATION wins over the fragment —
+       and the position it restores was recorded after goto() had already moved
+       on to the explorer, i.e. the reader lands where they were, not on the
+       figure they came from. */
+    addEventListener("hashchange", () => {
+      if (applyHash()) scrollTo(anchorId);
+      else scrollTo(location.hash.replace(/^#/, "").split("?")[0]);
+    });
+
+    function goto(filters, { from = null } = {}) {
+      const target = enc(filters);
+      if (location.hash === target) {   /* same view again: no entry, just go */
+        api.set(filters); scrollTo(anchorId); return;
+      }
+      /* the from-entry is what Back lands on; skip it when we're already there
+         (the reader came from that anchor) so Back doesn't need two presses */
+      if (from && location.hash !== "#" + from) location.hash = from;
+      location.hash = target;
+    }
+    /* a shared/reloaded explorer URL lands on the explorer, filters applied */
+    if (applyHash()) scrollTo(anchorId);
+    else if (defaults) api.set(defaults);
+    return { goto, applyHash };
+  }
+
   /* Paired A/B comparison explorer (assistant-axis pattern): per-dimension
      linked/split toggles; a draw picks one shared row key (e.g. same prompt)
      present in both filtered pools and renders the two rows side by side.
@@ -238,5 +299,5 @@ const KitExplorer = (() => {
     return { refresh: draw };
   }
 
-  return { explorer, comparisonExplorer, uniq };
+  return { explorer, comparisonExplorer, hashNav, uniq };
 })();

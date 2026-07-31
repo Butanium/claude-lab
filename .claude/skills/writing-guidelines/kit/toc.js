@@ -11,7 +11,29 @@
 "use strict";
 
 const KitToc = (() => {
+  /* Build-time sanity check on the page's own structure. build() runs after
+     every other kit call in a report, so it is where a mis-wired page is
+     cheapest to catch. Both checks come from real bugs (2026-07-31):
+     - a mount div sharing its id with a section heading (id="explorer" on both)
+       makes getElementById return the HEADING, so the component mounts INSIDE
+       an <h2> — the page still renders and the only visible symptom was a TOC
+       entry 16 kB long.
+     - .sidebar .panel is sticky, so a second panel sticks to the same offset
+       and silently covers the first (a TOC panel hiding the filter controls).
+       One .panel, later sections in .side-sec. */
+  function audit() {
+    const ids = [...document.querySelectorAll("[id]")].map(e => e.id);
+    const dupes = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
+    if (dupes.length) console.warn(
+      "[kit] duplicate id(s) — a component may have mounted into the wrong element:", dupes);
+    const panels = document.querySelectorAll(".sidebar .panel");
+    if (panels.length > 1) console.warn(
+      `[kit] ${panels.length} .sidebar .panel elements — each is sticky and they will overlap; ` +
+      "use one .panel with .side-sec sections inside it");
+  }
+
   function build(nav, spec = {}) {
+    audit();
     const items = spec.items ||
       [...document.querySelectorAll("h2[id], h3[id]")].map(h =>
         ({ id: h.id, label: h.textContent, sub: h.tagName === "H3" }));
