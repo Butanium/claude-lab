@@ -5,9 +5,12 @@
    give long section titles short sidebar labels). Renders links into `nav`
    and keeps the entry whose section currently tops the viewport marked
    `.active`. An item with `children: [{ id, label }]` renders as a
-   collapsed group — one line normally, expanding to its child links while
-   the reader is inside that group's page range (the appendix pattern: a
-   single "Appendix" line that unfolds to A1…An on arrival). */
+   collapsed group — one line plus a caret, expanding to its child links
+   while the reader is inside that group's page range (the appendix pattern:
+   a single "Appendix" line that unfolds to A1…An on arrival). Clicking the
+   caret pins the group open (or closed) for the rest of the session, so a
+   reader who opened the appendix from the top of the page still has it open
+   when they scroll back up. */
 "use strict";
 
 const KitToc = (() => {
@@ -51,16 +54,40 @@ const KitToc = (() => {
     /* flat page-order list for scroll tracking (children included) */
     const flat = [];
     for (const it of items) {
-      nav.appendChild(mkLink(it, it.sub ? "sub" : null));
+      const a = mkLink(it, it.sub ? "sub" : null);
       flat.push(it);
-      if (it.children?.length) {
-        const box = document.createElement("div");
-        box.className = "toc-children";
-        box.hidden = true;
-        for (const c of it.children) { box.appendChild(mkLink(c, "child")); flat.push(c); }
-        nav.appendChild(box);
-        groups.push({ ids: new Set([it.id, ...it.children.map(c => c.id)]), box });
-      }
+      if (!it.children?.length) { nav.appendChild(a); continue; }
+
+      const head = document.createElement("div");
+      head.className = "toc-grouphead";
+      const caret = document.createElement("button");
+      caret.type = "button";
+      caret.className = "toc-caret";
+      caret.textContent = "▸";
+      caret.setAttribute("aria-label", it.label + " sections");
+      head.append(a, caret);
+      nav.appendChild(head);
+
+      const box = document.createElement("div");
+      box.className = "toc-children";
+      box.id = "toc-ch-" + it.id;
+      caret.setAttribute("aria-controls", box.id);
+      const inner = document.createElement("div");
+      for (const c of it.children) { inner.appendChild(mkLink(c, "child")); flat.push(c); }
+      box.appendChild(inner);
+      nav.appendChild(box);
+
+      /* pinned: null = follow the reader, true/false = the reader decided */
+      const g = { ids: new Set([it.id, ...it.children.map(c => c.id)]), pinned: null, inRange: false };
+      g.paint = () => {
+        const open = g.pinned ?? g.inRange;
+        box.classList.toggle("open", open);
+        caret.classList.toggle("open", open);
+        caret.setAttribute("aria-expanded", String(open));
+      };
+      caret.addEventListener("click", () => { g.pinned = !(g.pinned ?? g.inRange); g.paint(); });
+      groups.push(g);
+      g.paint();
     }
     const heads = flat.map(it => document.getElementById(it.id)).filter(Boolean);
     let raf = 0;
@@ -72,7 +99,7 @@ const KitToc = (() => {
         else break;
       }
       for (const [id, a] of links) a.classList.toggle("active", !!current && id === current.id);
-      for (const g of groups) g.box.hidden = !current || !g.ids.has(current.id);
+      for (const g of groups) { g.inRange = !!current && g.ids.has(current.id); g.paint(); }
     }
     addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(update); }, { passive: true });
     update();

@@ -3,6 +3,19 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.15 — 2026-08-03
+
+- **A TOC group is a real fold now.** The children of a `children:` item (the
+  appendix pattern) already appeared on arrival and vanished on exit, but there
+  was no way to look at them from the top of the page — the only way to see what
+  A1–A11 were was to scroll into the appendix. The parent line gets a caret:
+  clicking it pins the group open (or closed) for the rest of the session, and
+  until someone clicks, it keeps following the reader. Auto is the default
+  because it is right most of the time; the pin is there because auto is
+  occasionally exactly wrong (Clément). Collapse animates via `0fr → 1fr` grid
+  rows, and the collapsed links go `visibility: hidden` so they leave the tab
+  order.
+
 ## v0.6.14 — 2026-08-03
 
 - **The search box gets a "search in" picker.** `search` now also takes
