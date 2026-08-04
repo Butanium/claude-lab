@@ -3,6 +3,35 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.13 — 2026-08-03
+
+Explorer usability pass (Clément, on the CoT-unfaithfulness report):
+
+- **Filter dimensions are multi-select, with a chip per chosen value.** Pick
+  from the dropdown to add, click a chip's ✕ to drop it, ✕ next to the label to
+  clear the dimension, and a `clear N filters` button clears everything
+  including the search box. One-value-per-dimension had been quietly shaping the
+  data model: the report carried a coarse `cot_side` dimension whose values
+  duplicated half of `cot_cat` ("why is negotiated and other in cot side while
+  it's in category already?") because there was no other way to ask for two
+  categories at once. Within a dimension the chosen values OR; across dimensions
+  they AND. No chips = no constraint, so the default view is unchanged.
+- **`advanced: true` on a dim puts it behind a fold, closed by default.** A
+  corpus pooling several experiments carries dimensions inert for most rows
+  (`frozen-CoT arm`, `CoT source model`); in the main row they read as confusion,
+  not power. The summary counts what's active inside, and `set()` opens the fold
+  — a filter you cannot see is worse than one you open a fold to reach.
+- **`optionTitle: v => text` gives options and chips a hover tooltip.** A
+  dimension whose values are ids (`p3`, an arm code) is unreadable in the
+  dropdown even when the report holds the text they stand for.
+- **`search` entries may be resolver functions, not just field names.** The text
+  a card shows is not always a field on the row: this report dedupes each frozen
+  CoT into a side table and stores `cot: ""` on its ~20 resamples, so field-only
+  search silently missed **18,340 of 25,940 rows** — the reader searching a
+  phrase visible on screen got no hit. `search: ["resp", r => r.cot || cases[r.case]]`.
+- `.ex-controls` aligns to `start`: dimensions are no longer uniform height once
+  chips wrap under them, and bottom alignment made the labels ragged.
+
 ## v0.6.12 — 2026-08-03
 
 - **The kit inlines itself: `kit_build.build()` + `kit/VERSION`.** Every report

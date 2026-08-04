@@ -24,10 +24,91 @@ const KitExplorer = (() => {
     return { wrap, sel };
   }
 
+  /* A filter dimension: a picker that ADDS values, and a chip per chosen value.
+     Multi-select because one-value-per-dimension forces a reader who wants two
+     categories to either run the query twice or reach for a coarser dimension
+     that the report then has to carry just for that (which is how a `cot_side`
+     ends up duplicating half of `cot_cat`). No selection = no constraint, so
+     the default view is still everything. */
+  function makeDim(d, values, onChange) {
+    const chosen = new Set();
+    const optLabel = v => (d.optionLabel ? d.optionLabel(v) : String(v));
+    /* optionTitle: hover text for an option and its chip. A dimension whose values
+       are identifiers (`p3`, an arm code) is unreadable in the dropdown even when
+       the report holds the text they stand for. */
+    const optTitle = v => (d.optionTitle ? d.optionTitle(v) : "");
+    const wrap = document.createElement("div");
+    wrap.className = "ex-dim";
+    const head = document.createElement("div");
+    head.className = "ex-dim-head";
+    const label = document.createElement("label");
+    label.textContent = d.label || d.key;
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "ex-x ex-dim-x";
+    clear.textContent = "✕";
+    clear.title = `clear ${d.label || d.key}`;
+    clear.addEventListener("click", () => { chosen.clear(); sync(); onChange(); });
+    head.append(label, clear);
+    const sel = document.createElement("select");
+    const chips = document.createElement("div");
+    chips.className = "ex-chips";
+    wrap.append(head, sel, chips);
+
+    /* chosen values leave the dropdown: re-picking one is a no-op, and a long
+       option list is easier to scan without the ones already applied */
+    function sync() {
+      sel.textContent = "";
+      sel.appendChild(new Option(chosen.size ? "add…" : "all", "__all__"));
+      for (const v of values) {
+        if (chosen.has(String(v))) continue;
+        const opt = new Option(optLabel(v), String(v));
+        opt.title = optTitle(v);
+        sel.appendChild(opt);
+      }
+      sel.value = "__all__";
+      clear.style.visibility = chosen.size ? "visible" : "hidden";
+      chips.textContent = "";
+      for (const v of chosen) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "ex-chip";
+        chip.title = optTitle(v) ? `${optTitle(v)}\n\n(click to remove)` : `remove ${optLabel(v)}`;
+        const text = document.createElement("span");
+        text.textContent = optLabel(v);
+        const x = document.createElement("span");
+        x.className = "ex-x";
+        x.textContent = "✕";
+        chip.append(text, x);
+        chip.addEventListener("click", () => { chosen.delete(v); sync(); onChange(); });
+        chips.appendChild(chip);
+      }
+    }
+    sel.addEventListener("change", () => {
+      if (sel.value === "__all__") return;
+      chosen.add(sel.value); sync(); onChange();
+    });
+    sync();
+
+    const known = new Set(values.map(String));
+    return {
+      wrap, chosen,
+      /* set() from a chart click replaces rather than adds: the click means
+         "show me these rows", not "widen what I already had" */
+      apply(vals) {
+        chosen.clear();
+        for (const v of [].concat(vals)) if (known.has(String(v))) chosen.add(String(v));
+        sync();
+      },
+      clear() { chosen.clear(); sync(); },
+    };
+  }
+
   /* explorer(el, {
        data,                      // array of row objects
-       dims: [{key, label, type:"select"|"min"|"max", min, max, step}],
-       search: ["prompt","text"], // optional free-text fields
+       dims: [{key, label, advanced, optionLabel, optionTitle,
+                type:"select"|"min"|"max", min, max, step}],
+       search: ["prompt","text", r => resolve(r)],  // field names and/or resolvers
        render: row => Element,    // card factory
        pageSize: 12, drawN: 5,
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
@@ -38,15 +119,29 @@ const KitExplorer = (() => {
     controls.className = "ex-controls";
     const state = {};
     const inputs = [];
-    const selByKey = {};
+    const dimByKey = {};
+
+    /* dims marked advanced live behind a fold: a corpus that pools several
+       experiments carries dimensions that only apply to one of them, and a row
+       of controls where most are inert for what the reader is looking at reads
+       as complexity rather than power. The fold's summary counts what's active
+       inside it, and set() opens it — a filter you can't see is worse than one
+       you have to open a fold to reach. */
+    const advFold = document.createElement("details");
+    advFold.className = "ex-adv";
+    const advSummary = document.createElement("summary");
+    const advBody = document.createElement("div");
+    advBody.className = "ex-adv-body";
+    advFold.append(advSummary, advBody);
+    const advDims = [];
 
     for (const d of dims) {
       if (d.type === "select" || !d.type) {
-        const { wrap, sel } = makeSelect(d.label || d.key, d.values || uniq(data, d.key), true, d.optionLabel);
-        sel.addEventListener("change", () => { state[d.key] = sel.value; update(); });
-        state[d.key] = "__all__";
-        selByKey[d.key] = sel;
-        controls.appendChild(wrap); inputs.push(sel);
+        const dim = makeDim(d, d.values || uniq(data, d.key), update);
+        state[d.key] = dim.chosen;
+        dimByKey[d.key] = dim;
+        if (d.advanced) { advDims.push(d.key); advBody.appendChild(dim.wrap); }
+        else controls.appendChild(dim.wrap);
       } else {
         const wrap = document.createElement("div");
         const label = document.createElement("label");
@@ -63,6 +158,12 @@ const KitExplorer = (() => {
       }
     }
 
+    /* A resolver entry exists because the text a card SHOWS is not always a field
+       on the row: a corpus that dedupes a shared body (one frozen CoT across its
+       ~20 resamples) keeps it in a side table, and a search that only reads row
+       fields then silently misses those rows while the reader is looking at the
+       very text they searched for. */
+    const searchFns = search.map(k => (typeof k === "function" ? k : (r => r[k])));
     let searchBox = null;
     if (search.length) {
       const wrap = document.createElement("div");
@@ -78,13 +179,34 @@ const KitExplorer = (() => {
     const drawBtn = document.createElement("button");
     drawBtn.type = "button";
     drawBtn.textContent = `Draw ${drawN} random`;
+    const clearAll = document.createElement("button");
+    clearAll.type = "button";
+    clearAll.className = "ex-clear";
+    clearAll.addEventListener("click", () => {
+      for (const k in dimByKey) dimByKey[k].clear();
+      if (searchBox) searchBox.value = "";
+      update();
+    });
     const count = document.createElement("span");
     count.className = "ex-count";
-    controls.append(drawBtn, count);
+    controls.append(drawBtn, clearAll, count);
 
     const list = document.createElement("div");
     list.className = "sample-list";
-    el.append(controls, list);
+    el.append(controls, ...(advDims.length ? [advFold] : []), list);
+
+    function syncChrome() {
+      const active = Object.values(dimByKey).reduce((n, d) => n + (d.chosen.size ? 1 : 0), 0)
+        + (searchBox?.value.trim() ? 1 : 0);
+      clearAll.textContent = active ? `clear ${active} filter${active > 1 ? "s" : ""}` : "clear filters";
+      clearAll.disabled = !active;
+      const advActive = advDims.filter(k => dimByKey[k].chosen.size).length;
+      advSummary.textContent = advActive
+        ? `more filters — ${advActive} active`
+        : "more filters (experiment-specific)";
+      advSummary.classList.toggle("has-active", advActive > 0);
+      if (advActive && !advFold.open) advFold.open = true;
+    }
 
     /* randomRows non-null => the list shows random draws; "show more" then
        keeps drawing randomly from the not-yet-shown remainder (not the first
@@ -102,18 +224,20 @@ const KitExplorer = (() => {
         for (const d of dims) {
           if (d.type === "min" && r[d.key] < state[d.key + ":min"]) return false;
           if (d.type === "max" && r[d.key] > state[d.key + ":max"]) return false;
-          if ((d.type === "select" || !d.type) && state[d.key] !== "__all__"
-              && String(r[d.key]) !== state[d.key]) return false;
+          /* empty set = unconstrained; otherwise OR within a dimension, AND across */
+          if ((d.type === "select" || !d.type) && state[d.key].size
+              && !state[d.key].has(String(r[d.key]))) return false;
         }
         if (spec.globalStore && spec.globalFilter
             && !spec.globalFilter(r, spec.globalStore.state)) return false;
-        if (q && !search.some(k => String(r[k] ?? "").toLowerCase().includes(q))) return false;
+        if (q && !searchFns.some(f => String(f(r) ?? "").toLowerCase().includes(q))) return false;
         return true;
       });
     }
 
     function update() {   /* filter/search/set() entry: reset paging + random mode */
       randomRows = null; shown = pageSize;
+      syncChrome();
       renderList();
     }
 
@@ -151,16 +275,14 @@ const KitExplorer = (() => {
     update();
 
     /* Programmatic filter drive (e.g. a chart's onBarClick filtering the
-       explorer to that bar's rows). filters: {dimKey: value | "__all__"}.
-       Unmentioned select dims reset to "all" unless keepOthers is true. */
+       explorer to that bar's rows). filters: {dimKey: value | [values]}.
+       Unmentioned select dims are cleared unless keepOthers is true. */
     function set(filters, { keepOthers = false } = {}) {
       for (const d of dims) {
-        const sel = selByKey[d.key];
-        if (!sel) continue;
-        if (d.key in filters) {
-          const v = String(filters[d.key]);
-          if ([...sel.options].some(o => o.value === v)) { sel.value = v; state[d.key] = v; }
-        } else if (!keepOthers) { sel.value = "__all__"; state[d.key] = "__all__"; }
+        const dim = dimByKey[d.key];
+        if (!dim) continue;
+        if (d.key in filters) dim.apply(filters[d.key]);
+        else if (!keepOthers) dim.clear();
       }
       update();
     }
