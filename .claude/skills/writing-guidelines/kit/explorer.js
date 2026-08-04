@@ -24,18 +24,25 @@ const KitExplorer = (() => {
     return { wrap, sel };
   }
 
-  /* A filter dimension: a picker that ADDS values, and a chip per chosen value.
-     Multi-select because one-value-per-dimension forces a reader who wants two
-     categories to either run the query twice or reach for a coarser dimension
-     that the report then has to carry just for that (which is how a `cot_side`
-     ends up duplicating half of `cot_cat`). No selection = no constraint, so
-     the default view is still everything. */
+  /* A filter dimension. By default a plain dropdown — one value, or "all" — which
+     is what a reader expects of a filter, and the only shape a shared URL can carry
+     (hashNav encodes one `dim=value` per dimension).
+
+     `multi: true` turns it into a picker that ADDS values plus a chip per chosen
+     value, for a dimension where "these two categories" is a question the report
+     actually expects. Worth having, not worth defaulting to: it costs every other
+     dimension a two-step interaction and a variable-height control.
+
+     Either way `chosen` is a Set and an empty one means unconstrained, so the
+     filtering code doesn't care which mode a dimension is in. */
   function makeDim(d, values, onChange) {
+    const multi = !!d.multi;
     const chosen = new Set();
     const optLabel = v => (d.optionLabel ? d.optionLabel(v) : String(v));
-    /* optionTitle: hover text for an option and its chip. A dimension whose values
-       are identifiers (`p3`, an arm code) is unreadable in the dropdown even when
-       the report holds the text they stand for. */
+    /* optionTitle: hover text for an option, its chip, and the picker once it is
+       the chosen one. A dimension whose values are identifiers (`p3`, an arm code)
+       is unreadable in the dropdown even when the report holds the text they
+       stand for. */
     const optTitle = v => (d.optionTitle ? d.optionTitle(v) : "");
     const wrap = document.createElement("div");
     wrap.className = "ex-dim";
@@ -43,30 +50,39 @@ const KitExplorer = (() => {
     head.className = "ex-dim-head";
     const label = document.createElement("label");
     label.textContent = d.label || d.key;
-    const clear = document.createElement("button");
-    clear.type = "button";
-    clear.className = "ex-x ex-dim-x";
-    clear.textContent = "✕";
-    clear.title = `clear ${d.label || d.key}`;
-    clear.addEventListener("click", () => { chosen.clear(); sync(); onChange(); });
-    head.append(label, clear);
+    head.appendChild(label);
     const sel = document.createElement("select");
     const chips = document.createElement("div");
     chips.className = "ex-chips";
-    wrap.append(head, sel, chips);
+    wrap.append(head, sel);
+    /* the ✕ clears a multi-value selection in one click; single-select clears
+       itself by picking "all" back, so it doesn't need one */
+    let clear = null;
+    if (multi) {
+      clear = document.createElement("button");
+      clear.type = "button";
+      clear.className = "ex-x ex-dim-x";
+      clear.textContent = "✕";
+      clear.title = `clear ${d.label || d.key}`;
+      clear.addEventListener("click", () => { chosen.clear(); sync(); onChange(); });
+      head.appendChild(clear);
+      wrap.appendChild(chips);
+    }
 
-    /* chosen values leave the dropdown: re-picking one is a no-op, and a long
-       option list is easier to scan without the ones already applied */
     function sync() {
       sel.textContent = "";
-      sel.appendChild(new Option(chosen.size ? "add…" : "all", "__all__"));
+      sel.appendChild(new Option(multi && chosen.size ? "add…" : "all", "__all__"));
       for (const v of values) {
-        if (chosen.has(String(v))) continue;
+        /* in multi mode chosen values leave the dropdown: re-picking one is a
+           no-op, and a long option list is easier to scan without them */
+        if (multi && chosen.has(String(v))) continue;
         const opt = new Option(optLabel(v), String(v));
         opt.title = optTitle(v);
         sel.appendChild(opt);
       }
-      sel.value = "__all__";
+      sel.value = multi ? "__all__" : ([...chosen][0] ?? "__all__");
+      sel.title = multi || sel.value === "__all__" ? "" : optTitle(sel.value);
+      if (!multi) return;
       clear.style.visibility = chosen.size ? "visible" : "hidden";
       chips.textContent = "";
       for (const v of chosen) {
@@ -85,8 +101,14 @@ const KitExplorer = (() => {
       }
     }
     sel.addEventListener("change", () => {
-      if (sel.value === "__all__") return;
-      chosen.add(sel.value); sync(); onChange();
+      if (!multi) {
+        chosen.clear();
+        if (sel.value !== "__all__") chosen.add(sel.value);
+      } else {
+        if (sel.value === "__all__") return;
+        chosen.add(sel.value);
+      }
+      sync(); onChange();
     });
     sync();
 
@@ -94,10 +116,16 @@ const KitExplorer = (() => {
     return {
       wrap, chosen,
       /* set() from a chart click replaces rather than adds: the click means
-         "show me these rows", not "widen what I already had" */
+         "show me these rows", not "widen what I already had". A single-select
+         dimension takes the first value it knows — a dropdown can only show one,
+         so a chart that wants to hand over several needs `multi: true`. */
       apply(vals) {
         chosen.clear();
-        for (const v of [].concat(vals)) if (known.has(String(v))) chosen.add(String(v));
+        for (const v of [].concat(vals)) {
+          if (!known.has(String(v))) continue;
+          chosen.add(String(v));
+          if (!multi) break;
+        }
         sync();
       },
       clear() { chosen.clear(); sync(); },
@@ -127,7 +155,7 @@ const KitExplorer = (() => {
 
   /* explorer(el, {
        data,                      // array of row objects
-       dims: [{key, label, advanced, optionLabel, optionTitle,
+       dims: [{key, label, advanced, multi, optionLabel, optionTitle,
                 type:"select"|"min"|"max", min, max, step}],
        search: [...] | {fields, scopes},  // see searchScopes above
        render: row => Element,    // card factory

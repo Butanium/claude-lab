@@ -19,8 +19,13 @@ APPENDIX = [(f"a{i}", f"A{i} · appendix section {i}") for i in range(1, 6)]
 
 LONG = " ".join(f"Sentence number {i} of a block long enough to clamp."
                 for i in range(40))
+# the three chart shapes that carry a legend, and an explorer with one dimension
+# of each kind
+FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
+           '<div id="fig3"></div><div id="explorer"></div>')
 BODY = "".join(
-    f'<h2 id="{i}">{lbl}</h2><p>Body.</p><div style="height:900px"></div>'
+    f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
+    f'<div style="height:900px"></div>'
     for i, lbl in SECTIONS)
 BODY += '<h2 id="appendix">Appendix</h2><div id="cards"></div>'
 BODY += "".join(
@@ -53,6 +58,45 @@ document.getElementById("cards").appendChild(KitCards.card({
   meta: ["fixture", "card 1"],
   panes: [{ label: "long text", text: %%LONG%% }],
 }));
+
+const GROUPS = ["g1", "g2", "g3"], SERIES = [{ name: "alpha" }, { name: "beta" }];
+const values = [];
+for (const g of GROUPS) for (const s of SERIES)
+  values.push({ group: g, series: s.name, n: 40,
+                est: 0.2 + 0.1 * GROUPS.indexOf(g) + (s.name === "beta" ? 0.3 : 0) });
+KitCharts.groupedBars(document.getElementById("fig1"),
+  { groups: GROUPS, series: SERIES, values, yMax: 1, yFmt: KitCharts.pctFmt });
+/* appended AFTER the chart: a legend toggle re-renders it, and the caller's own
+   nodes must stay where the caller put them */
+document.getElementById("fig1").insertAdjacentHTML("beforeend",
+  '<p id="cap1">caption stays last</p>');
+
+/* two panels sharing one legend (only the lower one renders it), the pattern a
+   legendGroup exists for: one click must re-render both */
+const SEGS = [{ name: "s1" }, { name: "s2" }, { name: "s3" }], sv = [];
+for (const g of GROUPS) SEGS.forEach((s, i) => sv.push({ group: g, segment: s.name, count: 10 + 5 * i }));
+const pair = KitCharts.legendGroup();
+for (const [id, legendItems] of [["fig2a", []], ["fig2b", undefined]]) {
+  const sub = document.getElementById("fig2").appendChild(document.createElement("div"));
+  sub.id = id;
+  KitCharts.stackedBars(sub,
+    { groups: GROUPS, segments: SEGS, values: sv, legendItems, legendGroup: pair });
+}
+
+KitCharts.line(document.getElementById("fig3"), {
+  series: [{ name: "L1", points: [{ x: 0, y: 0.2 }, { x: 1, y: 0.4 }, { x: 2, y: 0.6 }] },
+           { name: "L2", points: [{ x: 0, y: 0.5 }, { x: 1, y: 0.3 }, { x: 2, y: 0.1 }] }],
+  yMax: 1, yFmt: KitCharts.pctFmt });
+
+const rows = [];
+for (const arm of ["x", "y", "z"]) for (const tag of ["p", "q"])
+  for (let k = 0; k < 4; k++) rows.push({ arm, tag, text: `row ${arm}${tag}${k}` });
+KitExplorer.explorer(document.getElementById("explorer"), {
+  data: rows,
+  dims: [{ key: "arm", label: "arm" }, { key: "tag", label: "tag", multi: true }],
+  search: ["text"],
+  render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
+});
 KitCards.observeShort();
 </script>
 """

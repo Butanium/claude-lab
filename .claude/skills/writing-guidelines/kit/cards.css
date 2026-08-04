@@ -109,6 +109,9 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 .ex-dims { align-items: start; }      /* chips make dimensions variable-height */
 .ex-actions { align-items: end; }     /* labelled inputs share the buttons' baseline */
 .ex-dims:empty, .ex-actions:empty { display: none; }
+/* no min-width: a <select> sizes to its widest option, so a bank of them is
+   ragged — but forcing a floor costs a whole extra row and an orphan control,
+   which reads worse than the raggedness does (measured on 07-28's 8 dims) */
 .ex-controls select, .ex-controls input[type="search"] { max-width: 15rem; }
 .ex-controls label { display: block; color: var(--ink-2); margin-bottom: 0.15rem; }
 .ex-controls select, .ex-controls input,
@@ -120,15 +123,19 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 .ex-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .ex-count { color: var(--muted); }
 
-/* a filter dimension: label + its ✕, the add-picker, then one chip per value */
+/* a filter dimension: label (+ ✕ when multi), the picker, then one chip per value */
 .ex-dim { display: flex; flex-direction: column; }
 .ex-dim-head { display: flex; align-items: baseline; gap: 0.3rem; }
 .ex-dim-head label { margin-bottom: 0; }
 .ex-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; max-width: 15rem; }
+/* the outline is part of the chip, not a hover state: a 14% tint alone reads as
+   text at rest, so the thing you can click doesn't look like one until you have
+   already found it (Clément). Hover only recolors it to the remove affordance. */
 .ex-chip {
   display: inline-flex; align-items: center; gap: 0.35em; cursor: pointer;
   font: 0.78rem/1.6 var(--sans); padding: 0 0.25em 0 0.55em;
-  border-radius: 999px; border: 1px solid transparent;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
   background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink);
 }
 .ex-chip:hover { border-color: var(--critical); }

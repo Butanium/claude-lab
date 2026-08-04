@@ -3,6 +3,50 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.20 — 2026-08-04
+
+Three pieces of reader feedback from Clément, all "the control doesn't behave the
+way a control behaves".
+
+- **Legends are interactive by default: click an entry to hide/show its series.**
+  Grouped bars, stacked bars, lines and scatter. A toggle *re-renders* the chart
+  rather than hiding marks in the DOM, so what's left re-lays out — grouped slots
+  widen, a stack compacts to the segments still shown. (The stack keeps the
+  group's full total as its scale, so a partial stack reads as partial instead of
+  silently renormalizing to 100%.) Colors are pinned to each series' original
+  index before anything is dropped, so survivors never repaint. Only on when each
+  legend entry maps to a series, which is what makes a click meaningful: a chart
+  with custom `legendItems` (a hatch swatch) stays static unless its items carry
+  a `key` naming a series. `legendToggle: false` opts out; the last visible
+  series can't be hidden. Entries stay `<span role="button">` rather than
+  `<button>` — a report that reaches into a legend to relabel it does so through
+  `span > span.sw`.
+- **`KitCharts.legendGroup()`, for panels that share one legend.** The pattern
+  where every panel but the last passes `legendItems: []` breaks the moment the
+  legend does something: it would label several panels and drive one. Pass the
+  same `legendGroup` to each and a click re-renders all of them (they match on
+  series name, which a shared legend already assumed). Found by wiring the
+  feature into 07-28's appendix A1, where two stacked panels share the lower
+  one's legend — the kit shipping a foot-gun and the report stepping in it was
+  one rebuild away.
+- **A filter dimension is a plain dropdown again; multi-select is `multi: true`.**
+  v0.5 made every dimension an add-picker-plus-chips because "these two
+  categories" is sometimes a real question. It is sometimes a real question — and
+  the rest of the time it costs a two-step interaction and a variable-height
+  control for nothing, on a control readers expect to be a dropdown (Clément:
+  "by default it should be a normal dropdown, the select several is an option
+  that you can enable for specific option if needed"). Single-select is also the
+  only shape a shared URL can carry: `hashNav` encodes one `dim=value` per
+  dimension, so a multi-value selection was never linkable. `chosen` stays a Set
+  either way, so nothing downstream cares which mode a dimension is in; a
+  single-select dim handed several values by a chart click takes the first.
+- **A filter chip's outline is always there, not on hover.** At rest the chip was
+  a 14% tint with a transparent border, which reads as text — "if not hovered rn
+  it just looks like text" — so the thing you can click doesn't look like one
+  until you've already found it. The border is now a permanent 50% accent; hover
+  still recolors it to `--critical`, which is the *remove* affordance and stays a
+  hover state.
+
 ## v0.6.19 — 2026-08-03
 
 - **The anchor guard installs itself, instead of riding on `KitToc.build`.** v0.6.18

@@ -9,6 +9,8 @@ which is where the kit's regressions have actually been:
   v0.6.18  an anchor click RELOADED the artifact frame and 403'd, because
            `href="#x"` resolves against the document's <base>, and an artifact
            frame's base drops the query carrying its auth token
+  v0.6.20  legends became interactive (a click re-renders the chart without the
+           series) and filter dimensions went back to single-select
 
 The page is served under a query-bearing url with a query-dropping <base> —
 the artifact frame's exact shape — so that last one stays caught. A control at
@@ -110,8 +112,88 @@ with tempfile.TemporaryDirectory() as td:
             "() => {const p = document.querySelector('.sidebar .panel');"
             "return p.scrollWidth > p.clientWidth;}"))
 
+        print("legends — a click hides a series, and the chart re-lays out")
+        # `.mark` is the a11y/tooltip target: one per drawn (group, series) cell,
+        # so counting them counts what the chart actually drew
+        marks = lambda fig: pg.locator(f"#{fig} .mark").count()          # noqa: E731
+        entry = lambda fig, name: pg.locator(                            # noqa: E731
+            f"#{fig} .kit-legend-live > span", has_text=name).first
+        pg.locator("#fig1").scroll_into_view_if_needed()
+        pg.wait_for_timeout(200)
+        check("grouped: 3 groups x 2 series", marks("fig1") == 6, f"marks={marks('fig1')}")
+        check("legend entries are buttons",
+              pg.locator("#fig1 .kit-legend-live > span[role=button]").count() == 2)
+        entry("fig1", "beta").click()
+        pg.wait_for_timeout(200)
+        check("hiding a series drops its marks", marks("fig1") == 3, f"marks={marks('fig1')}")
+        check("its entry reads as off",
+              entry("fig1", "beta").get_attribute("aria-pressed") == "false")
+        check("survivors keep their color", pg.evaluate(
+            "() => document.querySelector('#fig1 .kit-legend .sw').style.background"
+            "      === 'var(--series-1)'"))
+        check("the caller's caption is still last", pg.evaluate(
+            "() => document.getElementById('fig1').lastElementChild.id === 'cap1'"))
+        entry("fig1", "alpha").click()
+        pg.wait_for_timeout(200)
+        check("the last visible series can't be hidden", marks("fig1") == 3,
+              f"marks={marks('fig1')}")
+        entry("fig1", "beta").click()
+        pg.wait_for_timeout(200)
+        check("clicking again brings it back", marks("fig1") == 6, f"marks={marks('fig1')}")
+        # fig2 is two panels sharing one legend (only the lower renders it)
+        check("stacked: 2 panels x 3 groups x 3 segments", marks("fig2") == 18,
+              f"marks={marks('fig2')}")
+        check("only the lower panel draws the legend",
+              pg.locator("#fig2a .kit-legend").count() == 0
+              and pg.locator("#fig2b .kit-legend-live").count() == 1)
+        stack_h = lambda sel: pg.evaluate(                               # noqa: E731
+            "sel => {const r = [...document.querySelectorAll(sel + ' rect')]"
+            ".map(e => e.getBBox()); return Math.round(Math.max(...r.map(b => b.y + b.height))"
+            " - Math.min(...r.map(b => b.y)));}", sel)
+        before = stack_h("#fig2a"), stack_h("#fig2b")
+        entry("fig2", "s2").click()
+        pg.wait_for_timeout(300)
+        after = stack_h("#fig2a"), stack_h("#fig2b")
+        check("hiding a segment compacts the stack", marks("fig2") == 12 and after[1] < before[1],
+              f"{before[1]} -> {after[1]}")
+        check("and the panel sharing the legend follows", after[0] < before[0],
+              f"{before[0]} -> {after[0]}")
+        check("line: one legend entry per line",
+              pg.locator("#fig3 .kit-legend-live > span").count() == 2)
+        entry("fig3", "L2").click()
+        pg.wait_for_timeout(200)
+        check("hiding a line drops its dots", marks("fig3") == 3, f"marks={marks('fig3')}")
+
+        print("filters — a dimension is a dropdown, multi is opt-in")
+        pg.locator("#explorer").scroll_into_view_if_needed()
+        pg.wait_for_timeout(200)
+        dim = lambda i: pg.locator("#explorer .ex-dim").nth(i)           # noqa: E731
+        shown = lambda: pg.evaluate(                                     # noqa: E731
+            "() => document.querySelector('#explorer .ex-count').textContent")
+        check("single-select dim has no chip row",
+              dim(0).locator(".ex-chips").count() == 0)
+        dim(0).locator("select").select_option("y")
+        pg.wait_for_timeout(200)
+        check("picking a value filters", shown().startswith("8 samples"), shown())
+        check("the dropdown shows it",
+              dim(0).locator("select").input_value() == "y")
+        dim(0).locator("select").select_option("__all__")
+        pg.wait_for_timeout(200)
+        check("picking 'all' clears it", shown().startswith("24 samples"), shown())
+        dim(1).locator("select").select_option("p")
+        pg.wait_for_timeout(150)
+        dim(1).locator("select").select_option("q")
+        pg.wait_for_timeout(200)
+        check("multi dim accumulates chips", dim(1).locator(".ex-chip").count() == 2)
+        check("both values are unconstrained together",
+              shown().startswith("24 samples"), shown())
+        # the outline is the affordance: at rest it must not be transparent
+        check("a chip is outlined at rest", pg.evaluate(
+            "() => {const c = getComputedStyle(document.querySelector('#explorer .ex-chip'));"
+            "return !/, *0\\)/.test(c.borderTopColor) && c.borderTopStyle === 'solid';}"))
+
         print("cards — a text selection is not a click")
-        card = pg.locator(".ptext").first
+        card = pg.locator("#cards .ptext").first
         card.scroll_into_view_if_needed()
         pg.wait_for_timeout(200)
         bb = card.bounding_box()
@@ -120,15 +202,13 @@ with tempfile.TemporaryDirectory() as td:
         pg.mouse.move(bb["x"] + 260, bb["y"] + 34, steps=8)
         pg.mouse.up()
         pg.wait_for_timeout(300)
-        check("drag-select leaves it collapsed",
-              not pg.evaluate("() => document.querySelector('.ptext').classList"
-                              ".contains('expanded')"))
+        expanded = lambda: pg.evaluate(                                  # noqa: E731
+            "() => document.querySelector('#cards .ptext').classList.contains('expanded')")
+        check("drag-select leaves it collapsed", not expanded())
         check("selection survived", pg.evaluate("() => String(getSelection()).length") > 0)
         card.click()
         pg.wait_for_timeout(300)
-        check("a plain click still expands",
-              pg.evaluate("() => document.querySelector('.ptext').classList"
-                          ".contains('expanded')"))
+        check("a plain click still expands", expanded())
 
         check("no console errors", not errs, str(errs[:2]))
 

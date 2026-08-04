@@ -96,16 +96,117 @@ const KitCharts = (() => {
     mark.setAttribute("aria-label", label);
   }
 
-  /* ---- legend ---- */
-  function legend(container, items) {
+  /* ---- legend ----
+     items: [{name, color | glyph, full, key}]. When the chart passes its spec and
+     that spec carries a toggle context (see `interactive`), every entry becomes a
+     button that hides/shows its series. Entries stay <span>s either way — a report
+     that reaches into the legend to relabel it does so through `span > span.sw`. */
+  function legend(container, items, spec = null) {
     if (items.length < 2) return;
+    const ctx = spec && spec.__legend;
     const div = document.createElement("div");
-    div.className = "kit-legend";
-    div.innerHTML = items.map(it =>
-      `<span${it.full && it.full !== it.name ? ` title="${(KitCards?.esc(it.full) ?? it.full).replace(/"/g, "&quot;")}"` : ""}>${it.glyph ? `<span class="glyph">${it.glyph}</span>` : `<span class="sw" style="background:${it.color}"></span>`}${KitCards?.esc(it.name) ?? it.name}</span>`
-    ).join("");
+    div.className = "kit-legend" + (ctx ? " kit-legend-live" : "");
+    for (const it of items) {
+      const e = document.createElement("span");
+      e.innerHTML = (it.glyph ? `<span class="glyph">${it.glyph}</span>`
+                              : `<span class="sw" style="background:${it.color}"></span>`) +
+                    (KitCards?.esc(it.name) ?? it.name);
+      const full = it.full && it.full !== it.name ? it.full : "";
+      if (full) e.title = full;
+      if (ctx) {
+        const key = it.key ?? it.name;
+        const off = ctx.hidden.has(key);
+        if (off) e.className = "off";
+        e.setAttribute("role", "button");
+        e.setAttribute("tabindex", "0");
+        e.setAttribute("aria-pressed", String(!off));
+        e.title = (full ? full + " — " : "") + (off ? "click to show" : "click to hide");
+        e.addEventListener("click", () => ctx.toggle(key));
+        e.addEventListener("keydown", ev => {
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ctx.toggle(key); }
+        });
+      }
+      div.appendChild(e);
+    }
     container.appendChild(div);
   }
+
+  /* ---- interactive legend: a click drops a series and re-draws ----
+     Re-render rather than hiding marks in place, because what stays has to
+     re-lay out: grouped slots widen, a stack compacts to the segments still
+     shown. (The stack's scale stays the group's full total, so a partial stack
+     reads as partial rather than silently renormalizing to 100%.) Series colors
+     are pinned to their ORIGINAL index before anything is dropped — the kit's
+     standing rule is that filtering never repaints the survivors.
+
+     On only when each legend entry maps to a series, which is what makes the
+     click meaningful: a chart with custom `legendItems` keeps a static legend
+     unless its items carry a `key` naming a series. `legendToggle: false` opts
+     out. The last visible series can't be hidden — an empty chart is never what
+     the click meant.
+
+     Panels that SHARE one legend (the pattern where every panel but the last
+     passes `legendItems: []`) must share its toggles, or the legend would
+     silently control one panel and label several. Pass the same
+     `legendGroup: KitCharts.legendGroup()` to each: one click re-renders all of
+     them. They match on series NAME, so the panels have to name their series
+     the same way — which a shared legend already assumed. */
+  function legendGroup() { return { hidden: new Set(), members: [] }; }
+  const pinColors = list => list.map((s, i) => ({ ...s, seriesIndex: s.seriesIndex ?? i }));
+
+  /* null = this chart's legend can't drive a toggle (suppressed, or its entries
+     don't name series). It can still FOLLOW one, through a legendGroup. */
+  function legendItemsFor(spec, list, auto) {
+    if (!list || list.length < 2) return null;
+    const items = (spec.legendItems || auto(list)).map(it => ({ ...it, key: it.key ?? it.name }));
+    const names = new Set(list.map(s => s.name));
+    return items.length >= 2 && items.every(it => names.has(it.key)) ? items : null;
+  }
+  const swatches = l => l.map(s => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex) }));
+
+  function interactive(draw, plan) {
+    return function (container, spec) {
+      const p = plan(spec);
+      const grp = spec.legendGroup || null;
+      if (spec.legendToggle === false || !(p.items || grp)) return draw(container, spec);
+      const hidden = grp ? grp.hidden : new Set();
+      /* the chart's nodes are re-created on every toggle; this anchor holds
+         their place, so anything the caller appended after the chart (a caption,
+         a sibling panel) stays after it */
+      const anchor = container.appendChild(document.createComment("kit-chart"));
+      let mine = [], out = null;
+      const toggle = key => {
+        if (hidden.has(key)) hidden.delete(key);
+        else if (hidden.size + 1 < p.items.length) hidden.add(key);
+        else return;
+        for (const repaint of (grp ? grp.members : [paint])) repaint();
+      };
+      function paint() {
+        for (const n of mine) n.remove();
+        const at = container.childNodes.length;
+        out = draw(container, { ...p.apply(hidden),
+          ...(p.items ? { legendItems: p.items, __legend: { hidden, toggle } } : {}) });
+        mine = [...container.childNodes].slice(at);
+        for (const n of mine) container.insertBefore(n, anchor);
+      }
+      if (grp) grp.members.push(paint);
+      paint();
+      return out;
+    };
+  }
+
+  const planSeries = key => spec => {
+    const list = pinColors(spec[key] || []);
+    return { items: legendItemsFor(spec, list, swatches),
+             apply: h => ({ ...spec, [key]: list.filter(s => !h.has(s.name)) }) };
+  };
+  const planScatter = spec => {
+    const defs = pinColors(spec.seriesDef || []);
+    return { items: legendItemsFor(spec, defs, swatches), apply: h => ({ ...spec,
+      seriesDef: defs.filter(s => !h.has(s.name)),
+      points: spec.points.filter(p => !h.has(p.series)),
+      arrows: (spec.arrows || []).filter(a => !h.has(a.series)) }) };
+  };
 
   /* ---- frame: margins, scales, axes, gridlines ---- */
   function frame(container, { w = 720, h = 300, m = { t: 12, r: 16, b: 34, l: 46 },
@@ -356,7 +457,7 @@ const KitCharts = (() => {
     if (spec.baseline) refLine(f, spec.baseline);
     /* legendItems overrides the auto series-legend (e.g. when bars are colored
        by a per-value entity rather than by series) */
-    legend(container, spec.legendItems || series.map((s, i) => ({ name: s.name, color: colorOf(s) })));
+    legend(container, spec.legendItems || series.map((s, i) => ({ name: s.name, color: colorOf(s) })), spec);
     return f;
   }
 
@@ -420,7 +521,7 @@ const KitCharts = (() => {
     });
     /* legendItems mirrors groupedBars: override the auto segment-legend, or
        pass [] to suppress it (e.g. the top chart of an aligned pair) */
-    legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+    legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
     return f;
   }
 
@@ -468,7 +569,7 @@ const KitCharts = (() => {
        legend, or pass [] to suppress it (e.g. side-by-side panels sharing one
        legend rendered below them) */
     legend(container, spec.legendItems
-      || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+      || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
     return f;
   }
 
@@ -556,8 +657,8 @@ const KitCharts = (() => {
     });
     if (spec.warnText)
       f.svg.appendChild(txt(f.m.l + f.iw - 4, f.m.t + 12, "⚠ " + spec.warnText, { "text-anchor": "end", class: "canvas-warn" }));
-    if ((spec.seriesDef || []).length >= 2)
-      legend(container, spec.seriesDef.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })));
+    legend(container, spec.legendItems
+      || (spec.seriesDef || []).map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
     return f;
   }
 
@@ -755,6 +856,11 @@ const KitCharts = (() => {
     return { svg };
   }
 
-  return { el, txt, seriesColor, pctFmt, estTextWidth, bindTip, legend, frame, refLine,
-           groupedBars, stackedBars, line, scatter, dotStrip, heatmap, forest };
+  return { el, txt, seriesColor, pctFmt, estTextWidth, bindTip, legend, legendGroup,
+           frame, refLine,
+           groupedBars: interactive(groupedBars, planSeries("series")),
+           stackedBars: interactive(stackedBars, planSeries("segments")),
+           line: interactive(line, planSeries("series")),
+           scatter: interactive(scatter, planScatter),
+           dotStrip, heatmap, forest };
 })();

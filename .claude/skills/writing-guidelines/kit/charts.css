@@ -31,6 +31,22 @@
 }
 .kit-legend .sw { display: inline-block; width: 13px; height: 13px; border-radius: 3px; margin-right: 0.35em; vertical-align: -2px; }
 .kit-legend .glyph { margin-right: 0.3em; font-size: 1.15em; vertical-align: -1px; }
+/* interactive legend: an entry toggles its series. The padding is cancelled by
+   an equal negative margin so a live legend sits exactly where a static one did.
+   Off = struck through and faded; a dimmed swatch alone doesn't say "hidden"
+   (and line-through doesn't reach into the inline-block swatch, so it stays crisp). */
+.kit-legend-live > span {
+  cursor: pointer; border-radius: 4px;
+  padding: 0 0.25rem; margin: 0 -0.25rem;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+/* an accent tint, not var(--surface): a legend sits on whatever the figure's box
+   is, and half the reports mount charts on the surface color already */
+.kit-legend-live > span:hover {
+  color: var(--ink); background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.kit-legend-live > span.off { opacity: 0.42; text-decoration: line-through; }
+.kit-legend-live > span:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .kit-tip {
   position: fixed; z-index: 50; pointer-events: none; display: none;
