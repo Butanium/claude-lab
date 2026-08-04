@@ -35,8 +35,36 @@ const KitToc = (() => {
       "use one .panel with .side-sec sections inside it");
   }
 
+  /* In-page anchor clicks set location.hash instead of following the href.
+     Same destination in a plain browser — but `href="#a4"` resolves against the
+     document's BASE url, and inside a claude.ai artifact frame that base drops
+     the query string carrying the frame's auth token. So the "fragment" click is
+     really a navigation to a DIFFERENT url: the frame reloads, re-renders, lands
+     short of the heading, and 403s whenever the token was load-bearing. Clément's
+     console, clicking Appendix: the frame loads `/_f/<id>/#appendix` with no
+     `?__frame_t=`, having loaded `?__frame_t=…` a moment earlier. `location.hash`
+     can only touch the fragment of the url we are already on, so it is always a
+     same-document navigation — and the browser still does the scrolling. */
+  let anchorsBound = false;
+  function sameDocAnchors() {
+    if (anchorsBound) return;
+    anchorsBound = true;
+    addEventListener("click", e => {
+      if (e.defaultPrevented || e.button !== 0 ||
+          e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const href = e.target.closest?.('a[href^="#"]')?.getAttribute("href") || "";
+      const el = href.length > 1 && document.getElementById(href.slice(1));
+      if (!el) return;
+      e.preventDefault();
+      /* re-assigning the hash we are already on fires nothing, so scroll direct */
+      if (location.hash === href) el.scrollIntoView({ behavior: "smooth" });
+      else location.hash = href.slice(1);
+    });
+  }
+
   function build(nav, spec = {}) {
     audit();
+    sameDocAnchors();
     const items = spec.items ||
       [...document.querySelectorAll("h2[id], h3[id]")].map(h =>
         ({ id: h.id, label: h.textContent, sub: h.tagName === "H3" }));
@@ -108,5 +136,5 @@ const KitToc = (() => {
     update();
     return { update };
   }
-  return { build };
+  return { build, sameDocAnchors };
 })();

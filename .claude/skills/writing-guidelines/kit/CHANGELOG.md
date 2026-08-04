@@ -3,6 +3,22 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.18 — 2026-08-03
+
+- **Fixed: in an artifact frame, clicking an in-page link RELOADED the page —
+  and 403'd.** This is what v0.6.17 was actually chasing. `<a href="#a4">`
+  resolves against the document's BASE url, not its actual url, and an artifact
+  frame's base drops the query string carrying the frame's auth token. So a
+  "fragment" click is a navigation to a *different* url: the frame refetches,
+  re-renders, lands short of the heading, and 403s whenever that token was
+  load-bearing. Clément's console, clicking Appendix — `?__frame_t=LGnhgumB9…`
+  at 21:07:55, then `/_f/<id>/#appendix` with no query at 21:08:02. Anchor
+  clicks now set `location.hash`, which can only ever touch the fragment of the
+  url we are already on. Reproduced with a `<base>` that drops the query: a
+  plain link there costs two document loads and loses the token; through the
+  kit, one load, token kept, every anchor landing within 10px.
+  `KitToc.sameDocAnchors()` installs it once, from `build()` and from `hashNav`.
+
 ## v0.6.17 — 2026-08-03
 
 - **Fixed: every in-page anchor landed ~40px short on the first click.** Clicking

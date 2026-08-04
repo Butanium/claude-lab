@@ -344,6 +344,10 @@ const KitExplorer = (() => {
      hashNav(api, { anchorId, defaults }) → { goto(filters, {from}), applyHash }
      where `api` is an explorer() handle. Hash form: #anchor?dim=value&dim=value */
   function hashNav(api, { anchorId, defaults = null }) {
+    /* every hash this module writes goes through location.hash, which is
+       same-document by construction; the page's own <a href="#…"> links are not,
+       inside an artifact frame — see KitToc.sameDocAnchors */
+    window.KitToc?.sameDocAnchors?.();
     const enc = f => {
       const q = Object.entries(f)
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
