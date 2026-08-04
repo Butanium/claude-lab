@@ -62,8 +62,11 @@ document.getElementById("cards").appendChild(KitCards.card({
 const GROUPS = ["g1", "g2", "g3"], SERIES = [{ name: "alpha" }, { name: "beta" }];
 const values = [];
 for (const g of GROUPS) for (const s of SERIES)
-  values.push({ group: g, series: s.name, n: 40,
-                est: 0.2 + 0.1 * GROUPS.indexOf(g) + (s.name === "beta" ? 0.3 : 0) });
+  /* g3 has no alpha — an empty slot inside a group is the common case (a series
+     that doesn't apply there), and the axis label has to cope with it */
+  if (!(g === "g3" && s.name === "alpha"))
+    values.push({ group: g, series: s.name, n: 40,
+                  est: 0.2 + 0.1 * GROUPS.indexOf(g) + (s.name === "beta" ? 0.3 : 0) });
 KitCharts.groupedBars(document.getElementById("fig1"),
   { groups: GROUPS, series: SERIES, values, yMax: 1, yFmt: KitCharts.pctFmt });
 /* appended AFTER the chart: a legend toggle re-renders it, and the caller's own

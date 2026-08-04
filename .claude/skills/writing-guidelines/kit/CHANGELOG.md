@@ -21,6 +21,16 @@ way a control behaves".
   series can't be hidden. Entries stay `<span role="button">` rather than
   `<button>` — a report that reaches into a legend to relabel it does so through
   `span > span.sw`.
+- **A grouped-bar axis label sits under the bars its group actually draws.** It
+  used to sit at the middle of the group's slot, which is only the same thing
+  when every series has a value there. Hide a series from the legend and the
+  label points at the gap where it was — Clément, on the first build: "the x axis
+  labels for the different bar group should move accordingly when hiding some
+  bars". It was already wrong before any toggle, wherever a series doesn't apply
+  to a group (07-28 fig 3: two of three series on DeepSeek, so its label sat a
+  third of a slot right of its bars). A group left with no visible bars keeps its
+  label over the gap — absence is data, and dropping the column would say nothing
+  instead of "nothing left here".
 - **`KitCharts.legendGroup()`, for panels that share one legend.** The pattern
   where every panel but the last passes `legendItems: []` breaks the moment the
   legend does something: it would label several panels and drive one. Pass the

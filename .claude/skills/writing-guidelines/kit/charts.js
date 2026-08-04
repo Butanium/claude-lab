@@ -326,16 +326,28 @@ const KitCharts = (() => {
     const slot = bw / (series.length + 0.8);
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
     const y0 = f.y(Math.max(spec.yMin ?? 0, 0));
+    /* A group's label sits under the bars that group actually draws, not under
+       the middle of its slot. Empty slots are common — a series with no value
+       here, or one the reader just hid from the legend — and a label centred on
+       the whole slot then points at blank canvas, or worse, at the neighbouring
+       group's bars. Empty group: fall back to the slot centre. */
+    const labelDx = gname => {
+      const at = series.reduce((acc, s, si) =>
+        values.some(v => v.group === gname && v.series === s.name) ? (acc.push(si), acc) : acc, []);
+      if (!at.length) return bw / 2;
+      return bw * 0.12 + (at[0] * slot + at[at.length - 1] * slot + slot * 0.82) / 2;
+    };
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw;
       const glabel = groupLabel(gname);
       const lattr = LFS === 11 ? {} : { "font-size": LFS };
+      const lx = gx + labelDx(gname);
       if (rotate) {
         const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
-        t.setAttribute("transform", `translate(${gx + bw / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
+        t.setAttribute("transform", `translate(${lx + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
         f.svg.appendChild(t);
       } else {
-        f.svg.appendChild(txt(gx + bw / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
+        f.svg.appendChild(txt(lx, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
       }
       const placedN = [];   /* n= labels placed in this group, for collision bumps */
       series.forEach((s, si) => {

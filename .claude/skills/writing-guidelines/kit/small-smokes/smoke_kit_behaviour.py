@@ -120,12 +120,38 @@ with tempfile.TemporaryDirectory() as td:
             f"#{fig} .kit-legend-live > span", has_text=name).first
         pg.locator("#fig1").scroll_into_view_if_needed()
         pg.wait_for_timeout(200)
-        check("grouped: 3 groups x 2 series", marks("fig1") == 6, f"marks={marks('fig1')}")
+        check("grouped: 3 groups x 2 series, one cell empty", marks("fig1") == 5,
+              f"marks={marks('fig1')}")
         check("legend entries are buttons",
               pg.locator("#fig1 .kit-legend-live > span[role=button]").count() == 2)
+        # a group label must sit over the bars that group actually draws — with a
+        # series hidden its slot is half empty, and a slot-centred label points at
+        # blank canvas
+        label_offsets = """() => {
+          const bars = [...document.querySelectorAll('#fig1 rect')]
+            .filter(r => !r.classList.contains('halo') && !r.classList.contains('mark'))
+            .map(r => r.getBBox());
+          const labels = [...document.querySelectorAll('#fig1 text')]
+            .filter(t => /^g[0-9]$/.test(t.textContent))
+            .map(t => { const b = t.getBBox(); return { c: b.x + b.width / 2, bars: [] }; });
+          for (const b of bars) {
+            const bc = b.x + b.width / 2;
+            labels.reduce((best, l) =>
+              Math.abs(l.c - bc) < Math.abs(best.c - bc) ? l : best).bars.push(b);
+          }
+          return labels.map(l => l.bars.length === 0 ? 999 : Math.round(Math.abs(l.c -
+            (Math.min(...l.bars.map(b => b.x)) +
+             Math.max(...l.bars.map(b => b.x + b.width))) / 2)));
+        }"""
+        off = pg.evaluate(label_offsets)   # 999 = that group drew no bars
+        check("labels are centred over their bars", max(off) <= 3, f"offsets={off}")
         entry("fig1", "beta").click()
         pg.wait_for_timeout(200)
-        check("hiding a series drops its marks", marks("fig1") == 3, f"marks={marks('fig1')}")
+        check("hiding a series drops its marks", marks("fig1") == 2, f"marks={marks('fig1')}")
+        off = pg.evaluate(label_offsets)
+        check("labels follow the bars that are left", max(off[:2]) <= 3, f"offsets={off}")
+        # g3 was beta-only: absence is data, so it keeps its label and its gap
+        check("a group left with nothing keeps its label", off[2] == 999, f"offsets={off}")
         check("its entry reads as off",
               entry("fig1", "beta").get_attribute("aria-pressed") == "false")
         check("survivors keep their color", pg.evaluate(
@@ -135,11 +161,11 @@ with tempfile.TemporaryDirectory() as td:
             "() => document.getElementById('fig1').lastElementChild.id === 'cap1'"))
         entry("fig1", "alpha").click()
         pg.wait_for_timeout(200)
-        check("the last visible series can't be hidden", marks("fig1") == 3,
+        check("the last visible series can't be hidden", marks("fig1") == 2,
               f"marks={marks('fig1')}")
         entry("fig1", "beta").click()
         pg.wait_for_timeout(200)
-        check("clicking again brings it back", marks("fig1") == 6, f"marks={marks('fig1')}")
+        check("clicking again brings it back", marks("fig1") == 5, f"marks={marks('fig1')}")
         # fig2 is two panels sharing one legend (only the lower renders it)
         check("stacked: 2 panels x 3 groups x 3 segments", marks("fig2") == 18,
               f"marks={marks('fig2')}")
