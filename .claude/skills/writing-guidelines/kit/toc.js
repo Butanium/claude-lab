@@ -136,5 +136,12 @@ const KitToc = (() => {
     update();
     return { update };
   }
+  /* Installed unconditionally, not just from build(): the failure is a 403 on a
+     published page, and a report can perfectly well have in-page links and no
+     sidebar TOC. The listener no-ops unless a click lands on an `a[href="#id"]`
+     whose id exists, and what it then does is what the default would have done —
+     scroll there and set the hash — so there is nothing to opt out of. */
+  sameDocAnchors();
+
   return { build, sameDocAnchors };
 })();

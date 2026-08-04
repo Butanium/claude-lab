@@ -3,6 +3,17 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.19 — 2026-08-03
+
+- **The anchor guard installs itself, instead of riding on `KitToc.build`.** v0.6.18
+  fixed the artifact-frame anchor bug (a `#section` click reloading the frame and
+  403ing) but only for pages that build a TOC or an explorer — and a report can
+  perfectly well have in-page links and neither. The failure mode is a 403 on a
+  published page, which is far too expensive to gate on a call the author may not
+  make. `toc.js` now calls `sameDocAnchors()` at load. It no-ops unless a click
+  lands on an `a[href="#id"]` whose id exists, and what it does then is what the
+  default would have done, so there is nothing to opt out of.
+
 ## v0.6.18 — 2026-08-03
 
 - **Fixed: in an artifact frame, clicking an in-page link RELOADED the page —
