@@ -3,6 +3,27 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.17 — 2026-08-03
+
+- **Fixed: every in-page anchor landed ~40px short on the first click.** Clicking
+  a TOC link scrolled you into the section but stopped before the heading, and
+  clicking the same link again finished the job (Clément). `hashNav` installed a
+  `hashchange` listener that smooth-scrolled to the target — but the browser was
+  already smooth-scrolling there for the fragment, and two smooth scrolls at one
+  target do not land on it. Measured on the appendix links: 43, 48, 49, 51, 53,
+  53, 54, 54, 55, 58px short, every time, correct on the second click. Now we
+  scroll only where the browser won't: an explorer hash (it carries a `?query`,
+  so it matches no element id) and a history traversal (the restored position
+  beats the fragment) — the latter instantly, since Back should feel like Back.
+  Anything that adds its own `scrollIntoView` to a page with
+  `scroll-behavior: smooth` has this bug.
+- **The TOC chevron moved inside the rail, into the numbers' column.** It is the
+  Appendix line's numeral: the label after it now starts at the same x as
+  "Frozen-CoT resample" starts after "2 · " (29.3px, measured, not eyeballed).
+  Its left edge sits flush with the digits rather than centred in the column,
+  because rotating 90° on open makes a chevron as wide as it is tall and a
+  centred one then crowds the label.
+
 ## v0.6.16 — 2026-08-03
 
 - **The TOC group's caret is a chevron on the left, not a ▸ on the right.** Three

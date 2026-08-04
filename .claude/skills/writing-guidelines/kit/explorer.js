@@ -359,21 +359,31 @@ const KitExplorer = (() => {
       }
       return f;
     };
-    const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    const scrollTo = (id, behavior = "smooth") =>
+      document.getElementById(id)?.scrollIntoView({ behavior });
     const applyHash = () => {
       const f = dec(location.hash);
       if (f) api.set(f);
       return !!f;
     };
-    /* We scroll on every hash event ourselves. Two reasons the browser won't:
-       an explorer hash carries a `?query` so it matches no element id, and on a
-       Back into the from-entry the scroll RESTORATION wins over the fragment —
-       and the position it restores was recorded after goto() had already moved
-       on to the explorer, i.e. the reader lands where they were, not on the
-       figure they came from. */
+    /* Who scrolls, and when. For a plain `#id` the browser does it already, and
+       issuing a second smooth scroll at the same target does NOT land on it —
+       it lands 30-50px short, on every appendix link, reproducibly, until you
+       click again (Clément). So we scroll only where the browser won't:
+
+       - an explorer hash, which carries a `?query` and so matches no element id;
+       - a history traversal, where the restored position wins over the fragment
+         — and the position it restores was recorded after goto() had already
+         moved on to the explorer, i.e. Back lands the reader where they were
+         rather than on the figure they came from. That one scrolls instantly:
+         Back should feel like Back, and an instant scroll can't be cut short. */
+    let traversal = false;
+    addEventListener("popstate", () => { traversal = true; });
     addEventListener("hashchange", () => {
+      const wasTraversal = traversal;
+      traversal = false;
       if (applyHash()) scrollTo(anchorId);
-      else scrollTo(location.hash.replace(/^#/, "").split("?")[0]);
+      else if (wasTraversal) scrollTo(location.hash.replace(/^#/, "").split("?")[0], "instant");
     });
 
     function goto(filters, { from = null } = {}) {

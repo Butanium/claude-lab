@@ -58,19 +58,29 @@ input[type="range"] { accent-color: var(--accent); }
 .sidebar .toc a.child { padding-left: 1.6rem; font-size: 0.92em; color: var(--muted); }
 .sidebar .toc a:hover { color: var(--accent); }
 .sidebar .toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
-/* A group's parent line. The chevron hangs in the sidebar panel's own padding,
-   left of the rail: the gutter between rail and text is only ~11px, so a
-   chevron placed inside it either touches the rail or pushes "Appendix" onto
-   the sub-item column, where it reads as nested under the section above. Out
-   here it costs no layout at all — every label, rail and indent is untouched. */
-.sidebar .toc-grouphead { position: relative; }
+/* A group's parent line. The chevron sits inside the rail, in the column the
+   section numbers use — it is the "Appendix" line's numeral, so the label after
+   it lands where "Reasoning vs answer" lands after "1 · " (Clément: on the right
+   of the bar, like the numbers). The rail moves off the link onto the row so it
+   stays part of the unbroken vertical line. */
+.sidebar .toc-grouphead {
+  display: flex; align-items: center; position: relative;
+  border-left: 2px solid var(--grid); padding-left: 0.55rem;
+}
+.sidebar .toc-grouphead > a { flex: 1; min-width: 0; border-left: 0; padding-left: 0; }
+.sidebar .toc-grouphead:has(a.active) { border-left-color: var(--accent); }
 /* .sidebar .panel button styles every button in the panel — outrank it.
-   Absolute, so the generous padding buys a 22px hit target for free. */
+   Absolutely positioned inside the numeral column, so its generous padding buys
+   a 22px hit target without widening that column. */
+.sidebar .toc-grouphead > a { margin-left: 1.16rem; }   /* = the width of "1 · " */
+/* left edge flush with the digits (padding 0.24rem is subtracted back out). It
+   is not centred in the numeral column: rotating 90° on open makes the chevron
+   as wide as it is tall, and centred it then crowds the label. */
 .sidebar .toc .toc-caret {
-  position: absolute; left: -0.95rem; top: 50%; translate: 0 -50%;
-  width: 0.42rem; height: 0.7rem; box-sizing: content-box;
+  position: absolute; left: 0.44rem; top: 50%; translate: 0 -50%;
+  width: 0.44rem; height: 0.72rem; box-sizing: content-box;
   border: 0; border-radius: 0; background: none; cursor: pointer;
-  padding: 0.3rem 0.26rem; margin: 0;
+  padding: 0.3rem 0.24rem; margin: 0;
   color: var(--muted); transition: color 0.15s ease;
 }
 .sidebar .toc .toc-caret svg {
