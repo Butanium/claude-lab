@@ -100,11 +100,16 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 }
 .ex-more:hover { border-color: var(--accent); color: var(--accent); }
 .ex-controls {
-  display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: start;
+  display: flex; flex-direction: column; gap: 0.75rem;
   font-family: var(--sans); font-size: 0.83rem;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 0.7rem 0.9rem; margin: 0.8rem 0;
 }
+.ex-dims, .ex-actions { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.ex-dims { align-items: start; }      /* chips make dimensions variable-height */
+.ex-actions { align-items: end; }     /* labelled inputs share the buttons' baseline */
+.ex-dims:empty, .ex-actions:empty { display: none; }
+.ex-controls select, .ex-controls input[type="search"] { max-width: 15rem; }
 .ex-controls label { display: block; color: var(--ink-2); margin-bottom: 0.15rem; }
 .ex-controls select, .ex-controls input,
 .ex-controls button:not(.ex-chip):not(.ex-dim-x) {

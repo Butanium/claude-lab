@@ -3,6 +3,28 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.14 — 2026-08-03
+
+- **The search box gets a "search in" picker.** `search` now also takes
+  `{fields: {name: key | row => text}, scopes: [{label, keys}]}`; the first
+  scope is the default and the picker only renders when there is more than one.
+  The panes of a card are different kinds of text — what the user asked, what
+  the model reasoned, what it answered — and a hit in the wrong one is a miss:
+  searching a phrase to find where the *model* said it returns every row where
+  the *prompt* did. On the CoT-unfaithfulness corpus "wanna smoke" matches 3,057
+  rows by prompt, 746 in reasoning, 34 in answers (Clément).
+- **The control bar is two rows, and now aligns.** A dimension is a label over a
+  picker over a wrapping chip list — variable height, top-aligned — while the
+  search box and the buttons are one line each and must share a baseline. In one
+  flex row, whichever alignment you pick is wrong for half of them, and v0.6.13's
+  switch to `align-items: start` left the search box floating above the buttons
+  ("this eye cancer you just gave me with the search box not being aligned with
+  the buttons"). `.ex-dims` (start) and `.ex-actions` (end) inside a column
+  `.ex-controls`.
+- The kit styles the whole bar now, including `max-width: 15rem` on its selects.
+  Reports carrying their own `.ex-controls` copy should drop it — the one in the
+  CoT-unfaithfulness report is what pinned the stale alignment through a rebuild.
+
 ## v0.6.13 — 2026-08-03
 
 Explorer usability pass (Clément, on the CoT-unfaithfulness report):

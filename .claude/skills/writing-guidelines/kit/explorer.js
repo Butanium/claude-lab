@@ -104,11 +104,32 @@ const KitExplorer = (() => {
     };
   }
 
+  /* Search scopes. `search` is either a flat list of field names / resolvers
+     (one implicit scope, no picker) or
+
+       { fields: {name: fieldKey | row => text},
+         scopes: [{label, keys:[name…]}, …] }        // scopes[0] is the default
+
+     which gives the reader a "search in" picker. Worth the option because the
+     panes of one card are different kinds of text — what the user asked, what the
+     model reasoned, what it answered — and a hit in the wrong one is a miss: a
+     phrase searched to find where the MODEL said it matches every row where the
+     prompt did. */
+  function searchScopes(search) {
+    const asFn = k => (typeof k === "function" ? k : (r => r[k]));
+    if (Array.isArray(search)) {
+      return search.length ? [{ label: "everything", fns: search.map(asFn) }] : [];
+    }
+    const fields = search?.fields || {};
+    const defs = search?.scopes || [{ label: "everything", keys: Object.keys(fields) }];
+    return defs.map(s => ({ label: s.label, fns: s.keys.map(k => asFn(fields[k] ?? k)) }));
+  }
+
   /* explorer(el, {
        data,                      // array of row objects
        dims: [{key, label, advanced, optionLabel, optionTitle,
                 type:"select"|"min"|"max", min, max, step}],
-       search: ["prompt","text", r => resolve(r)],  // field names and/or resolvers
+       search: [...] | {fields, scopes},  // see searchScopes above
        render: row => Element,    // card factory
        pageSize: 12, drawN: 5,
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
@@ -117,6 +138,16 @@ const KitExplorer = (() => {
     const { data, dims = [], search = [], render, pageSize = 12, drawN = 5 } = spec;
     const controls = document.createElement("div");
     controls.className = "ex-controls";
+    /* Two rows, because one row cannot align both kinds of control: a dimension
+       is a label over a picker over a wrapping chip list (variable height, so
+       top-aligned), while the search box and the buttons are one line each and
+       must share a baseline. Mixed in a single flex row, whichever alignment you
+       pick is wrong for half of them. */
+    const dimRow = document.createElement("div");
+    dimRow.className = "ex-dims";
+    const actionRow = document.createElement("div");
+    actionRow.className = "ex-actions";
+    controls.append(dimRow, actionRow);
     const state = {};
     const inputs = [];
     const dimByKey = {};
@@ -141,7 +172,7 @@ const KitExplorer = (() => {
         state[d.key] = dim.chosen;
         dimByKey[d.key] = dim;
         if (d.advanced) { advDims.push(d.key); advBody.appendChild(dim.wrap); }
-        else controls.appendChild(dim.wrap);
+        else dimRow.appendChild(dim.wrap);
       } else {
         const wrap = document.createElement("div");
         const label = document.createElement("label");
@@ -154,18 +185,14 @@ const KitExplorer = (() => {
         input.addEventListener("input", () => { state[key] = Number(input.value); setLabel(); update(); });
         state[key] = Number(input.value); setLabel();
         wrap.append(label, input);
-        controls.appendChild(wrap); inputs.push(input);
+        dimRow.appendChild(wrap); inputs.push(input);
       }
     }
 
-    /* A resolver entry exists because the text a card SHOWS is not always a field
-       on the row: a corpus that dedupes a shared body (one frozen CoT across its
-       ~20 resamples) keeps it in a side table, and a search that only reads row
-       fields then silently misses those rows while the reader is looking at the
-       very text they searched for. */
-    const searchFns = search.map(k => (typeof k === "function" ? k : (r => r[k])));
-    let searchBox = null;
-    if (search.length) {
+    const scopes = searchScopes(search);
+    let scope = 0;               /* index into scopes; 0 is the default */
+    let searchBox = null, scopeSel = null;
+    if (scopes.length) {
       const wrap = document.createElement("div");
       const label = document.createElement("label");
       label.textContent = "search";
@@ -173,7 +200,21 @@ const KitExplorer = (() => {
       searchBox.type = "search"; searchBox.placeholder = "free text…";
       let t; searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(update, 150); });
       wrap.append(label, searchBox);
-      controls.appendChild(wrap);
+      actionRow.appendChild(wrap);
+      /* the picker only appears when there is a choice to make */
+      if (scopes.length > 1) {
+        const sw = document.createElement("div");
+        const sl = document.createElement("label");
+        sl.textContent = "search in";
+        scopeSel = document.createElement("select");
+        scopes.forEach((s, i) => scopeSel.appendChild(new Option(s.label, String(i))));
+        scopeSel.addEventListener("change", () => {
+          scope = Number(scopeSel.value);
+          if (searchBox.value.trim()) update();
+        });
+        sw.append(sl, scopeSel);
+        actionRow.appendChild(sw);
+      }
     }
 
     const drawBtn = document.createElement("button");
@@ -185,11 +226,12 @@ const KitExplorer = (() => {
     clearAll.addEventListener("click", () => {
       for (const k in dimByKey) dimByKey[k].clear();
       if (searchBox) searchBox.value = "";
+      if (scopeSel) { scope = 0; scopeSel.value = "0"; }
       update();
     });
     const count = document.createElement("span");
     count.className = "ex-count";
-    controls.append(drawBtn, clearAll, count);
+    actionRow.append(drawBtn, clearAll, count);
 
     const list = document.createElement("div");
     list.className = "sample-list";
@@ -230,7 +272,7 @@ const KitExplorer = (() => {
         }
         if (spec.globalStore && spec.globalFilter
             && !spec.globalFilter(r, spec.globalStore.state)) return false;
-        if (q && !searchFns.some(f => String(f(r) ?? "").toLowerCase().includes(q))) return false;
+        if (q && !scopes[scope].fns.some(f => String(f(r) ?? "").toLowerCase().includes(q))) return false;
         return true;
       });
     }
