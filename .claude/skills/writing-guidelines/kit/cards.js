@@ -131,30 +131,85 @@ const KitCards = (() => {
       if (digestHtml) body.innerHTML = on ? html : digestHtml;
       more.textContent = moreLabel();
     };
-    div.addEventListener("click", () => { if (!div.classList.contains("short")) toggle(); });
+    /* A click that ends a text selection must not toggle: readers highlight
+       quotes out of these blocks, and collapsing the text under the cursor on
+       mouse-up loses the selection they just made. Two guards, because either
+       alone misses cases: the drag distance catches a drag that selected
+       nothing (started on padding, or the pointer left the block), and the
+       selection test catches a drag that moved only a few px but did select. */
+    let downX = 0, downY = 0;
+    div.addEventListener("pointerdown", e => { downX = e.clientX; downY = e.clientY; });
+    div.addEventListener("click", e => {
+      if (div.classList.contains("short")) return;
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+      const sel = getSelection();
+      if (sel && String(sel).length
+          && (div.contains(sel.anchorNode) || div.contains(sel.focusNode))) return;
+      toggle();
+    });
     div.addEventListener("keydown", e => {
       if ((e.key === "Enter" || e.key === " ") && !div.classList.contains("short")) {
         e.preventDefault(); toggle();
       }
     });
+    autoArm();
     return div;
   }
 
   /* mark blocks whose body doesn't overflow the clamp as .short (no
-     affordance). Call after mounting; safe to call repeatedly. */
+     affordance), and unmark those that no longer fit. Safe to call repeatedly.
+     Writes and reads are batched (all .short removed, then all measured, then
+     all applied) because .short itself removes the clamp — measuring a block
+     that still carries it always reports "fits" — and interleaving would force
+     one layout per block. */
   function markShort(root = document) {
-    root.querySelectorAll(".ptext:not(.expanded):not(.digest)").forEach(el => {
-      el.classList.remove("short");
+    const els = [...root.querySelectorAll(".ptext:not(.expanded):not(.digest)")];
+    els.forEach(el => el.classList.remove("short"));
+    const fits = els.map(el => {
       const body = el.querySelector(".pt-body") || el;
-      if (body.scrollHeight <= body.clientHeight + 4) {
-        el.classList.add("short");
-        el.removeAttribute("role"); el.tabIndex = -1;
-      }
+      /* 0-height = not rendered (inside a closed <details>, display:none…).
+         Unmeasurable is NOT "fits": marking it short would hide the affordance
+         on a long sample and kill its click handler, leaving it unopenable
+         when the fold is opened. Leave it alone; the toggle re-measures. */
+      return body.clientHeight ? body.scrollHeight <= body.clientHeight + 4 : null;
+    });
+    els.forEach((el, i) => {
+      if (fits[i] === null) return;
+      el.classList.toggle("short", fits[i]);
+      if (fits[i]) { el.removeAttribute("role"); el.tabIndex = -1; }
+      else { el.setAttribute("role", "button"); el.tabIndex = 0; }
     });
   }
+
+  /* The affordance defaults to CORRECT, not to on. It used to require the
+     report to call observeShort(); a report that forgot it showed
+     "… click to expand" under every sample including ones displayed in full
+     (Clément, on a report that mounted its cards statically). So the first
+     ptext() ever built arms the measurement itself, and re-measures on the
+     three events that invalidate it: DOM insertions, viewport resize (the
+     clamp is width-dependent), and a <details> opening (0-height until then).
+     rAF-coalesced, so a burst of mutations measures once. */
+  let armed = false, pending = false;
+  function scheduleMark() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; markShort(document); });
+  }
+  function autoArm() {
+    if (armed) return;
+    armed = true;
+    new MutationObserver(scheduleMark).observe(document.documentElement,
+      { childList: true, subtree: true });
+    addEventListener("resize", scheduleMark);
+    document.addEventListener("toggle", scheduleMark, true);
+    if (document.readyState === "loading")
+      document.addEventListener("DOMContentLoaded", scheduleMark, { once: true });
+    scheduleMark();
+  }
+  /* kept as the explicit entry point (older reports call it); now redundant */
   function observeShort(root = document.body) {
+    autoArm();
     markShort(root);
-    new MutationObserver(() => markShort(root)).observe(root, { childList: true, subtree: true });
   }
 
   /* ---- card ----

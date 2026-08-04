@@ -3,6 +3,45 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.11 — 2026-08-03
+
+- **Selecting text in a `.ptext` block no longer collapses it.** The whole block
+  is the expand affordance, so mouse-up at the end of a drag-select landed on
+  the click handler and toggled — highlighting a quote out of a sample
+  collapsed the text under the cursor and threw the selection away (Clément:
+  "when I'm selecting text and releasing my mouse it should NOT trigger expand /
+  collapse"). The handler now ignores a click whose pointer moved > 6px since
+  pointerdown, and any click that leaves a non-empty selection anchored in the
+  block. Both guards are needed: the distance test catches drags that select
+  nothing (started on padding, or the pointer left the block), the selection
+  test catches short drags that did select.
+- Not covered: double-click-to-select-a-word still toggles on its *first*
+  click, since no selection exists yet at that point. Fixing it means either
+  delaying every expand ~250ms to wait for a second click, or expanding and
+  visibly reverting — both worse than the symptom.
+
+## v0.6.10 — 2026-07-31
+
+- **The expand affordance now defaults to correct instead of to on.**
+  `.ptext` blocks shipped with "… click to expand" and only lost it if the
+  report remembered to call `KitCards.observeShort()`. A report that mounts its
+  cards statically and forgets the call showed the row under *every* sample,
+  including ones displayed in full (Clément: "there is click to expand even when
+  the sample is fully displayed, I thought this was fixed in the kit" — it was,
+  but the fix was opt-in). `ptext()` now arms the measurement itself on first
+  use; `observeShort()` still works and is redundant.
+- Re-measures on the three events that invalidate the verdict, none of which
+  were watched before: **viewport resize** (the clamp is width-dependent, so a
+  block that overflowed at mount can fit later), **`<details>` opening**, and DOM
+  insertions — all coalesced into one rAF pass.
+- `markShort` batches its writes and reads (removing `.short` from everything,
+  then measuring, then applying) instead of interleaving them per block, which
+  forced a layout per block; it also now *un*-marks a block that stopped
+  fitting, and treats a 0-height (unrendered) block as unknown rather than as
+  "fits" — the old code marked blocks inside a closed fold `.short`, which both
+  hid the affordance and killed the click handler, leaving a long sample
+  unopenable once the fold was opened.
+
 ## v0.6.9 — 2026-07-31
 
 - **`KitToc.build` audits the page structure** and console.warns on the two
