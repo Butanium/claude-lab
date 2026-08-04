@@ -39,6 +39,15 @@ way a control behaves".
   feature into 07-28's appendix A1, where two stacked panels share the lower
   one's legend — the kit shipping a foot-gun and the report stepping in it was
   one rebuild away.
+- **The explorer's search box has VS Code's three find flags.** `Aa` match case,
+  `ab` whole word, `.*` regex — deliberately the same glyphs in the same order,
+  because anyone who has used an editor already knows them and they need no
+  legend. All off is the old case-insensitive substring, so nothing changes for
+  a reader who ignores them. One matcher is built per query+flags (not per row)
+  and every mode goes through `RegExp` with the literal escaped, so `a.b` stays
+  `a.b` until regex is asked for. A pattern that doesn't compile — which is the
+  state you are in for most of the keystrokes it takes to type one — turns the
+  box red and says so in the count, rather than silently matching nothing.
 - **A filter dimension is a plain dropdown again; multi-select is `multi: true`.**
   v0.5 made every dimension an add-picker-plus-chips because "these two
   categories" is sometimes a real question. It is sometimes a real question — and

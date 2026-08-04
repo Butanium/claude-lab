@@ -217,6 +217,46 @@ with tempfile.TemporaryDirectory() as td:
         check("a chip is outlined at rest", pg.evaluate(
             "() => {const c = getComputedStyle(document.querySelector('#explorer .ex-chip'));"
             "return !/, *0\\)/.test(c.borderTopColor) && c.borderTopStyle === 'solid';}"))
+        dim(1).locator(".ex-chip").first.click()
+        dim(1).locator(".ex-chip").first.click()
+        pg.wait_for_timeout(200)
+
+        print("search — the three find-widget flags")
+        sbox = pg.locator("#explorer input[type=search]")
+        flag = lambda k: pg.locator(f"#explorer .ex-flag-{k}")            # noqa: E731
+        n = lambda: int(shown().split()[0])                              # noqa: E731
+
+        def find(text, wait=350):
+            sbox.fill(text)
+            pg.wait_for_timeout(wait)
+
+        find("ROW XP0")
+        check("case-insensitive substring by default", n() == 1, shown())
+        flag("case").click()
+        pg.wait_for_timeout(300)
+        check("Aa makes it case-sensitive", n() == 0, shown())
+        check("the flag reads as pressed",
+              flag("case").get_attribute("aria-pressed") == "true")
+        flag("case").click()
+        find("ro")
+        check("substring still matches a prefix", n() == 24, shown())
+        flag("word").click()
+        pg.wait_for_timeout(300)
+        check("ab_ requires a whole word", n() == 0, shown())
+        find("row")
+        check("and matches one", n() == 24, shown())
+        flag("word").click()
+        find("row x[pq]0")
+        check("a regex is literal until asked for", n() == 0, shown())
+        flag("regex").click()
+        pg.wait_for_timeout(300)
+        check(".* turns it on", n() == 2, shown())
+        find("row (x")
+        check("an uncompilable pattern says so", "doesn't compile" in shown(), shown())
+        check("and marks the box", "bad" in (sbox.get_attribute("class") or ""))
+        flag("regex").click()
+        find("")
+        check("clearing the box restores everything", n() == 24, shown())
 
         print("cards — a text selection is not a click")
         card = pg.locator("#cards .ptext").first

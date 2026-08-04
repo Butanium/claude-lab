@@ -115,13 +115,43 @@ mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); colo
 .ex-controls select, .ex-controls input[type="search"] { max-width: 15rem; }
 .ex-controls label { display: block; color: var(--ink-2); margin-bottom: 0.15rem; }
 .ex-controls select, .ex-controls input,
-.ex-controls button:not(.ex-chip):not(.ex-dim-x) {
+.ex-controls button:not(.ex-chip):not(.ex-dim-x):not(.ex-flag) {
   font: inherit; color: var(--ink); background: var(--paper);
   border: 1px solid var(--baseline); border-radius: 4px; padding: 0.25rem 0.45rem;
 }
 .ex-controls button { cursor: pointer; background: var(--surface); }
 .ex-controls button:hover { border-color: var(--accent); color: var(--accent); }
 .ex-count { color: var(--muted); }
+
+/* search flags — VS Code's find-widget toggles, deliberately the same three
+   glyphs: Aa / ab / .* need no legend for anyone who has used an editor. They
+   live inside the box (hence the input's right padding), and the native search
+   ✕ is hidden because it would land in the middle of them. */
+.ex-search { position: relative; display: inline-flex; align-items: center; }
+.ex-controls .ex-search input[type="search"] { width: 15rem; padding-right: 5.1rem; }
+.ex-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+/* a bad pattern is typed, so the box is focused: recolor the focus ring too, or
+   it reads as a red border inside a blue ring rather than as one signal */
+.ex-controls input[type="search"].bad { border-color: var(--critical); }
+.ex-controls input[type="search"].bad:focus-visible {
+  outline: 2px solid var(--critical); outline-offset: 1px;
+}
+.ex-flags { position: absolute; right: 0.3rem; display: flex; gap: 0.1rem; }
+.ex-controls .ex-flag {
+  font: 600 0.72rem/1.1 var(--mono); color: var(--muted);
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  padding: 0.22rem 0.3rem; margin: 0; cursor: pointer;
+}
+.ex-controls .ex-flag:hover {
+  color: var(--ink); border-color: transparent;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+.ex-controls .ex-flag.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.ex-flag-word { text-decoration: underline; text-underline-offset: 2px; }
 
 /* a filter dimension: label (+ ✕ when multi), the picker, then one chip per value */
 .ex-dim { display: flex; flex-direction: column; }

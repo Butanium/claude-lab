@@ -58,7 +58,7 @@ so a smoke that needs one is a smoke nobody runs.
 | `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/heatmap` — CI whiskers, n= tooltips, per-run overlays, per-bar ref overlays (◆/tick), shaded scatter regions, stacked-segment CIs + shaped hatch, low-n ⚠, ref lines, click-to-hide legends (`legendGroup()` when panels share one), a11y |
 | `stats.js` | `KitStats.wilson/bootstrap(seeded)/shuffle/fmtPct` — for filter-reactive recompute only |
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
-| `explorer.js` | `KitExplorer.explorer` (filter bank of plain dropdowns — `multi: true` per dim for add-picker + chips — count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure) |
+| `explorer.js` | `KitExplorer.explorer` (filter bank of plain dropdowns — `multi: true` per dim for add-picker + chips — search with VS Code's Aa/ab/`.*` flags, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure) |
 | `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`) |
 | `template.html` | report skeleton wiring all of it |
 | `kit_build.py` | `build(src, out, subs)` — inlines the kit, stamps the version, runs the build-time asserts |

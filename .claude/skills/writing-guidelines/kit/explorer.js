@@ -220,6 +220,11 @@ const KitExplorer = (() => {
     const scopes = searchScopes(search);
     let scope = 0;               /* index into scopes; 0 is the default */
     let searchBox = null, scopeSel = null;
+    /* VS Code's find-widget flags, same three glyphs — readers already know what
+       Aa / ab / .* do, so they need no explaining. All off = plain
+       case-insensitive substring, which is what the box did before. */
+    const sflags = { case: false, word: false, regex: false };
+    let badRe = false;
     if (scopes.length) {
       const wrap = document.createElement("div");
       const label = document.createElement("label");
@@ -227,7 +232,30 @@ const KitExplorer = (() => {
       searchBox = document.createElement("input");
       searchBox.type = "search"; searchBox.placeholder = "free text…";
       let t; searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(update, 150); });
-      wrap.append(label, searchBox);
+      const flags = document.createElement("div");
+      flags.className = "ex-flags";
+      for (const [key, glyph, title] of [["case", "Aa", "Match case"],
+                                         ["word", "ab", "Match whole word"],
+                                         ["regex", ".*", "Use regular expression"]]) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ex-flag ex-flag-" + key;
+        b.textContent = glyph;
+        b.title = title;
+        b.setAttribute("aria-label", title);
+        b.setAttribute("aria-pressed", "false");
+        b.addEventListener("click", () => {
+          sflags[key] = !sflags[key];
+          b.classList.toggle("on", sflags[key]);
+          b.setAttribute("aria-pressed", String(sflags[key]));
+          if (searchBox.value.trim()) update();
+        });
+        flags.appendChild(b);
+      }
+      const boxWrap = document.createElement("div");
+      boxWrap.className = "ex-search";
+      boxWrap.append(searchBox, flags);
+      wrap.append(label, boxWrap);
       actionRow.appendChild(wrap);
       /* the picker only appears when there is a choice to make */
       if (scopes.length > 1) {
@@ -288,8 +316,31 @@ const KitExplorer = (() => {
       renderList();
     });
 
+    /* One matcher per query+flags, not per row. Every mode goes through RegExp:
+       a plain query is escaped to its literal, so "a.b" stays "a.b" until the
+       reader asks for regex. Returns null (no constraint) or false (the pattern
+       doesn't compile — an unfinished `(foo`, which is a state the reader is in
+       for most of the keystrokes it takes to type one). */
+    function buildMatcher() {
+      badRe = false;
+      searchBox?.classList.remove("bad");
+      const q = searchBox?.value.trim();
+      if (!q) return null;
+      const src = sflags.regex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      try {
+        const re = new RegExp(sflags.word ? `\\b(?:${src})\\b` : src, sflags.case ? "" : "i");
+        return s => re.test(s);
+      } catch {
+        /* user input, handled: the box goes red and the count says why */
+        badRe = true;
+        searchBox.classList.add("bad");
+        return false;
+      }
+    }
+
     function matches() {
-      const q = searchBox?.value.trim().toLowerCase();
+      const q = buildMatcher();
+      if (q === false) return [];
       return data.filter(r => {
         for (const d of dims) {
           if (d.type === "min" && r[d.key] < state[d.key + ":min"]) return false;
@@ -300,7 +351,7 @@ const KitExplorer = (() => {
         }
         if (spec.globalStore && spec.globalFilter
             && !spec.globalFilter(r, spec.globalStore.state)) return false;
-        if (q && !scopes[scope].fns.some(f => String(f(r) ?? "").toLowerCase().includes(q))) return false;
+        if (q && !scopes[scope].fns.some(f => q(String(f(r) ?? "")))) return false;
         return true;
       });
     }
@@ -315,7 +366,7 @@ const KitExplorer = (() => {
       const m = matches();
       list.textContent = "";
       if (m.length === 0) {
-        count.textContent = "0 samples match";
+        count.textContent = badRe ? "the regular expression doesn't compile" : "0 samples match";
         list.innerHTML = `<div class="empty-state">— none —</div>`;
         return;
       }
