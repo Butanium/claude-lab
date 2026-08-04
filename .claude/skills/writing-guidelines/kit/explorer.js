@@ -225,6 +225,7 @@ const KitExplorer = (() => {
        case-insensitive substring, which is what the box did before. */
     const sflags = { case: false, word: false, regex: false };
     let badRe = false;
+    let hitRe = null;    /* the same pattern, /g, for highlighting the matches */
     if (scopes.length) {
       const wrap = document.createElement("div");
       const label = document.createElement("label");
@@ -323,12 +324,17 @@ const KitExplorer = (() => {
        for most of the keystrokes it takes to type one). */
     function buildMatcher() {
       badRe = false;
+      hitRe = null;
       searchBox?.classList.remove("bad");
       const q = searchBox?.value.trim();
       if (!q) return null;
       const src = sflags.regex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const body = sflags.word ? `\\b(?:${src})\\b` : src, fl = sflags.case ? "" : "i";
       try {
-        const re = new RegExp(sflags.word ? `\\b(?:${src})\\b` : src, sflags.case ? "" : "i");
+        const re = new RegExp(body, fl);
+        /* a separate /g clone: `test` on a global regex carries lastIndex
+           between calls, and this one is exec'd in a loop per text node */
+        hitRe = new RegExp(body, fl + "g");
         return s => re.test(s);
       } catch {
         /* user input, handled: the box goes red and the count says why */
@@ -373,7 +379,12 @@ const KitExplorer = (() => {
       const rows = randomRows ?? m.slice(0, shown);
       count.textContent = `${m.length} samples match — showing ` +
         (randomRows ? `${rows.length} random` : `first ${rows.length}`);
-      rows.forEach(r => list.appendChild(render(r)));
+      rows.forEach(r => {
+        const card = render(r);
+        /* highlight before it is in the document: one reflow, not one per mark */
+        if (hitRe && typeof KitCards !== "undefined") KitCards.highlight(card, hitRe);
+        list.appendChild(card);
+      });
       const remaining = m.length - rows.length;
       if (remaining > 0) {
         const more = document.createElement("button");

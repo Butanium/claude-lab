@@ -62,6 +62,16 @@
 
 /* judge-evidence highlight + digest view (highlighted quote in muted context) */
 mark.ev { background: color-mix(in srgb, var(--series-4) 30%, transparent); color: inherit; padding: 0 0.1em; }
+/* search hits, in the accent — the same colour the search flags go when armed,
+   so the highlight reads as "this is your query" and not as a second kind of
+   evidence. Amber (mark.ev) stays the judge's. A hit inside an evidence quote
+   nests, and the inner one wins. */
+mark.hit {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: inherit; border-radius: 2px; padding: 0 0.08em;
+}
+/* hits below the 6-line clamp are invisible, so the affordance counts them */
+.ptext.has-hits > .pt-more::after { content: " · " attr(data-hits); color: var(--accent); }
 .digest .ctx { color: var(--ink-2); }
 .digest .ellipsis { color: var(--muted); font-family: var(--sans); font-size: 0.85em; }
 

@@ -258,6 +258,30 @@ with tempfile.TemporaryDirectory() as td:
         find("")
         check("clearing the box restores everything", n() == 24, shown())
 
+        print("search — every match is highlighted in the cards shown")
+        hits = lambda: pg.locator("#explorer mark.hit").count()          # noqa: E731
+        check("nothing is marked with an empty query", hits() == 0)
+        find("row xp")
+        # 4 cards shown (xp0..xp3), each with the phrase once in its pane
+        check("each shown card gets its hit marked", hits() == 4, f"marks={hits()}")
+        check("the mark holds exactly the match", pg.evaluate(
+            "() => document.querySelector('#explorer mark.hit').textContent") == "row xp")
+        check("and only inside the card body", pg.evaluate(
+            "() => [...document.querySelectorAll('#explorer mark.hit')]"
+            ".every(m => !m.closest('.lab, .chip, .pt-more'))"))
+        flag("case").click()
+        find("ROW XP")
+        check("a case-sensitive miss marks nothing", hits() == 0, f"marks={hits()}")
+        flag("case").click()
+        find("needle")            # only in the one long row, past the clamp
+        check("a hit below the clamp is counted on the affordance", pg.evaluate(
+            "() => document.querySelector('#explorer .ptext.has-hits .pt-more')"
+            "?.dataset.hits") == "1 match")
+        check("that block is not short (so the count is visible)",
+              pg.locator("#explorer .ptext.has-hits.short").count() == 0)
+        find("")
+        check("clearing the query clears the marks", hits() == 0)
+
         print("cards — a text selection is not a click")
         card = pg.locator("#cards .ptext").first
         card.scroll_into_view_if_needed()

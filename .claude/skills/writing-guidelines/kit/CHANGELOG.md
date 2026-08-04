@@ -48,6 +48,18 @@ way a control behaves".
   `a.b` until regex is asked for. A pattern that doesn't compile — which is the
   state you are in for most of the keystrokes it takes to type one — turns the
   box red and says so in the count, rather than silently matching nothing.
+- **Search hits are highlighted in the cards** (`KitCards.highlight(root, /re/g)`,
+  wired into the explorer). The filter says which samples matched; the highlight
+  says which words did. It walks text nodes rather than rewriting innerHTML, so
+  judge-evidence marks and whatever the report's own card factory built survive,
+  and it skips kit chrome (pane labels, chips, the expand affordance) so a query
+  like "answer" doesn't light up every pane header. Hits are accent-coloured —
+  the colour the search flags take when armed — leaving amber to the judge.
+  Because a pane clamps at 6 lines, a hit further down would be invisible: every
+  block that got one now counts them on its affordance ("… click to expand · 3
+  matches"). Note the highlight is unscoped even when the *search* is scoped —
+  the kit can't map a scope's fields back to the report's DOM — so a scoped
+  search still shows you every occurrence in the card it opened.
 - **A filter dimension is a plain dropdown again; multi-select is `multi: true`.**
   v0.5 made every dimension an add-picker-plus-chips because "these two
   categories" is sometimes a real question. It is sometimes a real question — and

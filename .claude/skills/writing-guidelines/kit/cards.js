@@ -104,6 +104,60 @@ const KitCards = (() => {
       : `<span class="ctx">${esc(t.s)}</span>`).join(" ");
   }
 
+  /* ---- search-hit highlighting ----
+     Wrap every match of `re` (must be /g) inside `root` in <mark class="hit">.
+     The explorer's filter says which samples matched; this says which words did.
+
+     Walks text nodes instead of rewriting innerHTML, so evidence marks and any
+     markup the report's own card factory produced survive untouched. Skips the
+     kit's chrome — pane labels, chips, the expand affordance — because a query
+     like "answer" lighting up every pane header is noise, not a hit.
+
+     Blocks whose hits are below the 6-line clamp would otherwise be invisible,
+     so each .ptext that got any gets a count on its affordance ("… click to
+     expand · 3 matches"). Set as a data attribute rendered by CSS ::after, not
+     as text: the block rewrites its own label every time it's toggled. */
+  function highlight(root, re) {
+    if (!re || !root) return 0;
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => n.nodeValue && !n.parentElement?.closest(".lab, .chip, .pt-more")
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    });
+    const nodes = [];
+    while (walk.nextNode()) nodes.push(walk.currentNode);
+    const perBlock = new Map();
+    let total = 0;
+    for (const n of nodes) {
+      const s = n.nodeValue;
+      const frag = document.createDocumentFragment();
+      let pos = 0, m, hits = 0;
+      re.lastIndex = 0;
+      while ((m = re.exec(s))) {
+        /* a pattern that can match the empty string (`x*`) never advances */
+        if (!m[0]) { re.lastIndex++; continue; }
+        hits++;
+        frag.append(s.slice(pos, m.index));
+        const mk = document.createElement("mark");
+        mk.className = "hit";
+        mk.textContent = m[0];
+        frag.append(mk);
+        pos = m.index + m[0].length;
+      }
+      if (!hits) continue;
+      total += hits;
+      const block = n.parentElement.closest(".ptext");
+      if (block) perBlock.set(block, (perBlock.get(block) || 0) + hits);
+      frag.append(s.slice(pos));
+      n.parentNode.replaceChild(frag, n);
+    }
+    for (const [block, k] of perBlock) {
+      block.classList.add("has-hits");
+      const more = block.querySelector(".pt-more");
+      if (more) more.dataset.hits = k === 1 ? "1 match" : `${k} matches`;
+    }
+    return total;
+  }
+
   /* ---- expandable text block ----
      Structure: a clipped .pt-body (line-clamped, so it cuts at a clean line
      boundary, never mid-line) with the affordance on its OWN row (.pt-more)
@@ -263,5 +317,5 @@ const KitCards = (() => {
   }
 
   return { esc, chip, card, transcript, ptext, markShort, observeShort,
-           highlightEvidence, evidenceDigest };
+           highlightEvidence, evidenceDigest, highlight };
 })();
