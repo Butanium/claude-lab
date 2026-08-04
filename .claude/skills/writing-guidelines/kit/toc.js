@@ -63,9 +63,12 @@ const KitToc = (() => {
       const caret = document.createElement("button");
       caret.type = "button";
       caret.className = "toc-caret";
-      caret.textContent = "▸";
+      /* a stroked chevron, not a ▸ glyph: text triangles render as a blob at
+         sidebar size and vary by font (Clément) */
+      caret.innerHTML =
+        '<svg viewBox="0 0 6 10" aria-hidden="true"><path d="M1 1 5 5 1 9"/></svg>';
       caret.setAttribute("aria-label", it.label + " sections");
-      head.append(a, caret);
+      head.append(caret, a);
       nav.appendChild(head);
 
       const box = document.createElement("div");

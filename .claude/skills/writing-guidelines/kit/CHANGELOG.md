@@ -3,6 +3,25 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.16 — 2026-08-03
+
+- **The TOC group's caret is a chevron on the left, not a ▸ on the right.** Three
+  things were wrong with v0.6.15's (Clément: "very small and ugly"). A disclosure
+  control belongs before what it discloses. A `▸` text glyph renders as a blob at
+  sidebar size and changes shape with the font — it is now a stroked SVG chevron,
+  which stays crisp. And it was sized as chrome rather than as a sibling of the
+  label; at 0.7rem tall with a 22px hit target it reads at the label's weight.
+  It also answers to a hover anywhere on its line, because 7px is not a target
+  anyone hunts for.
+- **It hangs in the sidebar panel's padding, outside the rail.** The gutter
+  between a TOC entry's rail and its text is ~11px, and a chevron placed in there
+  either touches the rail or pushes the label out onto the sub-item column, where
+  "Appendix" reads as nested under the section above it — the reason to measure
+  `getBoundingClientRect().left` per entry instead of squinting at a screenshot.
+  Hanging it costs no layout: every label, rail and indent is byte-identical to a
+  TOC with no groups. Its focus ring is drawn with `outline-offset: -1px` because
+  the panel is a scroll container that clips at exactly that edge.
+
 ## v0.6.15 — 2026-08-03
 
 - **A TOC group is a real fold now.** The children of a `children:` item (the
