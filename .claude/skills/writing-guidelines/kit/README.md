@@ -30,7 +30,23 @@ base64 blobs safe to embed in a `<script>`.
 **Don't hand-maintain the `<!-- clab-report-kit vX.Y -->` stamp** — `build()`
 rewrites it. Bump `VERSION` with every CHANGELOG entry; they are asserted equal.
 
-Smoke: `python3 small-smokes/smoke_kit_build.py`.
+Smokes — run both after touching the kit:
+
+```
+python3 small-smokes/smoke_kit_build.py          # the builder
+uv run --no-project --with playwright python \
+  small-smokes/smoke_kit_behaviour.py            # what the built page DOES
+```
+
+The behaviour one renders `fixture_report.py` (a minimal real report — sidebar
+TOC with a group, in-page anchors, an expandable card) in headless Chromium and
+drives it. Every check in it exists because that behaviour broke once: anchors
+landing short, anchors reloading the frame, a text selection collapsing a card.
+It serves the page under a query-bearing url with a query-dropping `<base>` —
+the artifact frame's shape — and ends with a kit-less control that must still
+exhibit the bug, so the assertions can't quietly go vacuous. Extend the fixture
+rather than testing against a published report: those are 13 MB and not in git,
+so a smoke that needs one is a smoke nobody runs.
 
 ## Files
 
