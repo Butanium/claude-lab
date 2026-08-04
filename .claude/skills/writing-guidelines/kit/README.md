@@ -4,15 +4,33 @@ Shared building blocks for self-contained HTML research reports (see the
 writing-guidelines skill, Part 2). Reports **inline** the kit at build time —
 no runtime dependency, old reports stay frozen at their vintage.
 
-## Inlining
+## Building a report
 
-```bash
-KIT=.claude/skills/writing-guidelines/kit          # resolves via the repo's symlink
-cat "$KIT"/tokens.css "$KIT"/layout.css "$KIT"/cards.css "$KIT"/charts.css   # → <style> block
-cat "$KIT"/stats.js "$KIT"/filters.js "$KIT"/cards.js "$KIT"/explorer.js "$KIT"/charts.js "$KIT"/toc.js  # → <script> block
+Start from `template.html`. Let the kit assemble the page — don't hand-roll the
+inlining, that is what drifted across seven reports and cost this module (CHANGELOG
+v0.6.12):
+
+```python
+import sys
+sys.path.insert(0, str(Path.home() / ".claude/skills/writing-guidelines/kit"))
+from kit_build import build
+
+build(src=ROOT / "report_src.html", out=ROOT / "index.html",
+      subs={"PAYLOAD_B64": (ROOT / "data/payload.b64").read_text()})
 ```
 
-Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
+`src` takes a Path or the template text itself. Marker spelling is free —
+`PAYLOAD_B64` matches `%%PAYLOAD_B64%%`, `__PAYLOAD_B64__`, `{{PAYLOAD_B64}}` and
+their `/* */` forms — so an existing report adopts this without touching its
+template. `build()` inlines every kit file, stamps the version three ways
+(HTML comment, `<meta name="generator">`, `window.KIT_VERSION`), and asserts:
+no duplicate ids, no marker left unfilled, no raw `data:image/svg+xml` URI, and
+base64 blobs safe to embed in a `<script>`.
+
+**Don't hand-maintain the `<!-- clab-report-kit vX.Y -->` stamp** — `build()`
+rewrites it. Bump `VERSION` with every CHANGELOG entry; they are asserted equal.
+
+Smoke: `python3 small-smokes/smoke_kit_build.py`.
 
 ## Files
 
@@ -27,6 +45,8 @@ Start from `template.html`; keep the `<!-- clab-report-kit vX.Y -->` stamp.
 | `explorer.js` | `KitExplorer.explorer` (filter bank, count, draw-random, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure) |
 | `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`) |
 | `template.html` | report skeleton wiring all of it |
+| `kit_build.py` | `build(src, out, subs)` — inlines the kit, stamps the version, runs the build-time asserts |
+| `VERSION` | the kit version, asserted against `CHANGELOG.md`'s top heading |
 
 ## Rules
 

@@ -3,6 +3,35 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.12 — 2026-08-03
+
+- **The kit inlines itself: `kit_build.build()` + `kit/VERSION`.** Every report
+  hand-rolled the same three steps (read the CSS/JS lists, string-replace the
+  markers, write the file) and the seven copies had drifted — three marker
+  spellings, two reports whose JS list omitted `toc.js` so they silently never
+  got the sidebar nav, and exactly one report asserting no duplicate ids
+  despite that guarding a bug this changelog documents twice (v0.6, v0.6.9).
+  `build(src, out, subs)` owns the step; a release needing a build-side
+  counterpart now lands once instead of seven times.
+- **The version stamp is generated, not maintained.** It was a hand-written
+  `<!-- clab-report-kit vX -->` comment, and on the report that prompted this it
+  had sat at `v0.2` for eight releases (Clément: "is there a way kit side to make
+  it easy when building the artifact to add a metadata on the kit version?").
+  `build()` now rewrites that comment, adds `<meta name="generator">`, and
+  defines `window.KIT_VERSION` — so a page published months ago can be asked its
+  vintage from the console, with no repo to hand. `VERSION` is asserted against
+  the CHANGELOG's top heading, so bumping one without the other fails the build.
+- Marker spelling no longer matters: `PAYLOAD_B64` matches `%%PAYLOAD_B64%%`,
+  `__PAYLOAD_B64__`, `{{PAYLOAD_B64}}` and their `/* */` forms. Adopting this
+  costs a report ~5 lines and no template edits.
+- Every report now gets every kit file. Curating the list per page saved ~50 kB
+  against multi-MB payloads and cost a silently missing feature each time the
+  kit grew a file.
+- `build()` also runs, for everyone, the checks single reports had invented:
+  duplicate ids (on the template, before substitution — the payload is data),
+  leftover markers, raw `data:image/svg+xml` URIs (the unshareable-artifact
+  trigger, v0.6.7), and `</script`/quote safety on base64 blobs.
+
 ## v0.6.11 — 2026-08-03
 
 - **Selecting text in a `.ptext` block no longer collapses it.** The whole block
