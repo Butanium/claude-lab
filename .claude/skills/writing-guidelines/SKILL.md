@@ -143,7 +143,7 @@ Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex fig
 
 - one control per relevant dimension (condition, model, prompt, judge verdict, …) plus free-text search
 - the global filter slider (sticky, left side — e.g. min coherence) drives explorer AND charts together
-- "draw random samples" button; the match count is always visible
+- every filter shows a random sample of its matches (never the first page — a corpus is written grouped, so its head is a skewed look at it); "draw random samples" re-rolls; the match count is always visible
 - sample cards: clicking the text itself expands/collapses (no separate button), truncated at ~500 chars
 - paginate or virtualize the list — never mount tens of thousands of DOM nodes
 

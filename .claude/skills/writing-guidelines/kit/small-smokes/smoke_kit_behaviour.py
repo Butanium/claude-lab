@@ -11,6 +11,8 @@ which is where the kit's regressions have actually been:
            frame's base drops the query carrying its auth token
   v0.6.20  legends became interactive (a click re-renders the chart without the
            series) and filter dimensions went back to single-select
+  v0.6.21  the theme cycler has to hold its choice against the frame re-stamping
+           `data-theme` on <html>, and hand control back in system mode
 
 The page is served under a query-bearing url with a query-dropping <base> —
 the artifact frame's exact shape — so that last one stays caught. A control at
@@ -111,6 +113,41 @@ with tempfile.TemporaryDirectory() as td:
         check("panel does not scroll sideways", not pg.evaluate(
             "() => {const p = document.querySelector('.sidebar .panel');"
             "return p.scrollWidth > p.clientWidth;}"))
+
+        print("theme cycler — system is the default and a real third state")
+        btn = pg.locator(".kit-theme")
+        bg = lambda: pg.evaluate(                                        # noqa: E731
+            "() => getComputedStyle(document.body).backgroundColor")
+        stamp = lambda: pg.evaluate(                                     # noqa: E731
+            "() => document.documentElement.dataset.theme ?? null")
+        check("mounts top-right of the panel's own kicker", pg.evaluate(
+            "() => { const h = document.querySelector('.sidebar .panel-head');"
+            " return !!h && h.firstElementChild.classList.contains('kicker')"
+            " && h.lastElementChild.classList.contains('kit-theme'); }"))
+        check("starts on system, stamping nothing",
+              pg.evaluate("() => KitTheme.mode") == "system" and stamp() is None)
+        was = bg()
+        btn.click(); pg.wait_for_timeout(150)
+        check("click 1 → light", pg.evaluate("() => KitTheme.mode") == "light")
+        btn.click(); pg.wait_for_timeout(150)
+        check("click 2 → dark, and the page repaints",
+              pg.evaluate("() => KitTheme.mode") == "dark" and bg() != was, f"{was} -> {bg()}")
+        # the artifact frame re-stamps data-theme whenever the viewer's CLIENT theme
+        # changes — an explicit in-page choice has to outlive that
+        pg.evaluate("() => { document.documentElement.dataset.theme = 'light'; }")
+        pg.wait_for_timeout(200)
+        check("an explicit choice survives the frame re-stamping the theme",
+              stamp() == "dark", f"stamp={stamp()}")
+        btn.click(); pg.wait_for_timeout(150)
+        check("click 3 → back to system, clearing the stamp", pg.evaluate(
+            "() => KitTheme.mode === 'system' && !document.documentElement.dataset.theme"
+            " && !document.documentElement.style.colorScheme"))
+        pg.evaluate("() => { document.documentElement.dataset.theme = 'dark'; }")
+        pg.wait_for_timeout(200)
+        check("and in system mode the frame drives the page again",
+              stamp() == "dark" and bg() != was, f"stamp={stamp()} bg={bg()}")
+        pg.evaluate("() => { delete document.documentElement.dataset.theme; }")
+        pg.wait_for_timeout(150)
 
         print("legends — a click hides a series, and the chart re-lays out")
         # `.mark` is the a11y/tooltip target: one per drawn (group, series) cell,
@@ -220,6 +257,32 @@ with tempfile.TemporaryDirectory() as td:
         dim(1).locator(".ex-chip").first.click()
         dim(1).locator(".ex-chip").first.click()
         pg.wait_for_timeout(200)
+
+        # v0.6.22: a filter used to show the HEAD of the corpus, and a corpus is
+        # written grouped (all of arm x, then y, then z) — so page 1 of any
+        # filter was a systematically skewed look at it. The fixture's 24 rows
+        # are grouped that way on purpose: arm z lives at indices 16..23, so it
+        # cannot appear in an unshuffled first page of 12.
+        print("draws — a filter shows a random sample, not the first page")
+        texts = lambda: pg.evaluate(                                      # noqa: E731
+            "() => [...document.querySelectorAll('#explorer .card .pt-body')]"
+            ".map(e => e.textContent.slice(0, 9))")
+        draws = []
+        for v in ["y", "__all__"] * 3:
+            dim(0).locator("select").select_option(v)
+            pg.wait_for_timeout(150)
+            if v == "__all__":
+                draws.append(texts())
+        check("the page is not the corpus head",
+              any(any("row z" in t for t in d) for d in draws), str(draws[0]))
+        check("re-filtering re-draws", len({tuple(d) for d in draws}) > 1)
+        check("a draw holds no row twice", all(len(set(d)) == len(d) for d in draws))
+        before = texts()
+        pg.locator("#explorer .ex-more").click()
+        pg.wait_for_timeout(200)
+        after = texts()
+        check("'show more' extends the same draw", after[:len(before)] == before)
+        check("and adds rows it hasn't shown", len(set(after)) == 24, str(len(set(after))))
 
         print("search — the three find-widget flags")
         sbox = pg.locator("#explorer input[type=search]")

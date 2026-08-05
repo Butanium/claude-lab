@@ -160,6 +160,7 @@ const KitExplorer = (() => {
        search: [...] | {fields, scopes},  // see searchScopes above
        render: row => Element,    // card factory
        pageSize: 12, drawN: 5,
+       shuffle: true,             // false = corpus order (ranked rows)
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
      }) → { refresh } */
   function explorer(el, spec) {
@@ -307,13 +308,21 @@ const KitExplorer = (() => {
       if (advActive && !advFold.open) advFold.open = true;
     }
 
-    /* randomRows non-null => the list shows random draws; "show more" then
-       keeps drawing randomly from the not-yet-shown remainder (not the first
-       N of the filtered list). Any filter/search change exits random mode. */
-    let randomRows = null;
+    /* What a filter shows is a random SAMPLE of what matches, not the head of
+       the corpus: rows arrive in whatever order the experiment wrote them
+       (grouped by condition, by prompt id, by run), so the first page of a
+       narrowed filter is a systematically skewed look at it.
+
+       `view` is the matching rows in display order, drawn once per filter
+       change and kept — "show more" extends the same draw instead of
+       reshuffling the cards the reader is already reading. `shuffle: false`
+       keeps corpus order, for a report whose rows are ranked. */
+    const shuffled = spec.shuffle !== false;
+    let view = [];
     let shown = pageSize;
     drawBtn.addEventListener("click", () => {
-      randomRows = KitStats.shuffle(matches()).slice(0, drawN);
+      view = KitStats.shuffle(matches());   /* re-roll, even when shuffle:false */
+      shown = drawN;
       renderList();
     });
 
@@ -362,23 +371,25 @@ const KitExplorer = (() => {
       });
     }
 
-    function update() {   /* filter/search/set() entry: reset paging + random mode */
-      randomRows = null; shown = pageSize;
+    function update() {   /* filter/search/set() entry: fresh draw + reset paging */
+      const m = matches();
+      view = shuffled ? KitStats.shuffle(m) : m;
+      shown = pageSize;
       syncChrome();
       renderList();
     }
 
     function renderList() {
-      const m = matches();
+      const m = view;
       list.textContent = "";
       if (m.length === 0) {
         count.textContent = badRe ? "the regular expression doesn't compile" : "0 samples match";
         list.innerHTML = `<div class="empty-state">— none —</div>`;
         return;
       }
-      const rows = randomRows ?? m.slice(0, shown);
-      count.textContent = `${m.length} samples match — showing ` +
-        (randomRows ? `${rows.length} random` : `first ${rows.length}`);
+      const rows = m.slice(0, shown);
+      count.textContent = `${m.length} samples match` + (rows.length === m.length ? ""
+        : ` — showing ${rows.length}` + (shuffled ? " at random" : " (first)"));
       rows.forEach(r => {
         const card = render(r);
         /* highlight before it is in the document: one reflow, not one per mark */
@@ -389,15 +400,8 @@ const KitExplorer = (() => {
       if (remaining > 0) {
         const more = document.createElement("button");
         more.type = "button"; more.className = "ex-more";
-        more.textContent = `show ${Math.min(pageSize, remaining)} more` + (randomRows ? " random" : "");
-        more.addEventListener("click", () => {
-          if (randomRows) {
-            const seen = new Set(randomRows);
-            randomRows = randomRows.concat(
-              KitStats.shuffle(m.filter(r => !seen.has(r))).slice(0, pageSize));
-          } else shown += pageSize;
-          renderList();
-        });
+        more.textContent = `show ${Math.min(pageSize, remaining)} more`;
+        more.addEventListener("click", () => { shown += pageSize; renderList(); });
         list.appendChild(more);
       }
       if (typeof KitCards !== "undefined") KitCards.markShort(list);

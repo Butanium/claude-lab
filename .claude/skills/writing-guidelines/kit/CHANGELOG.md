@@ -3,6 +3,44 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.22 — 2026-08-05
+
+- **`explorer.js` — picking a filter now shows a random SAMPLE of the matches,
+  not the first page of them.** Clément, on the 08-04 report: choosing a value
+  showed the same rows every time, and they were the rows the corpus happened to
+  start with. That's not a cosmetic ordering complaint — a per-sample corpus is
+  written grouped (all of arm A, then B, then C; or ordered by prompt id, by run,
+  by score), so the head of any filtered set is a *systematically* skewed look at
+  it, and the explorer exists to find what's actually in there. The draw is taken
+  once per filter change and kept, so "show more" extends the same draw instead
+  of reshuffling the cards under the reader (and, unlike the old random mode,
+  it no longer has to dedupe against what it already showed — it's one order,
+  paginated). "Draw N random" stays as the explicit re-roll. `shuffle: false` in
+  the spec keeps corpus order for a report whose rows are genuinely ranked.
+
+## v0.6.21 — 2026-08-04
+
+- **`theme.js` — a theme cycler in the sidebar, top-right of the panel's kicker.**
+  system (default) → light → dark → system. The pages always rendered both themes,
+  but only the *client* could pick one; a reader who wants dark for one figure had
+  to change their whole claude.ai theme (Clément, on 07-31). "System" is a real
+  third state, so the frame's own toggle keeps driving the page until the reader
+  overrides it here. Auto-mounts: it wraps the first `.sidebar .panel`'s kicker in
+  a `.panel-head` flex row, so every existing report gets the control on its next
+  rebuild without touching its template (`KitTheme.mount(el)` to place it
+  elsewhere). Two things it has to fight: the artifact frame re-stamps
+  `data-theme` on `<html>` whenever the viewer's client theme changes — a
+  MutationObserver re-asserts an explicit choice, and lets the frame's value
+  through in system mode — and the frame also sets `style.color-scheme` inline,
+  which outranks `tokens.css`, so returning to system clears it rather than
+  writing a value. `localStorage` is best-effort (it throws in a sandboxed frame).
+- **`showN` on grouped bars: the auto default is the right one, don't force it.**
+  Not a code change — the rule (`showN` on only when `max n > 1.25 × min n`) has
+  been there since v0.6.13, and the 07-31 report passed `showN: true` anyway,
+  putting `n=100` under seven identical bars. Same for `showN: false` on a chart
+  whose denominators a filter can pull apart. Pass it only to override a call the
+  kit gets wrong for that specific chart.
+
 ## v0.6.20 — 2026-08-04
 
 Three pieces of reader feedback from Clément, all "the control doesn't behave the
