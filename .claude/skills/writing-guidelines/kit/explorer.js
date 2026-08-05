@@ -438,9 +438,15 @@ const KitExplorer = (() => {
        same-document by construction; the page's own <a href="#…"> links are not,
        inside an artifact frame — see KitToc.sameDocAnchors */
     window.KitToc?.sameDocAnchors?.();
+    /* a multi-valued filter travels as a repeated key (dim=a&dim=b), not as a
+       joined string: `encodeURIComponent(["a","b"])` gives "a%2Cb", which decodes
+       to one unknown value, which a dim silently drops — i.e. a multi-value chart
+       click would hand the explorer NO filter on that dimension and show the
+       superset. */
     const enc = f => {
       const q = Object.entries(f)
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
+        .flatMap(([k, v]) => [].concat(v)
+          .map(x => `${encodeURIComponent(k)}=${encodeURIComponent(x)}`)).join("&");
       return "#" + anchorId + (q ? "?" + q : "");
     };
     const dec = h => {
@@ -449,7 +455,9 @@ const KitExplorer = (() => {
       const f = {};
       for (const kv of (q || "").split("&")) {
         const [k, v = ""] = kv.split("=");
-        if (k) f[decodeURIComponent(k)] = decodeURIComponent(v);
+        if (!k) continue;
+        const key = decodeURIComponent(k), val = decodeURIComponent(v);
+        f[key] = key in f ? [].concat(f[key], val) : val;
       }
       return f;
     };
