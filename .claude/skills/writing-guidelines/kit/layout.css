@@ -47,6 +47,28 @@ input[type="range"] { accent-color: var(--accent); }
 /* a later section inside the same sticky panel (e.g. controls under a TOC) */
 .sidebar .side-sec { border-top: 1px solid var(--grid); margin-top: 0.9rem; padding-top: 0.75rem; }
 
+/* --- panel head: the panel's kicker, with the theme cycler pushed right --- */
+.sidebar .panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+/* .sidebar .panel button (padding, border, surface fill) outranks a bare
+   .kit-theme — qualify it back down to a bare icon */
+.sidebar .panel button.kit-theme, .kit-theme {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; margin: -2px -2px -2px 0;
+  background: none; border: 1px solid transparent; border-radius: 5px;
+  color: var(--muted); cursor: pointer;
+}
+.sidebar .panel button.kit-theme:hover, .kit-theme:hover {
+  color: var(--accent); border-color: var(--border); background: var(--paper);
+}
+/* stroked glyphs, not ☀/☾ text: font coverage for those varies and they render
+   as a blob at sidebar size (same reason the TOC caret is an svg) */
+.kit-theme svg {
+  width: 15px; height: 15px; fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
+
 /* --- sidebar table of contents (see toc.js) --- */
 .sidebar .toc { display: block; margin: 0.45rem 0 0.2rem; }
 .sidebar .toc a {

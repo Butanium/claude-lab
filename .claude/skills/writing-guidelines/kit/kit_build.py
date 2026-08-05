@@ -30,7 +30,8 @@ KIT = Path(__file__).resolve().parent
 # used to curate this per page, which saved ~50 kB against multi-MB payloads and
 # cost a silently missing feature whenever the kit grew.
 CSS_FILES = ["tokens.css", "layout.css", "cards.css", "charts.css"]
-JS_FILES = ["stats.js", "filters.js", "cards.js", "explorer.js", "charts.js", "toc.js"]
+JS_FILES = ["stats.js", "filters.js", "cards.js", "explorer.js", "charts.js", "toc.js",
+            "theme.js"]
 
 STAMP_RE = re.compile(r"<!--\s*clab-report-kit[^>]*?-->\s*")
 META_RE = re.compile(r'<meta name="generator" content="clab-report-kit[^"]*">\s*')
