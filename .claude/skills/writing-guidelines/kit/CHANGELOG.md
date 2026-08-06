@@ -3,6 +3,14 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.24 — 2026-08-05
+
+- **`layout.css` — `.hi-flash` ships with the kit.** The landing flash for a
+  `KitExplorer.hashNav` jump was hand-rolled per report (three lines of CSS +
+  a keyframe + the reduced-motion guard), and a report that forgets it sends the
+  reader down the page with nothing saying the list under them just changed.
+  `hashNav` is kit code; its landing cue belongs next to it.
+
 ## v0.6.23 — 2026-08-05
 
 - **`charts.js` — `sharedLegend(container, series, group)`: one legend for a row

@@ -146,6 +146,13 @@ h2 {
 }
 h3 { font-size: 1.08rem; margin: 1.6rem 0 0.5rem; }
 h2, h3 { scroll-margin-top: 0.8rem; }
+/* the landing flash for a KitExplorer.hashNav jump: a chart click scrolls the
+   reader somewhere else on a long page, and without it there is nothing saying
+   the list under them is now filtered to the mark they clicked. Add/remove the
+   class around a `void el.offsetWidth` to restart the animation on re-click. */
+.hi-flash { animation: hi-flash 1.2s ease-out; }
+@keyframes hi-flash { 0% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .hi-flash { animation: none; } }
 a { color: var(--accent); }
 code { font-family: var(--mono); font-size: 0.86em; background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 0 0.25em; }
 .byline { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.4rem; }
