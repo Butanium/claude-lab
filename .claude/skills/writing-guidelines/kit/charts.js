@@ -150,9 +150,48 @@ const KitCharts = (() => {
      silently control one panel and label several. Pass the same
      `legendGroup: KitCharts.legendGroup()` to each: one click re-renders all of
      them. They match on series NAME, so the panels have to name their series
-     the same way — which a shared legend already assumed. */
+     the same way — which a shared legend already assumed.
+
+     Prefer `sharedLegend()` below over hosting that legend in a panel. */
   function legendGroup() { return { hidden: new Set(), members: [] }; }
   const pinColors = list => list.map((s, i) => ({ ...s, seriesIndex: s.seriesIndex ?? i }));
+
+  /* ---- one legend for a row of panels, rendered OUTSIDE them ----
+     Hosting the shared legend in a panel (`legendItems: []` on all but one) has
+     two costs: it wraps to that panel's width instead of the row's — four series
+     over a 460px panel is two ragged lines pinned to one side — and it reads as
+     that panel's legend. Suppress it everywhere (`legendItems: []` on EVERY
+     panel + the same `legendGroup`), then call this on the panels' container
+     with the same series list: full-width, one line, and a click drives them all.
+
+       const lg = KitCharts.legendGroup();
+       for (...) KitCharts.line(cell, { series, legendGroup: lg, legendItems: [] });
+       KitCharts.sharedLegend(host, series, lg);
+
+     Call it after the panels exist so a pre-hidden series (`lg.hidden.add(...)`)
+     is already reflected. Series are matched by name, as in `legendGroup`. */
+  function sharedLegend(container, series, grp) {
+    const items = pinColors(series).map(s => ({
+      name: s.name, full: s.full, key: s.key ?? s.name,
+      color: s.color || seriesColor(s.seriesIndex),
+    }));
+    const host = document.createElement("div");   /* not el(): that one is SVG-namespaced */
+    host.className = "kit-legend-row";
+    container.appendChild(host);
+    const toggle = key => {
+      if (grp.hidden.has(key)) grp.hidden.delete(key);
+      else if (grp.hidden.size + 1 < items.length) grp.hidden.add(key);
+      else return;   /* never hide the last visible series */
+      for (const repaint of grp.members) repaint();
+      paint();
+    };
+    function paint() {
+      host.textContent = "";
+      legend(host, items, { __legend: { hidden: grp.hidden, toggle } });
+    }
+    paint();
+    return host;
+  }
 
   /* null = this chart's legend can't drive a toggle (suppressed, or its entries
      don't name series). It can still FOLLOW one, through a legendGroup. */
@@ -211,9 +250,12 @@ const KitCharts = (() => {
   /* ---- frame: margins, scales, axes, gridlines ---- */
   function frame(container, { w = 720, h = 300, m = { t: 12, r: 16, b: 34, l: 46 },
                               yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null,
-                              yTickLabels = true }) {
+                              yTickLabels = true, xTitle = "" }) {
     container.classList.add("kit-chart");
     const ticks = yTicks || niceTicks(yMin, yMax);
+    /* the x title sits below the tick labels; take the room out of the plot
+       area rather than growing h, so a row of panels keeps one height */
+    if (xTitle) m = { ...m, b: m.b + 14 };
     /* the rotated y title sits in a ~12px band at the left edge while tick
        labels end at m.l - 6; with wide labels ("60.0%") a default m.l puts the
        two in contact. Widen (never narrow) the margin to fit both. */
@@ -241,6 +283,8 @@ const KitCharts = (() => {
       t.setAttribute("transform", `translate(12 ${m.t + ih / 2}) rotate(-90)`);
       svg.appendChild(t);
     }
+    if (xTitle) svg.appendChild(txt(m.l + iw / 2, h - 4, xTitle,
+      { "text-anchor": "middle", class: "axis-title" }));
     container.appendChild(svg);
     return { svg, y, m, iw, ih, w, h };
   }
@@ -539,7 +583,7 @@ const KitCharts = (() => {
 
   /* ---- multi-series line (dose-response) ----
      spec: { series: [{name, seriesIndex, dash, points: [{x, y, lo, hi, n}]}],
-       xTicks: [values...], xFmt, yFmt, yTitle, refLines: [{y,label}], w, h } */
+       xTicks: [values...], xFmt, yFmt, xTitle, yTitle, refLines: [{y,label}], w, h } */
   function line(container, spec) {
     const xs = [...new Set(spec.series.flatMap(s => s.points.map(p => p.x)))].sort((a, b) => a - b);
     const f = frame(container, spec);
@@ -869,7 +913,7 @@ const KitCharts = (() => {
   }
 
   return { el, txt, seriesColor, pctFmt, estTextWidth, bindTip, legend, legendGroup,
-           frame, refLine,
+           sharedLegend, frame, refLine,
            groupedBars: interactive(groupedBars, planSeries("series")),
            stackedBars: interactive(stackedBars, planSeries("segments")),
            line: interactive(line, planSeries("series")),

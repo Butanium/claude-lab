@@ -46,6 +46,9 @@
   color: var(--ink); background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 .kit-legend-live > span.off { opacity: 0.42; text-decoration: line-through; }
+/* sharedLegend(): one legend for a row of panels, sitting under all of them.
+   Centred, and on one line as long as the row is wide enough for it. */
+.kit-legend-row .kit-legend { justify-content: center; margin: 0.15rem 0 0; }
 .kit-legend-live > span:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .kit-tip {

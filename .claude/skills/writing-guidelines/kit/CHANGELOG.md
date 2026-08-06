@@ -3,6 +3,26 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.23 — 2026-08-05
+
+- **`charts.js` — `sharedLegend(container, series, group)`: one legend for a row
+  of panels, rendered outside them.** Clément, on the 08-05 identity report: the
+  legend "is not shared and in the third plot instead", it controlled only that
+  panel, and it wrapped onto two lines pinned to the right. All three symptoms
+  are the old shared-legend recipe — host it in the last panel, `legendItems: []`
+  on the others — which was never good: it inherits *that panel's* width (four
+  series over 460px is two ragged lines), it reads as that panel's legend, and
+  it only drives the others if you also remember `legendGroup`, which two of the
+  three figures in that report had not. Now: suppress the legend on every panel,
+  pass the same `legendGroup` to each, and call `sharedLegend` on the row's
+  container. Full width, centred, one line, and a click re-paints every member.
+  The in-panel form still works; the doc comment now points at this instead.
+- **`charts.js` — `xTitle` on `frame()`, so `line`/`groupedBars`/`stackedBars`
+  get an x-axis title.** Only `scatter`/`heatmap`/`dotStrip` had one; a
+  trajectory chart whose x is a training step had no way to say so, and "the x
+  axis is unlabelled" is not a per-report fix. The label's 14px comes out of the
+  plot area, not the chart height, so a row of panels stays aligned.
+
 ## v0.6.22 — 2026-08-05
 
 - **`explorer.js` — picking a filter now shows a random SAMPLE of the matches,
