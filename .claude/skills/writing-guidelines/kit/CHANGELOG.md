@@ -3,6 +3,14 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.25 — 2026-08-05
+- `bindSelect` gains the same `{readout, readoutEl}` support as `bindRange` — reports passed
+  them and the options were silently dropped (dead readout on the identity-probe report).
+- `frame()` merges a partial `m` over the default margins; a spec like `m: {l: 40}` used to
+  leave t/r/b undefined and render every coordinate NaN (invisible chart, console spam).
+- `.content > details.wide` breakout: a wide figure inside a fold was clamped to the 720px
+  reading column (nine-panel grids rendered at half size); mark the fold `class="wide"`.
+
 ## v0.6.24 — 2026-08-05
 
 - **`layout.css` — `.hi-flash` ships with the kit.** The landing flash for a

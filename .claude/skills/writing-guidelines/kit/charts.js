@@ -252,6 +252,7 @@ const KitCharts = (() => {
                               yMin = 0, yMax = 1, yFmt = v => v, yTitle = "", yTicks = null,
                               yTickLabels = true, xTitle = "" }) {
     container.classList.add("kit-chart");
+    m = { t: 12, r: 16, b: 34, l: 46, ...m };   /* partial m merges; missing keys were NaN */
     const ticks = yTicks || niceTicks(yMin, yMax);
     /* the x title sits below the tick labels; take the room out of the plot
        area rather than growing h, so a row of panels keeps one height */

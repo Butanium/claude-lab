@@ -131,6 +131,9 @@ input[type="range"] { accent-color: var(--accent); }
 .content { min-width: 0; }
 .content > * { max-width: 720px; }           /* ~70ch reading column */
 .content > .wide, .content > .page-wide { max-width: none; }
+/* a fold that carries a wide figure: the fold breaks out, its prose stays a column */
+.content > details.wide { max-width: none; }
+details.wide > :not(figure) { max-width: 720px; }
 .wide { width: min(1000px, 100%); }
 @media (max-width: 1100px) {
   .page { grid-template-columns: 1fr; }

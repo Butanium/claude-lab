@@ -29,8 +29,11 @@ const KitFilters = (() => {
     update();
   }
 
-  function bindSelect(select, store, key) {
-    const update = () => store.set(key, select.value);
+  function bindSelect(select, store, key, { readout, readoutEl } = {}) {
+    const update = () => {
+      store.set(key, select.value);
+      if (readoutEl) readoutEl.textContent = readout ? readout(select.value, store.state) : select.value;
+    };
     select.addEventListener("change", update);
     update();
   }
