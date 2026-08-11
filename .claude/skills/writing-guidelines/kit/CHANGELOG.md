@@ -3,6 +3,20 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.32 — 2026-08-11
+
+- **`scatter`: `ciColor` / `ciOp` / `ciWidth` / `ciCap` — per-point intervals
+  that stay in the background.** Clément, on a per-question scatter where every
+  one of 30 dots carried a Wilson interval on both axes: "do it with very light
+  CIs (for both axis) so that they don't clutter the plots". The whiskers took
+  the series hue at full strength, so a panel of 30 points was 120 red crosses
+  with the dots lost inside — the cloud's SHAPE is the finding, and the
+  intervals were burying it. They still have to be drawable (k of 10 is weak
+  evidence per point and the reader must see that), so the fix is styling, not
+  removal: `ciOp: 0.22, ciColor: "var(--ink-2)", ciWidth: 0.8` reads as texture
+  behind the dots. Defaults are unchanged — a bar-like scatter with a handful of
+  points keeps opaque hue-colored whiskers.
+
 ## v0.6.31 — 2026-08-11
 
 - **Two-in-one share links: the framed copy buttons emit a real claude.ai

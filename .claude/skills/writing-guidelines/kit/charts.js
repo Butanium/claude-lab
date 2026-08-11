@@ -645,7 +645,9 @@ const KitCharts = (() => {
      spec: { points: [{x, y, xlo, xhi, ylo, yhi, n, series, hollow, label, tip}],
        seriesDef: [{name, seriesIndex}], xMin,xMax,yMin,yMax, xFmt,yFmt,
        xTitle,yTitle, diagonal: {label}, arrows: [{x1,y1,x2,y2,series}],
-       labels: [{x,y,text,dx,dy,sub}], warnText, w, h }
+       labels: [{x,y,text,dx,dy,sub}], warnText, w, h,
+       ciColor, ciOp, ciWidth, ciCap (per-point interval styling — fade them
+       when every point carries one, see below) }
      NOTE (dataviz all-pairs rule): cap scatter series at 3; fold the rest. */
   function scatter(container, spec) {
     const f = frame(container, spec);
@@ -701,15 +703,24 @@ const KitCharts = (() => {
     spec.points.forEach(p => {
       const color = colorOf(p.series);
       const cx = X(p.x), cy = f.y(p.y);
+      /* ciColor / ciOp / ciWidth: per-point intervals on a CLOUD are a different
+         object from one bar's CI — thirty crosses in the series hue read as a
+         red wash with the dots lost inside it. Fading them (and dropping the
+         hue) keeps "each dot is k of n, don't over-read one" visible without
+         letting it dominate the shape, which is the actual finding. */
+      const ciStyle = { stroke: spec.ciColor || color,
+        ...(spec.ciOp !== undefined ? { opacity: spec.ciOp } : {}),
+        ...(spec.ciWidth !== undefined ? { strokeWidth: spec.ciWidth } : {}) };
+      const cap = spec.ciCap ?? 3;
       if (Number.isFinite(p.ylo)) {
-        f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: f.y(p.ylo), y2: f.y(p.yhi), class: "whisker" }, { stroke: color }));
-        f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(p.ylo), y2: f.y(p.ylo), class: "whisker" }, { stroke: color }));
-        f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(p.yhi), y2: f.y(p.yhi), class: "whisker" }, { stroke: color }));
+        f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: f.y(p.ylo), y2: f.y(p.yhi), class: "whisker" }, ciStyle));
+        f.svg.appendChild(el("line", { x1: cx - cap, x2: cx + cap, y1: f.y(p.ylo), y2: f.y(p.ylo), class: "whisker" }, ciStyle));
+        f.svg.appendChild(el("line", { x1: cx - cap, x2: cx + cap, y1: f.y(p.yhi), y2: f.y(p.yhi), class: "whisker" }, ciStyle));
       }
       if (Number.isFinite(p.xlo)) {
-        f.svg.appendChild(el("line", { y1: cy, y2: cy, x1: X(p.xlo), x2: X(p.xhi), class: "whisker" }, { stroke: color }));
-        f.svg.appendChild(el("line", { y1: cy - 3, y2: cy + 3, x1: X(p.xlo), x2: X(p.xlo), class: "whisker" }, { stroke: color }));
-        f.svg.appendChild(el("line", { y1: cy - 3, y2: cy + 3, x1: X(p.xhi), x2: X(p.xhi), class: "whisker" }, { stroke: color }));
+        f.svg.appendChild(el("line", { y1: cy, y2: cy, x1: X(p.xlo), x2: X(p.xhi), class: "whisker" }, ciStyle));
+        f.svg.appendChild(el("line", { y1: cy - cap, y2: cy + cap, x1: X(p.xlo), x2: X(p.xlo), class: "whisker" }, ciStyle));
+        f.svg.appendChild(el("line", { y1: cy - cap, y2: cy + cap, x1: X(p.xhi), x2: X(p.xhi), class: "whisker" }, ciStyle));
       }
       const r = p.big ? 6 : (p.r ?? (p.n ? Math.min(6, 2.2 + 1.35 * Math.sqrt(p.n) / 2) : 4));
       const dot = el("circle", { cx, cy, r },
