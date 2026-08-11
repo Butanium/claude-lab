@@ -3,6 +3,21 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.26 — 2026-08-10
+
+- **`charts.js` — `onPointClick` on scatter, `onSegmentClick` on stacked bars.**
+  Click-to-explorer existed for grouped bars, heatmap cells and dot strips, so
+  the reports that reach for it wire up their bar figures and leave their
+  scatters and composition stacks inert — half a page where a mark is a set of
+  rows you can't ask to see. In a scatter the mark is often the *most* direct
+  handle the page has: a per-draw cloud is one point per sample, a per-prompt
+  cloud one point per prompt. Both mirror `onBarClick`'s shape (opt-in, cursor,
+  Enter/Space). The scatter halo — the same 9px invisible target `dotStrip`
+  uses, because a 3.5px dot is not a click target — goes up in a second pass
+  after every dot: interleaved, the next dot covers the previous halo and
+  swallows the click with a tooltip and no handler, which in a jittered cloud is
+  most of them.
+
 ## v0.6.25 — 2026-08-05
 - `bindSelect` gains the same `{readout, readoutEl}` support as `bindRange` — reports passed
   them and the options were silently dropped (dead readout on the identity-probe report).

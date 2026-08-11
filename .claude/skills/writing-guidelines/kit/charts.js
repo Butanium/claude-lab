@@ -572,6 +572,17 @@ const KitCharts = (() => {
         const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
         a11y(rect, `${groupFull(gname)}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
         bindTip(rect, `<span class="tip-head">${groupFull(gname)} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
+        /* onSegmentClick(value, segment, groupName): opt-in, mirrors
+           groupedBars' onBarClick — a segment IS a set of rows, so clicking it
+           can load exactly those. No enlarged hit zone here: unlike a 2% bar, a
+           thin segment has nowhere to grow into that isn't another segment. */
+        if (spec.onSegmentClick) {
+          rect.style.cursor = "pointer";
+          rect.addEventListener("click", () => spec.onSegmentClick(d, s, gname));
+          rect.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onSegmentClick(d, s, gname); }
+          });
+        }
         f.svg.appendChild(rect);
         acc += v;
       });
@@ -686,6 +697,7 @@ const KitCharts = (() => {
       }
       f.svg.appendChild(el("line", { x1: X(a.x1), y1: f.y(a.y1), x2: X(a.x2), y2: f.y(a.y2), "stroke-width": 1.6, "marker-end": `url(#${arrowId[a.series]})` }, { stroke: color }));
     });
+    const hits = [];
     spec.points.forEach(p => {
       const color = colorOf(p.series);
       const cx = X(p.x), cy = f.y(p.y);
@@ -704,10 +716,34 @@ const KitCharts = (() => {
         p.hollow ? { fill: "var(--surface)", stroke: color, strokeWidth: 2, fillOpacity: p.op ?? 1 }
                  : { fill: color, fillOpacity: p.op ?? 1 });
       const tipHtml = p.tip || `${fmtX(p.x)}, ${fmtY(p.y)}${fmtN(p)}`;
-      a11y(dot, (p.label ? p.label + ": " : "") + tipHtml.replace(/<[^>]+>/g, " "));
+      const label = (p.label ? p.label + ": " : "") + tipHtml.replace(/<[^>]+>/g, " ");
+      a11y(dot, label);
       bindTip(dot, tipHtml);
       f.svg.appendChild(dot);
+      /* onPointClick(point): opt-in, mirrors groupedBars' onBarClick — points
+         become clickable (e.g. a per-prompt dot opening that prompt's draws).
+         An invisible halo widens the hit target, as in dotStrip: a scatter dot
+         is 3-4px and a click shouldn't demand pixel aim. It carries the tooltip
+         and the focus ring, so the dot underneath gives both up — two elements
+         answering for one point would tab twice and flicker the tip.
+         Halos go up in a second pass, AFTER every dot: interleaved, the next
+         dot would sit on top of the previous halo and swallow the click with a
+         tooltip and no handler — which is most of a jittered cloud. */
+      if (spec.onPointClick) {
+        dot.removeAttribute("tabindex");
+        dot.removeAttribute("role");
+        const hit = el("circle", { cx, cy, r: Math.max(r + 4, 9), "fill-opacity": 0 }, { fill: "#000" });
+        hit.style.cursor = "pointer";
+        a11y(hit, label);
+        bindTip(hit, tipHtml);
+        hit.addEventListener("click", () => spec.onPointClick(p));
+        hit.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onPointClick(p); }
+        });
+        hits.push(hit);
+      }
     });
+    hits.forEach(hit => f.svg.appendChild(hit));
     (spec.labels || []).forEach(l => {
       f.svg.appendChild(txt(X(l.x) + (l.dx ?? 8), f.y(l.y) + (l.dy ?? 4), l.text, { class: "direct-label" }));
       if (l.sub) f.svg.appendChild(txt(X(l.x) + (l.dx ?? 8), f.y(l.y) + (l.dy ?? 4) + 12, l.sub, { class: "axis-title" }));
