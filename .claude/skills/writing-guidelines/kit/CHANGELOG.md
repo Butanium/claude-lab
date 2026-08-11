@@ -3,6 +3,86 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.29 — 2026-08-10
+
+- **Sharing a view: a CODE, not a url — v0.6.27's button was wrong about the
+  environment it ships into.** A published report is a *cross-origin* iframe:
+  the document lives at `<id>.frame.claudeusercontent.com/_f/<build-id>/?__frame_t=<token>`
+  while the address bar belongs to claude.ai. Three consequences, all learned
+  the hard way in one session: the hash the explorer writes is invisible to the
+  reader; a hash pasted onto the *claude.ai* url never reaches the report
+  (Clément: "opening the link doesn't update the explorer view" — the link was
+  fine, it just went to the wrapper); and this document's own url is not
+  something to send on — it is signed, and its build-id path changes on every
+  republish. There is no runtime capability for parent navigation either
+  (`downloads` and `mcp` are the whole roster), so no amount of cleverness gets
+  a fragment across. What does travel is a string a human carries:
+  - **copy this view** → `#explorer?ds=tempt&_q=…`, the code. When the report
+    IS the top-level document (a local build, a raw file) it copies the full
+    url instead, which is strictly better there.
+  - **open a shared view** → a paste box that takes the code back, and also
+    takes a section handle (`#a4`) since a framed heading now copies one of
+    those. Garbage is refused rather than silently applied as "clear
+    everything" — `dec` turns any string into a filter bag, and an unknown key
+    is dropped, so the naive path looks like a working paste that wiped the
+    reader's filters.
+  - Heading clicks copy `#a4` when framed, the full url when not.
+- `api.keys()` on the explorer handle, so the paste box can tell a real code
+  from a sentence.
+
+## v0.6.28 — 2026-08-10
+
+- **`toc.js` — every section heading is a link to itself.** Click the title (or
+  the `#` that appears on hover, which is also the keyboard control) and the
+  deep link to that section lands on the clipboard. Same root cause as the
+  explorer's copy button one version down: the reader of a framed report cannot
+  get a url to *anything* out of the address bar, so "send me §3" meant scrolling
+  a colleague through 13 MB of page. Clément asked for the title itself, in the
+  document, not the sidebar entry — so the heading keeps being a heading (no
+  `<a>` wrapper: it would take link color and enter the a11y tree as a link to
+  itself) and carries a click handler with the same drag/selection guard cards
+  use, since selecting a title is not a request for a link. Installed
+  unconditionally, like `sameDocAnchors` — a report can have sections and no
+  sidebar, and the affordance is invisible until hover.
+- `KitToc.copyText(text) → Promise<bool>`, the clipboard path both features
+  share (permission-gated in a sandboxed frame → `execCommand` → `false`, at
+  which point the caller shows the string instead).
+
+## v0.6.27 — 2026-08-10
+
+- **`explorer.js` — the explorer writes its own state back to the URL.**
+  `hashNav` could already *read* a configuration out of the hash and a chart
+  click could *write* one, so the only view a reader could not share was the one
+  they built themselves — the interesting one, since it's the one they had to
+  hunt for. Now every control they touch (dimensions, ranges, the query, its
+  scope and its three flags) round-trips through the hash, so the URL always
+  names what's on screen. Details worth knowing:
+  - The write **replaces** the current history entry (`replaceState`) instead of
+    pushing: a filter bank is not a trail of navigations, and one entry per
+    keystroke makes Back useless. Chart-click `goto()` still pushes — that one
+    *is* a navigation.
+  - The url is rebuilt from `location.href`, never handed to the browser as a
+    bare `"#…"`: a relative url resolves against the document BASE, and an
+    artifact frame's `<base href="/">` drops the query carrying its auth token
+    (v0.6.18, in a place nothing warns you about). Smoked.
+  - **A "copy link to this view" button** goes in the action row with it, and is
+    the part that actually makes this shareable: a report is read INSIDE a
+    frame, the address bar belongs to the host page, and a cross-origin child
+    cannot write it — so the reader of a claude.ai artifact never sees the hash
+    their own filtering just produced (Clément: "when i select filters it
+    doesn't change the url so i can't share a specific filter thing" — it did
+    change, one document down). The button copies `origin + pathname + hash`:
+    the query goes, because the frame url carries a per-session auth token
+    nobody should paste into a message. Falls back to `execCommand`, then to a
+    field the reader can select, since clipboard access is permission-gated in
+    a sandboxed frame.
+  - `api.state()` / `api.onChange(fn)` are the new explorer handles under it;
+    `hashNav(…, { sync: false })` opts out.
+  - **Behaviour change:** a programmatic `set()` (i.e. a chart click) now clears
+    the search box along with the unmentioned dimensions. It always cleared the
+    dims; leaving the query meant a mark could land the reader on fewer rows
+    than the mark counts, silently.
+
 ## v0.6.26 — 2026-08-10
 
 - **`charts.js` — `onPointClick` on scatter, `onSegmentClick` on stacked bars.**

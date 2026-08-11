@@ -96,12 +96,13 @@ for (const arm of ["x", "y", "z"]) for (const tag of ["p", "q"])
   for (let k = 0; k < 4; k++) rows.push({ arm, tag, text: `row ${arm}${tag}${k}` });
 /* one long row, so a search hit has somewhere to hide below the 6-line clamp */
 rows[rows.length - 1].text += " " + %%LONG%% + " needle";
-KitExplorer.explorer(document.getElementById("explorer"), {
+const exApi = KitExplorer.explorer(document.getElementById("explorer"), {
   data: rows,
   dims: [{ key: "arm", label: "arm" }, { key: "tag", label: "tag", multi: true }],
   search: ["text"],
   render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
 });
+window.exNav = KitExplorer.hashNav(exApi, { anchorId: "explorer" });
 KitCards.observeShort();
 </script>
 """

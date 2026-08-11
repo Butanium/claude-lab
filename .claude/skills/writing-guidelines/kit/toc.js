@@ -62,9 +62,72 @@ const KitToc = (() => {
     });
   }
 
+  /* Copy a url to the clipboard, telling the caller which way it went.
+     Lives here rather than in a utils module because everything that copies in
+     this kit is copying a url to somewhere in this page. Clipboard access is
+     permission-gated in a sandboxed frame, so the execCommand path is a real
+     fallback and not legacy cruft; `false` means neither worked and the caller
+     has to show the string instead. */
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;top:-100px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand?.("copy");
+      ta.remove();
+      return !!ok;
+    }
+  }
+
+  /* Every section heading is a link to itself. A report is read inside a frame
+     whose address bar belongs to the host page, so "scroll to §4 and copy the
+     url" is not a thing a reader can do — the url they can see is the whole
+     document's. Clicking the heading copies the deep link instead. The heading
+     stays a heading: no <a> wrapper (it would inherit link color and land in
+     the accessibility tree as a link to itself), just a click handler plus a #
+     affordance that is also the keyboard-reachable control. */
+  function linkHeadings(root = document) {
+    for (const h of root.querySelectorAll("h1[id], h2[id], h3[id], h4[id]")) {
+      if (h.classList.contains("h-linked")) continue;
+      h.classList.add("h-linked");
+      const mark = document.createElement("button");
+      mark.type = "button";
+      mark.className = "h-link";
+      mark.textContent = "#";
+      mark.title = "copy a link to this section";
+      mark.setAttribute("aria-label", `copy a link to "${h.textContent.trim()}"`);
+      h.appendChild(mark);
+      let downX = 0, downY = 0;
+      h.addEventListener("pointerdown", e => { downX = e.clientX; downY = e.clientY; });
+      h.addEventListener("click", async e => {
+        /* a reader selecting the title's text is not asking for a link */
+        if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
+        const sel = getSelection();
+        if (sel && String(sel).length
+            && (h.contains(sel.anchorNode) || h.contains(sel.focusNode))) return;
+        /* framed (the claude.ai case): this document's url is signed and its
+           path carries a build id that changes on every republish, so it is not
+           a link anyone can follow — the section HANDLE is. It pastes into the
+           explorer's "open a shared view" box, the page's one paste target. */
+        const framed = window.top !== window.self;
+        const text = framed ? "#" + h.id : location.origin + location.pathname + "#" + h.id;
+        const ok = await copyText(text);
+        mark.classList.add("done");
+        mark.dataset.say = ok ? (framed ? `${text} copied` : "link copied") : text;
+        setTimeout(() => { mark.classList.remove("done"); delete mark.dataset.say; }, 2200);
+      });
+    }
+  }
+
   function build(nav, spec = {}) {
     audit();
     sameDocAnchors();
+    linkHeadings();
     const items = spec.items ||
       [...document.querySelectorAll("h2[id], h3[id]")].map(h =>
         ({ id: h.id, label: h.textContent, sub: h.tagName === "H3" }));
@@ -142,6 +205,13 @@ const KitToc = (() => {
      whose id exists, and what it then does is what the default would have done —
      scroll there and set the hash — so there is nothing to opt out of. */
   sameDocAnchors();
+  /* same reasoning as sameDocAnchors(): a report can have sections and no
+     sidebar, and the affordance is invisible until hovered, so there is nothing
+     to opt out of. The kit's <script> is usually last in the body, but not in
+     every host page — hence the readyState branch. */
+  if (document.readyState === "loading")
+    addEventListener("DOMContentLoaded", () => linkHeadings());
+  else linkHeadings();
 
-  return { build, sameDocAnchors };
+  return { build, sameDocAnchors, linkHeadings, copyText };
 })();

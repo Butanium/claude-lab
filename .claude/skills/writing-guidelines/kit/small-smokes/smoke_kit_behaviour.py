@@ -345,6 +345,154 @@ with tempfile.TemporaryDirectory() as td:
         find("")
         check("clearing the query clears the marks", hits() == 0)
 
+        print("url — the explorer's own state is in the hash, and comes back")
+        href = lambda: pg.evaluate("location.href")                      # noqa: E731
+        hsh = lambda: pg.evaluate("location.hash")                       # noqa: E731
+        pg.locator("#explorer").scroll_into_view_if_needed()
+        pg.wait_for_timeout(200)
+        entries = pg.evaluate("() => history.length")
+        y0 = pg.evaluate("() => Math.round(scrollY)")
+        dim(0).locator("select").select_option("z")
+        pg.wait_for_timeout(250)
+        check("picking a value writes it", hsh() == "#explorer?arm=z", hsh())
+        check("the frame's auth token survives the write", "__frame_t=TOKEN" in href(), href())
+        check("no history entry per edit", pg.evaluate("() => history.length") == entries,
+              f"{entries} -> {pg.evaluate('() => history.length')}")
+        check("and the reader is not scrolled", abs(pg.evaluate("() => Math.round(scrollY)") - y0) < 40)
+        dim(1).locator("select").select_option("p")
+        dim(1).locator("select").select_option("q")
+        pg.wait_for_timeout(250)
+        check("a multi dim repeats its key", hsh() == "#explorer?arm=z&tag=p&tag=q", hsh())
+        find("needle")
+        check("the query rides along", "_q=needle" in hsh(), hsh())
+        flag("case").click()
+        pg.wait_for_timeout(300)
+        check("so do the search flags", "_f=c" in hsh(), hsh())
+        shared = href()
+        pg.locator("#explorer .ex-clear").click()
+        pg.wait_for_timeout(250)
+        check("clearing empties the query string", hsh() == "#explorer", hsh())
+
+        pg.goto(start)                       # a plain load must not carry state over
+        pg.wait_for_timeout(500)
+        pg.goto(shared)
+        pg.reload()
+        pg.wait_for_timeout(700)
+        check("a pasted url restores the dimensions",
+              dim(0).locator("select").input_value() == "z"
+              and dim(1).locator(".ex-chip").count() == 2,
+              dim(0).locator("select").input_value())
+        check("…the query and its flags",
+              pg.locator("#explorer input[type=search]").input_value() == "needle"
+              and pg.locator("#explorer .ex-flag-case").get_attribute("aria-pressed") == "true")
+        check("…and so lands on the same rows", shown().startswith("1 samples"), shown())
+        # a chart click means "show me these rows": a query left over from the
+        # reader's last look would silently show fewer than the mark they clicked
+        pg.evaluate("() => exNav.goto({ arm: 'y' })")
+        pg.wait_for_timeout(500)
+        check("a chart jump clears a stale query", shown().startswith("8 samples")
+              and pg.locator("#explorer input[type=search]").input_value() == "", shown())
+        pg.locator("#explorer .ex-clear").click()
+        pg.wait_for_timeout(200)
+
+        # inside the claude.ai frame the address bar belongs to the host page,
+        # so the hash above is invisible: the button is the only handle a reader
+        # has on the view they built
+        print("copy link — the url as a string, without the frame's token")
+        ctx = pg.context
+        ctx.grant_permissions(["clipboard-read", "clipboard-write"])
+        dim(0).locator("select").select_option("y")
+        pg.wait_for_timeout(250)
+        link = pg.locator("#explorer .ex-link")
+        check("the button is in the action row", link.count() == 1)
+        link.click()
+        pg.wait_for_timeout(300)
+        copied = pg.evaluate("() => navigator.clipboard.readText()")
+        check("copies the current view", copied.endswith("#explorer?arm=y"), copied)
+        check("and drops the frame's auth token", "__frame_t" not in copied, copied)
+        check("the button says so", "copied" in link.text_content())
+        pg.locator("#explorer .ex-clear").click()
+        pg.wait_for_timeout(200)
+
+        print("shared views — the code round trip, in the frame a report lives in")
+        # the real environment: the report is an iframe, its url is signed and
+        # build-specific, and the address bar belongs to the host page. So the
+        # shareable object is a code, not a url — and this is the only place the
+        # framed branch of that code runs.
+        pg.route("**/host*", lambda r: r.fulfill(
+            status=200, content_type="text/html",
+            body='<iframe src="/fixture?__frame_t=TOKEN" '
+                 'style="width:1280px;height:2000px;border:0"></iframe>'))
+        pg.goto("https://example.test/host")
+        pg.wait_for_timeout(1200)
+        fr = pg.frame_locator("iframe")
+        inner = pg.frames[1]
+        fshown = lambda: inner.evaluate(                                  # noqa: E731
+            "() => document.querySelector('#explorer .ex-count').textContent")
+        fdim = lambda i: fr.locator("#explorer .ex-dim").nth(i)           # noqa: E731
+        check("framed: the button offers a view, not a url",
+              fr.locator("#explorer .ex-link").text_content() == "copy this view")
+        fdim(0).locator("select").select_option("y")
+        pg.wait_for_timeout(300)
+        fr.locator("#explorer .ex-link").click()
+        pg.wait_for_timeout(400)
+        got = inner.evaluate("() => navigator.clipboard.readText().catch(() => "
+                             "document.querySelector('.ex-link-out')?.value || '')")
+        check("copies the view as a code", got == "#explorer?arm=y", repr(got))
+        check("  (not this document's signed url)", "__frame_t" not in got
+              and "example.test" not in got, repr(got))
+        fr.locator("#explorer .ex-clear").click()
+        pg.wait_for_timeout(300)
+        fr.locator("#explorer .ex-paste-open").click()
+        fr.locator("#explorer .ex-paste").fill("#explorer?arm=y&tag=p")
+        fr.locator("#explorer .ex-paste").press("Enter")
+        pg.wait_for_timeout(400)
+        check("pasting one back restores the view", fshown().startswith("4 samples"), fshown())
+        check("and the box closes itself", fr.locator("#explorer .ex-paste").is_hidden())
+        fr.locator("#explorer .ex-paste-open").click()
+        fr.locator("#explorer .ex-paste").fill("#a3")
+        fr.locator("#explorer .ex-paste").press("Enter")
+        pg.wait_for_timeout(400)
+        check("a section handle works there too",
+              inner.evaluate("location.hash") == "#a3",
+              inner.evaluate("location.hash"))
+        fr.locator("#explorer .ex-paste-open").click()
+        fr.locator("#explorer .ex-paste").fill("who knows what this is")
+        fr.locator("#explorer .ex-paste").press("Enter")
+        pg.wait_for_timeout(400)
+        check("garbage is refused, not silently applied as 'clear everything'",
+              "bad" in (fr.locator("#explorer .ex-paste").get_attribute("class") or "")
+              and fshown().startswith("4 samples"), fshown())
+        pg.goto(start)
+        pg.wait_for_timeout(700)
+
+        print("headings — every section is a link to itself")
+        h = pg.locator("h2#sec2")
+        h.scroll_into_view_if_needed()
+        pg.wait_for_timeout(200)
+        check("the # affordance is there but hidden at rest",
+              h.locator(".h-link").count() == 1
+              and pg.evaluate("() => getComputedStyle(document.querySelector"
+                              "('h2#sec2 .h-link')).opacity") == "0")
+        h.click()
+        pg.wait_for_timeout(300)
+        got = pg.evaluate("() => navigator.clipboard.readText()")
+        check("clicking the title copies its deep link", got.endswith("#sec2")
+              and "__frame_t" not in got, got)
+        check("and says it did", "done" in
+              (h.locator(".h-link").get_attribute("class") or ""))
+        # the same guard cards use: dragging across a title is a selection
+        bb = h.bounding_box()
+        pg.evaluate("() => navigator.clipboard.writeText('untouched')")
+        pg.mouse.move(bb["x"] + 8, bb["y"] + bb["height"] / 2)
+        pg.mouse.down()
+        pg.mouse.move(bb["x"] + 120, bb["y"] + bb["height"] / 2, steps=8)
+        pg.mouse.up()
+        pg.wait_for_timeout(300)
+        check("selecting the title does not copy a link",
+              pg.evaluate("() => navigator.clipboard.readText()") == "untouched")
+        pg.evaluate("() => getSelection().removeAllRanges()")
+
         print("cards — a text selection is not a click")
         card = pg.locator("#cards .ptext").first
         card.scroll_into_view_if_needed()

@@ -162,7 +162,7 @@ const KitExplorer = (() => {
        pageSize: 12, drawN: 5,
        shuffle: true,             // false = corpus order (ranked rows)
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
-     }) → { refresh } */
+     }) → { refresh, set, state, onChange } */
   function explorer(el, spec) {
     const { data, dims = [], search = [], render, pageSize = 12, drawN = 5 } = spec;
     const controls = document.createElement("div");
@@ -180,6 +180,7 @@ const KitExplorer = (() => {
     const state = {};
     const inputs = [];
     const dimByKey = {};
+    const rangeByKey = {};   /* "key:min" | "key:max" -> { def, set(value) } */
 
     /* dims marked advanced live behind a fold: a corpus that pools several
        experiments carries dimensions that only apply to one of them, and a row
@@ -197,7 +198,7 @@ const KitExplorer = (() => {
 
     for (const d of dims) {
       if (d.type === "select" || !d.type) {
-        const dim = makeDim(d, d.values || uniq(data, d.key), update);
+        const dim = makeDim(d, d.values || uniq(data, d.key), userUpdate);
         state[d.key] = dim.chosen;
         dimByKey[d.key] = dim;
         if (d.advanced) { advDims.push(d.key); advBody.appendChild(dim.wrap); }
@@ -211,8 +212,11 @@ const KitExplorer = (() => {
         input.value = d.type === "min" ? input.min : input.max;
         const key = d.key + ":" + d.type;
         const setLabel = () => { label.textContent = `${d.label || d.key} (${d.type} ${input.value})`; };
-        input.addEventListener("input", () => { state[key] = Number(input.value); setLabel(); update(); });
+        input.addEventListener("input", () => { state[key] = Number(input.value); setLabel(); userUpdate(); });
         state[key] = Number(input.value); setLabel();
+        rangeByKey[key] = { def: input.value, set: v => {
+          input.value = v; state[key] = Number(input.value); setLabel();
+        } };
         wrap.append(label, input);
         dimRow.appendChild(wrap); inputs.push(input);
       }
@@ -233,7 +237,7 @@ const KitExplorer = (() => {
       label.textContent = "search";
       searchBox = document.createElement("input");
       searchBox.type = "search"; searchBox.placeholder = "free text…";
-      let t; searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(update, 150); });
+      let t; searchBox.addEventListener("input", () => { clearTimeout(t); t = setTimeout(userUpdate, 150); });
       const flags = document.createElement("div");
       flags.className = "ex-flags";
       for (const [key, glyph, title] of [["case", "Aa", "Match case"],
@@ -250,7 +254,7 @@ const KitExplorer = (() => {
           sflags[key] = !sflags[key];
           b.classList.toggle("on", sflags[key]);
           b.setAttribute("aria-pressed", String(sflags[key]));
-          if (searchBox.value.trim()) update();
+          if (searchBox.value.trim()) userUpdate();
         });
         flags.appendChild(b);
       }
@@ -268,7 +272,7 @@ const KitExplorer = (() => {
         scopes.forEach((s, i) => scopeSel.appendChild(new Option(s.label, String(i))));
         scopeSel.addEventListener("change", () => {
           scope = Number(scopeSel.value);
-          if (searchBox.value.trim()) update();
+          if (searchBox.value.trim()) userUpdate();
         });
         sw.append(sl, scopeSel);
         actionRow.appendChild(sw);
@@ -285,7 +289,7 @@ const KitExplorer = (() => {
       for (const k in dimByKey) dimByKey[k].clear();
       if (searchBox) searchBox.value = "";
       if (scopeSel) { scope = 0; scopeSel.value = "0"; }
-      update();
+      userUpdate();
     });
     const count = document.createElement("span");
     count.className = "ex-count";
@@ -379,6 +383,30 @@ const KitExplorer = (() => {
       renderList();
     }
 
+    /* The whole control state as a flat {key: value | [values]} bag — what
+       hashNav puts in the URL, and what set() reads back. Search state travels
+       under `_`-prefixed keys so it can't collide with a dimension key. */
+    let listener = null;
+    function getState() {
+      const f = {};
+      for (const k in dimByKey) if (dimByKey[k].chosen.size) f[k] = [...dimByKey[k].chosen];
+      for (const k in rangeByKey)
+        if (String(state[k]) !== rangeByKey[k].def) f[k] = String(state[k]);
+      const q = searchBox?.value.trim();
+      if (q) {
+        f._q = q;
+        if (scope) f._in = String(scope);
+        const fl = Object.keys(sflags).filter(k => sflags[k]).map(k => k[0]).join("");
+        if (fl) f._f = fl;
+      }
+      return f;
+    }
+    /* every control the reader can touch routes through here, so the state a
+       listener sees is the state they just produced. set() and the global store
+       deliberately don't: a programmatic drive already knows what it asked for,
+       and echoing it back would make hashNav rewrite the hash it just read. */
+    function userUpdate() { update(); listener?.(getState()); }
+
     function renderList() {
       const m = view;
       list.textContent = "";
@@ -411,8 +439,11 @@ const KitExplorer = (() => {
     update();
 
     /* Programmatic filter drive (e.g. a chart's onBarClick filtering the
-       explorer to that bar's rows). filters: {dimKey: value | [values]}.
-       Unmentioned select dims are cleared unless keepOthers is true. */
+       explorer to that bar's rows). filters: {dimKey: value | [values]},
+       plus the `_q`/`_in`/`_f` search keys getState() emits.
+       Unmentioned dims — and an unmentioned search — are cleared unless
+       keepOthers is true: a chart click means "show me these rows", and a
+       leftover query would quietly show fewer than the mark it came from. */
     function set(filters, { keepOthers = false } = {}) {
       for (const d of dims) {
         const dim = dimByKey[d.key];
@@ -420,9 +451,25 @@ const KitExplorer = (() => {
         if (d.key in filters) dim.apply(filters[d.key]);
         else if (!keepOthers) dim.clear();
       }
+      for (const k in rangeByKey) {
+        if (k in filters) rangeByKey[k].set(String([].concat(filters[k])[0]));
+        else if (!keepOthers) rangeByKey[k].set(rangeByKey[k].def);
+      }
+      if (searchBox && ("_q" in filters || !keepOthers)) {
+        searchBox.value = "_q" in filters ? [].concat(filters._q)[0] : "";
+        const fl = "_f" in filters ? String([].concat(filters._f)[0]) : "";
+        for (const k in sflags) {
+          sflags[k] = fl.includes(k[0]);
+          const b = el.querySelector(".ex-flag-" + k);
+          if (b) { b.classList.toggle("on", sflags[k]); b.setAttribute("aria-pressed", String(sflags[k])); }
+        }
+        scope = "_in" in filters ? Number([].concat(filters._in)[0]) || 0 : 0;
+        if (scopeSel) scopeSel.value = String(scope);
+      }
       update();
     }
-    return { refresh: update, set };
+    return { refresh: update, set, state: getState, onChange: fn => { listener = fn; },
+             keys: () => [...Object.keys(dimByKey), ...Object.keys(rangeByKey)] };
   }
 
   /* ---- hash-linked explorer navigation ----
@@ -435,9 +482,17 @@ const KitExplorer = (() => {
      artifact iframe the page itself never scrolls (the parent sizes the frame
      to full content height), and fragment navigation is what works there.
 
-     hashNav(api, { anchorId, defaults }) → { goto(filters, {from}), applyHash }
-     where `api` is an explorer() handle. Hash form: #anchor?dim=value&dim=value */
-  function hashNav(api, { anchorId, defaults = null }) {
+     It also runs the other way: every control the reader touches in the
+     explorer writes the hash back, so the URL always names the view on screen
+     and any configuration they reach by hand is a link they can paste. Those
+     writes REPLACE the current history entry rather than push one — a filter
+     bank is not a trail of navigations, and one entry per keystroke would make
+     Back useless.
+
+     hashNav(api, { anchorId, defaults, sync }) → { goto(filters, {from}), applyHash }
+     where `api` is an explorer() handle; `sync: false` opts out of the
+     write-back. Hash form: #anchor?dim=value&dim=value */
+  function hashNav(api, { anchorId, defaults = null, sync = true }) {
     /* every hash this module writes goes through location.hash, which is
        same-document by construction; the page's own <a href="#…"> links are not,
        inside an artifact frame — see KitToc.sameDocAnchors */
@@ -484,10 +539,15 @@ const KitExplorer = (() => {
          rather than on the figure they came from. That one scrolls instantly:
          Back should feel like Back, and an instant scroll can't be cut short. */
     let traversal = false;
+    let mine = null;      /* the last hash WE wrote from the reader's own edits */
     addEventListener("popstate", () => { traversal = true; });
     addEventListener("hashchange", () => {
       const wasTraversal = traversal;
       traversal = false;
+      /* our own write-back: the explorer already holds this state, and
+         re-applying it would yank the reader back to the top of the list */
+      if (location.hash === mine) return;
+      mine = null;
       if (applyHash()) scrollTo(anchorId);
       else if (wasTraversal) scrollTo(location.hash.replace(/^#/, "").split("?")[0], "instant");
     });
@@ -505,7 +565,131 @@ const KitExplorer = (() => {
     /* a shared/reloaded explorer URL lands on the explorer, filters applied */
     if (applyHash()) scrollTo(anchorId);
     else if (defaults) api.set(defaults);
+    /* registered AFTER the initial apply so a reader who never touches the
+       explorer keeps the URL they arrived with */
+    if (sync) api.onChange?.(f => {
+      const target = enc(f);
+      if (location.hash === target) return;
+      mine = target;
+      /* replaceState is the one that leaves history alone, but an artifact
+         frame can be sandboxed to an opaque origin, where it throws; the
+         fragment write always works, at the cost of a history entry.
+         The url is built from location.href, not passed as a bare "#…":
+         a relative url resolves against the document BASE, and an artifact
+         frame's <base href="/"> would drop the query carrying its auth
+         token — the v0.6.18 bug, in a place the browser doesn't warn about. */
+      try {
+        history.replaceState(history.state, "", location.href.split("#")[0] + target);
+      } catch {
+        location.hash = target;
+      }
+    });
+    if (sync) mountShare(anchorId, () => enc(api.state?.() || {}), code => {
+      /* a section handle ("#a4", what a heading copies in a frame) is the other
+         thing a reader can be handed, and this box is the only paste target the
+         page has — so it takes both */
+      const asId = code.replace(/^[#?]+/, "");
+      if (asId && asId !== anchorId && document.getElementById(asId)) {
+        location.hash = asId;
+        return true;
+      }
+      const f = dec("#" + anchorId + (code ? "?" + code : ""));
+      const known = new Set([...(api.keys?.() || []), "_q", "_in", "_f"]);
+      if (!f || !Object.keys(f).every(k => known.has(k))) return false;
+      api.set(f);
+      scrollTo(anchorId);
+      return true;
+    });
     return { goto, applyHash };
+  }
+
+  /* Sharing a view, in an environment where a url cannot do it.
+     A published report is a CROSS-ORIGIN iframe: the document lives at
+     <id>.frame.claudeusercontent.com/_f/<build-id>/?__frame_t=<token>, the
+     address bar belongs to claude.ai, and neither side can read or write the
+     other's. So: the hash the explorer writes is invisible to the reader; a
+     hash pasted onto the claude.ai url never reaches the report (Clément, on a
+     link that looked right and did nothing); and the iframe's own url is no
+     good to send on — it is signed, and its build-id path changes on every
+     republish. There is no runtime capability for parent navigation either.
+     What survives that: a CODE the reader copies out and the recipient pastes
+     back in. The url branch is still taken when the report happens to be the
+     top-level document (a local build, a raw file), where it is strictly
+     better — but in the claude.ai UI, the code is the shareable object. */
+  function mountShare(anchorId, hashOf, applyCode) {
+    const row = document.getElementById(anchorId)?.querySelector(".ex-actions");
+    if (!row || row.querySelector(".ex-share")) return;
+    const framed = window.top !== window.self;
+    const wrap = document.createElement("div");
+    wrap.className = "ex-share";
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "ex-link";
+    copy.textContent = framed ? "copy this view" : "copy link to this view";
+    copy.title = framed
+      ? "the filters, search and all — as a code the reader on the other side pastes back in"
+      : "the url of the explorer as it stands — filters, search and all";
+    const say = (msg, ok) => {
+      copy.textContent = msg;
+      copy.classList.toggle("ok", !!ok);
+      setTimeout(() => {
+        copy.textContent = framed ? "copy this view" : "copy link to this view";
+        copy.classList.remove("ok");
+      }, 2200);
+    };
+    copy.addEventListener("click", async () => {
+      const hash = hashOf();
+      const text = framed ? hash : location.origin + location.pathname + hash;
+      if (await KitToc.copyText(text)) { say(framed ? "view copied ✓" : "copied ✓", true); return; }
+      /* both clipboard paths refused (permissions-policy can disable the
+         clipboard for a frame): the reader still gets it, in a field to select */
+      wrap.querySelector(".ex-link-out")?.remove();
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.className = "ex-link-out";
+      ta.readOnly = true;
+      wrap.appendChild(ta);
+      ta.select();
+      say("copy it from the box →");
+    });
+
+    /* the other end of the round trip. Not an always-open input: it is the
+       rarer half, and the control row is already full */
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "ex-paste-open";
+    open.textContent = "open a shared view";
+    open.title = "paste a view someone copied out of this report";
+    const box = document.createElement("input");
+    box.type = "text";
+    box.className = "ex-paste";
+    box.placeholder = "paste the view here, then Enter";
+    box.hidden = true;
+    const apply = () => {
+      const raw = box.value.trim();
+      if (!raw) return;
+      /* accepts what any of the copy paths produce: a full url, the bare
+         "#anchor?a=b" hash, or the query alone */
+      let code = raw;
+      const at = code.indexOf("#" + anchorId);
+      if (at >= 0) code = code.slice(at + anchorId.length + 1);
+      code = code.replace(/^[#?]+/, "");
+      if (applyCode(code)) { box.hidden = true; box.value = ""; open.hidden = false; }
+      else box.classList.add("bad");
+    };
+    box.addEventListener("input", () => box.classList.remove("bad"));
+    box.addEventListener("keydown", e => {
+      if (e.key === "Enter") apply();
+      if (e.key === "Escape") { box.hidden = true; box.value = ""; open.hidden = false; }
+    });
+    box.addEventListener("paste", () => setTimeout(apply, 0));
+    open.addEventListener("click", () => {
+      open.hidden = true; box.hidden = false; box.focus();
+    });
+
+    wrap.append(copy, open, box);
+    row.appendChild(wrap);
   }
 
   /* Paired A/B comparison explorer (assistant-axis pattern): per-dimension

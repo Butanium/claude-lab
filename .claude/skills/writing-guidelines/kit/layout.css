@@ -149,6 +149,23 @@ h2 {
 }
 h3 { font-size: 1.08rem; margin: 1.6rem 0 0.5rem; }
 h2, h3 { scroll-margin-top: 0.8rem; }
+/* a section heading is a link to itself (toc.js): clicking it copies the deep
+   link, since the reader of a framed report can't get one from the address bar.
+   The # is the visible affordance and the keyboard control; it stays hidden
+   until the heading is hovered so the page doesn't read as a wiki. */
+h1.h-linked, h2.h-linked, h3.h-linked, h4.h-linked { cursor: pointer; }
+.h-link {
+  margin-left: 0.4em; padding: 0 0.15em; vertical-align: 0.06em;
+  font: 600 0.72em/1 var(--sans); color: var(--muted);
+  background: none; border: 0; border-radius: 3px; cursor: pointer;
+  opacity: 0; transition: opacity 0.12s ease;
+}
+.h-linked:hover .h-link, .h-link:focus-visible, .h-link.done { opacity: 1; }
+.h-link:hover { color: var(--accent); }
+.h-link.done { color: var(--good-text); }
+.h-link.done::after { content: " " attr(data-say); font-weight: 500; }
+@media (hover: none) { .h-link { opacity: 0.55; } }
+@media print { .h-link { display: none; } }
 /* the landing flash for a KitExplorer.hashNav jump: a chart click scrolls the
    reader somewhere else on a long page, and without it there is nothing saying
    the list under them is now filtered to the mark they clicked. Add/remove the

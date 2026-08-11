@@ -187,6 +187,24 @@ mark.hit {
 .ex-dim-x:hover { color: var(--critical); }
 .ex-clear:disabled { opacity: 0.45; cursor: default; }
 .ex-clear:disabled:hover { border-color: var(--baseline); color: var(--ink); }
+/* sharing a view: a report is read inside a cross-origin frame, where the
+   address bar belongs to the host page and this document's own url is signed
+   and build-specific — so what travels is a code, copied out of one reader's
+   page and pasted into another's (explorer.js) */
+.ex-share { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.ex-link.ok { border-color: var(--good); color: var(--good-text); }
+.ex-paste {
+  font: 0.78rem/1.6 var(--sans); padding: 0.15rem 0.45rem; min-width: 15rem;
+  border: 1px solid var(--accent); border-radius: 4px;
+  background: var(--surface); color: var(--ink);
+}
+.ex-paste.bad { border-color: var(--critical); }
+.ex-link-out {
+  width: min(30rem, 100%); height: 2.4rem; resize: none;
+  font: 0.72rem/1.35 var(--mono); padding: 0.3rem 0.4rem;
+  border: 1px solid var(--accent); border-radius: 4px;
+  background: var(--surface); color: var(--ink);
+}
 
 /* experiment-specific dimensions, folded so they don't read as noise by default */
 details.ex-adv { margin: -0.3rem 0 0.8rem; padding: 0 0.9rem; }
