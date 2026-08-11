@@ -395,6 +395,13 @@ with tempfile.TemporaryDirectory() as td:
         pg.locator("#explorer .ex-clear").click()
         pg.wait_for_timeout(200)
 
+        # the same code as a ?view= query param: the deep-link form for a host
+        # that frames the report and forwards the query but not the fragment
+        pg.goto(start + "&view=explorer%3Farm%3Dz")
+        pg.wait_for_timeout(700)
+        check("?view= in the query boots the explorer filtered",
+              dim(0).locator("select").input_value() == "z", shown())
+
         # inside the claude.ai frame the address bar belongs to the host page,
         # so the hash above is invisible: the button is the only handle a reader
         # has on the view they built

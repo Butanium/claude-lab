@@ -3,6 +3,22 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.30 — 2026-08-10
+
+- **`?view=<code>` query-param deep links — probing the one hole left in the
+  frame wall.** v0.6.29 established that a `#fragment` on the claude.ai url
+  never reaches the framed report; whether the wrapper forwards *query params*
+  into the frame src was never tested. `hashNav` now boots from
+  `?view=<the same code the copy button emits>` when there is no hash — so if
+  the wrapper forwards, `https://claude.ai/…?view=explorer%3Fds%3Dtempt` is a
+  real shareable deep link, and if it doesn't, the param never appears and the
+  page behaves exactly as before. The paste box's applier is factored into
+  `takeCode()`, shared by both entries, and it also unwraps a pasted `?view=`
+  url. (Pending: one authenticated click on claude.ai to learn which world
+  we're in — a smoke can't reach the wrapper. If it forwards, the framed copy
+  button should graduate to emitting the full url, reconstructing the artifact
+  id from its own `<id>.frame.claudeusercontent.com` hostname.)
+
 ## v0.6.29 — 2026-08-10
 
 - **Sharing a view: a CODE, not a url — v0.6.27's button was wrong about the

@@ -562,9 +562,43 @@ const KitExplorer = (() => {
       if (from && location.hash !== "#" + from) location.hash = from;
       location.hash = target;
     }
-    /* a shared/reloaded explorer URL lands on the explorer, filters applied */
+    /* Everything a copy path can hand a reader, normalized and applied: a full
+       url, the bare "#anchor?a=b" hash, the query alone, or a section handle
+       ("#a4", what a heading copies in a frame). Returns false on anything it
+       doesn't recognize — applying garbage would read as "clear everything". */
+    function takeCode(raw) {
+      let code = String(raw).trim();
+      /* a ?view= deep-link url pastes as readily as the code it carries */
+      const v = code.match(/[?&]view=([^&#\s]*)/);
+      if (v) {
+        try { code = decodeURIComponent(v[1]); } catch { return false; }
+      }
+      const at = code.indexOf(anchorId + "?");
+      if (at >= 0) code = code.slice(at + anchorId.length + 1);
+      else if (code.replace(/^[#?]+/, "") === anchorId
+               || code.endsWith("#" + anchorId)) code = "";
+      code = code.replace(/^[#?]+/, "");
+      if (code && code !== anchorId && document.getElementById(code)) {
+        location.hash = code;
+        return true;
+      }
+      const f = dec("#" + anchorId + (code ? "?" + code : ""));
+      const known = new Set([...(api.keys?.() || []), "_q", "_in", "_f"]);
+      if (!f || !Object.keys(f).every(k => known.has(k))) return false;
+      api.set(f);
+      scrollTo(anchorId);
+      return true;
+    }
+    /* a shared/reloaded explorer URL lands on the explorer, filters applied.
+       Failing the hash: ?view=<code> in the query string — the one deep-link
+       form with a chance of surviving a host that frames the report and
+       forwards the query but not the fragment. Where nothing forwards it,
+       the param never appears and this is a no-op. */
     if (applyHash()) scrollTo(anchorId);
-    else if (defaults) api.set(defaults);
+    else {
+      const code = new URLSearchParams(location.search).get("view");
+      if (!(code && takeCode(code)) && defaults) api.set(defaults);
+    }
     /* registered AFTER the initial apply so a reader who never touches the
        explorer keeps the URL they arrived with */
     if (sync) api.onChange?.(f => {
@@ -584,22 +618,7 @@ const KitExplorer = (() => {
         location.hash = target;
       }
     });
-    if (sync) mountShare(anchorId, () => enc(api.state?.() || {}), code => {
-      /* a section handle ("#a4", what a heading copies in a frame) is the other
-         thing a reader can be handed, and this box is the only paste target the
-         page has — so it takes both */
-      const asId = code.replace(/^[#?]+/, "");
-      if (asId && asId !== anchorId && document.getElementById(asId)) {
-        location.hash = asId;
-        return true;
-      }
-      const f = dec("#" + anchorId + (code ? "?" + code : ""));
-      const known = new Set([...(api.keys?.() || []), "_q", "_in", "_f"]);
-      if (!f || !Object.keys(f).every(k => known.has(k))) return false;
-      api.set(f);
-      scrollTo(anchorId);
-      return true;
-    });
+    if (sync) mountShare(anchorId, () => enc(api.state?.() || {}), takeCode);
     return { goto, applyHash };
   }
 
@@ -669,13 +688,7 @@ const KitExplorer = (() => {
     const apply = () => {
       const raw = box.value.trim();
       if (!raw) return;
-      /* accepts what any of the copy paths produce: a full url, the bare
-         "#anchor?a=b" hash, or the query alone */
-      let code = raw;
-      const at = code.indexOf("#" + anchorId);
-      if (at >= 0) code = code.slice(at + anchorId.length + 1);
-      code = code.replace(/^[#?]+/, "");
-      if (applyCode(code)) { box.hidden = true; box.value = ""; open.hidden = false; }
+      if (applyCode(raw)) { box.hidden = true; box.value = ""; open.hidden = false; }
       else box.classList.add("bad");
     };
     box.addEventListener("input", () => box.classList.remove("bad"));
