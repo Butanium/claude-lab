@@ -470,6 +470,51 @@ with tempfile.TemporaryDirectory() as td:
         check("garbage is refused, not silently applied as 'clear everything'",
               "bad" in (fr.locator("#explorer .ex-paste").get_attribute("class") or "")
               and fshown().startswith("4 samples"), fshown())
+
+        print("claude.ai frame — the copy is a real link, carrying the view")
+        # framed on <artifact-id>.frame.claudeusercontent.com the page can name
+        # its own artifact url; the copied link both opens the report and pastes
+        # back in as a code (the wrapper forwards nothing, so paste-back is how
+        # the view applies)
+        aid = "12345678-1234-4321-8765-123456789abc"
+        pg.route(f"https://{aid}.frame.claudeusercontent.com/**", lambda r: r.fulfill(
+            status=200, content_type="text/html", body=page_html))
+        pg.route("**/host2*", lambda r: r.fulfill(
+            status=200, content_type="text/html",
+            body=f'<iframe src="https://{aid}.frame.claudeusercontent.com/_f/b1/'
+                 f'?__frame_t=TOKEN" allow="clipboard-read; clipboard-write" '
+                 'style="width:1280px;height:2000px;border:0"></iframe>'))
+        pg.goto("https://example.test/host2")
+        pg.wait_for_timeout(1200)
+        f2 = pg.frame_locator("iframe")
+        in2 = pg.frames[1]
+        f2shown = lambda: in2.evaluate(                                   # noqa: E731
+            "() => document.querySelector('#explorer .ex-count').textContent")
+        check("the button offers a link again", f2.locator("#explorer .ex-link")
+              .text_content() == "copy link to this view")
+        f2.locator("#explorer .ex-dim").nth(0).locator("select").select_option("y")
+        pg.wait_for_timeout(300)
+        f2.locator("#explorer .ex-link").click()
+        pg.wait_for_timeout(400)
+        got2 = in2.evaluate("() => navigator.clipboard.readText().catch(() => "
+                            "document.querySelector('.ex-link-out')?.value || '')")
+        check("the copy is the artifact url carrying the view",
+              got2 == f"https://claude.ai/code/artifact/{aid}#explorer?arm=y", repr(got2))
+        f2.locator("#explorer .ex-clear").click()
+        pg.wait_for_timeout(300)
+        f2.locator("#explorer .ex-paste-open").click()
+        f2.locator("#explorer .ex-paste").fill(got2)
+        f2.locator("#explorer .ex-paste").press("Enter")
+        pg.wait_for_timeout(400)
+        check("and the same link pastes back in", f2shown().startswith("8 samples"),
+              f2shown())
+        f2.locator("#explorer .ex-paste-open").click()
+        f2.locator("#explorer .ex-paste").fill(
+            f"https://claude.ai/code/artifact/{aid}#a3")
+        f2.locator("#explorer .ex-paste").press("Enter")
+        pg.wait_for_timeout(400)
+        check("a heading's url pastes to its section",
+              in2.evaluate("location.hash") == "#a3", in2.evaluate("location.hash"))
         pg.goto(start)
         pg.wait_for_timeout(700)
 

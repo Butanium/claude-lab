@@ -3,6 +3,23 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.31 — 2026-08-11
+
+- **Two-in-one share links: the framed copy buttons emit a real claude.ai
+  url.** v0.6.30's `?view=` probe came back negative (Clément clicked both
+  routes: the wrapper forwards neither fragment nor query — also confirmed
+  against docs: no documented deep-link mechanism, no top-level share render,
+  `window.claude` is downloads/mcp only). So automatic deep links are
+  structurally impossible on claude.ai, and the best shareable object is ONE
+  link that both OPENS the report and CARRIES the view: `KitToc.pageLink()`
+  reconstructs `https://claude.ai/code/artifact/<id>` from the frame's own
+  hostname (`<id>.frame.claudeusercontent.com`), the explorer button and the
+  heading `#` marks append their fragment to it, and `takeCode()` already
+  unwraps that url when the recipient pastes it into "open a shared view".
+  Frames on unknown hosts keep copying the bare code. The `?view=` boot stays:
+  harmless, works on any non-framed deployment, lights up automatically if the
+  wrapper ever starts forwarding.
+
 ## v0.6.30 — 2026-08-10
 
 - **`?view=<code>` query-param deep links — probing the one hole left in the

@@ -495,8 +495,10 @@ const KitExplorer = (() => {
   function hashNav(api, { anchorId, defaults = null, sync = true }) {
     /* every hash this module writes goes through location.hash, which is
        same-document by construction; the page's own <a href="#…"> links are not,
-       inside an artifact frame — see KitToc.sameDocAnchors */
-    window.KitToc?.sameDocAnchors?.();
+       inside an artifact frame — see KitToc.sameDocAnchors. Bare KitToc:
+       top-level `const` never lands on window, so the window.KitToc?.… form
+       this used to be was a silent no-op. */
+    if (typeof KitToc !== "undefined") KitToc.sameDocAnchors?.();
     /* a multi-valued filter travels as a repeated key (dim=a&dim=b), not as a
        joined string: `encodeURIComponent(["a","b"])` gives "a%2Cb", which decodes
        to one unknown value, which a dim silently drops — i.e. a multi-value chart
@@ -573,10 +575,13 @@ const KitExplorer = (() => {
       if (v) {
         try { code = decodeURIComponent(v[1]); } catch { return false; }
       }
+      /* anything carrying a fragment IS its fragment — a heading's copied
+         url ("…/artifact/<id>#a6") must paste as well as "#a6" does */
+      const h = code.indexOf("#");
+      if (h >= 0) code = code.slice(h);
       const at = code.indexOf(anchorId + "?");
       if (at >= 0) code = code.slice(at + anchorId.length + 1);
-      else if (code.replace(/^[#?]+/, "") === anchorId
-               || code.endsWith("#" + anchorId)) code = "";
+      else if (code.replace(/^[#?]+/, "") === anchorId) code = "";
       code = code.replace(/^[#?]+/, "");
       if (code && code !== anchorId && document.getElementById(code)) {
         location.hash = code;
@@ -639,28 +644,47 @@ const KitExplorer = (() => {
     const row = document.getElementById(anchorId)?.querySelector(".ex-actions");
     if (!row || row.querySelector(".ex-share")) return;
     const framed = window.top !== window.self;
+    /* Inside the claude.ai frame the page still knows which artifact it is —
+       KitToc.pageLink reconstructs the artifact url from the frame's hostname.
+       So the framed button copies a link that OPENS the report and carries the
+       view in its fragment. The frame wall means the fragment won't apply
+       itself on arrival: the recipient pastes the same link into "open a
+       shared view", which takeCode unwraps. One shared object instead of a
+       url plus a code. A frame on any other host falls back to the bare code. */
+    /* bare KitToc, not window.KitToc: a top-level `const` in a classic script
+       binds in the global lexical scope, NOT on window — window.KitToc is
+       undefined even with toc.js loaded */
+    const base = (typeof KitToc !== "undefined" ? KitToc.pageLink?.() : null)
+      ?? (framed ? null : location.origin + location.pathname);
     const wrap = document.createElement("div");
     wrap.className = "ex-share";
 
     const copy = document.createElement("button");
     copy.type = "button";
     copy.className = "ex-link";
-    copy.textContent = framed ? "copy this view" : "copy link to this view";
-    copy.title = framed
-      ? "the filters, search and all — as a code the reader on the other side pastes back in"
-      : "the url of the explorer as it stands — filters, search and all";
+    const idle = base ? "copy link to this view" : "copy this view";
+    copy.textContent = idle;
+    copy.title = base && framed
+      ? "a link that opens this report carrying the view — the reader on the other "
+        + "side pastes the same link into “open a shared view” to apply it"
+      : framed
+        ? "the filters, search and all — as a code the reader on the other side pastes back in"
+        : "the url of the explorer as it stands — filters, search and all";
     const say = (msg, ok) => {
       copy.textContent = msg;
       copy.classList.toggle("ok", !!ok);
       setTimeout(() => {
-        copy.textContent = framed ? "copy this view" : "copy link to this view";
+        copy.textContent = idle;
         copy.classList.remove("ok");
       }, 2200);
     };
     copy.addEventListener("click", async () => {
       const hash = hashOf();
-      const text = framed ? hash : location.origin + location.pathname + hash;
-      if (await KitToc.copyText(text)) { say(framed ? "view copied ✓" : "copied ✓", true); return; }
+      const text = base ? base + hash : hash;
+      if (await KitToc.copyText(text)) {
+        say(base ? "link copied ✓" : "view copied ✓", true);
+        return;
+      }
       /* both clipboard paths refused (permissions-policy can disable the
          clipboard for a frame): the reader still gets it, in a field to select */
       wrap.querySelector(".ex-link-out")?.remove();
@@ -683,7 +707,7 @@ const KitExplorer = (() => {
     const box = document.createElement("input");
     box.type = "text";
     box.className = "ex-paste";
-    box.placeholder = "paste the view here, then Enter";
+    box.placeholder = "paste the link or view you were sent, then Enter";
     box.hidden = true;
     const apply = () => {
       const raw = box.value.trim();

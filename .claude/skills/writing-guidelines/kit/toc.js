@@ -84,6 +84,18 @@ const KitToc = (() => {
     }
   }
 
+  /* The best base url a copy can hand out for THIS document. Top-level: the
+     document's own url. Framed on claude.ai: the artifact page, reconstructed
+     from the frame's hostname — the frame's own url is signed and build-pinned,
+     but the hostname carries the artifact id. Framed anywhere else: null —
+     there is no url worth giving, only a code. */
+  function pageLink() {
+    if (window.top === window.self) return location.origin + location.pathname;
+    const m = location.hostname.match(
+      /^([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.frame\.claudeusercontent\.com$/i);
+    return m ? "https://claude.ai/code/artifact/" + m[1] : null;
+  }
+
   /* Every section heading is a link to itself. A report is read inside a frame
      whose address bar belongs to the host page, so "scroll to §4 and copy the
      url" is not a thing a reader can do — the url they can see is the whole
@@ -110,15 +122,17 @@ const KitToc = (() => {
         const sel = getSelection();
         if (sel && String(sel).length
             && (h.contains(sel.anchorNode) || h.contains(sel.focusNode))) return;
-        /* framed (the claude.ai case): this document's url is signed and its
-           path carries a build id that changes on every republish, so it is not
-           a link anyone can follow — the section HANDLE is. It pastes into the
-           explorer's "open a shared view" box, the page's one paste target. */
-        const framed = window.top !== window.self;
-        const text = framed ? "#" + h.id : location.origin + location.pathname + "#" + h.id;
+        /* the fragment on a claude.ai link won't scroll the framed report on
+           arrival (the wrapper forwards nothing into the frame) — but the link
+           opens the right report, and pasted into the explorer's "open a
+           shared view" box it lands on the section. A frame on an unknown
+           host copies the bare handle, the page's one universally paste-able
+           object. */
+        const base = pageLink();
+        const text = base ? base + "#" + h.id : "#" + h.id;
         const ok = await copyText(text);
         mark.classList.add("done");
-        mark.dataset.say = ok ? (framed ? `${text} copied` : "link copied") : text;
+        mark.dataset.say = ok ? (base ? "link copied" : `${text} copied`) : text;
         setTimeout(() => { mark.classList.remove("done"); delete mark.dataset.say; }, 2200);
       });
     }
@@ -213,5 +227,5 @@ const KitToc = (() => {
     addEventListener("DOMContentLoaded", () => linkHeadings());
   else linkHeadings();
 
-  return { build, sameDocAnchors, linkHeadings, copyText };
+  return { build, sameDocAnchors, linkHeadings, copyText, pageLink };
 })();
