@@ -593,6 +593,100 @@ const KitCharts = (() => {
     return f;
   }
 
+  /* ---- stacked bars, N per group (a condition pair per x category) ----
+     stackedBars puts ONE composition on each x slot; this one puts several side
+     by side, so "the same breakdown under two conditions" is a within-slot
+     comparison instead of two charts the eye has to travel between.
+     spec: { groups, subs: [{name, hatch}], segments: [{name, color, seriesIndex}],
+       values: [{group, sub, segment, count, lo, hi}], percent = true,
+       groupLabel, groupFull, subFull, onSegmentClick(value, segment, group, sub),
+       subOp(total, group, sub), legendItems, w, h, m, labelSize, rotateLabels }
+     subOp is the low-support affordance a percent stack otherwise can't have: a
+     mix of 3 draws and a mix of 30 draw the same bar, so the caller fades the
+     thin ones (the counts are already in the tooltip).
+     Each sub-bar normalizes to its OWN total when percent (the default): the two
+     conditions rarely have the same n, and the question is the mix, not the count. */
+  function groupedStackedBars(container, spec) {
+    const { groups, subs, segments, values, percent = true } = spec;
+    const groupFull = spec.groupFull || (g => g);
+    const groupLabel = spec.groupLabel || (g => g);
+    const subFull = spec.subFull || (s => s.name);
+    const LFS = spec.labelSize ?? 11;
+    const ROT = 65, rotRad = ROT * Math.PI / 180;
+    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
+    const totalOf = (g, s) => values.reduce((t, v) =>
+      t + (v.group === g && v.sub === s ? v.count : 0), 0);
+    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
+    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
+    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
+    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
+    const bAdj = Math.max(m0.b, neededB);
+    const fSpec = { ...spec, m: rotate ? { ...m0, b: bAdj } : m0,
+      h: rotate ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
+      yMin: 0,
+      yMax: percent ? 1 : Math.max(...groups.flatMap(g => subs.map(s => totalOf(g, s.name)))),
+      yFmt: percent ? v => Math.round(v * 100) + "%" : v => v };
+    const f = frame(container, fSpec);
+    const defs = el("defs");
+    f.svg.appendChild(defs);
+    const bw = f.iw / groups.length;
+    /* 0.64 of the slot for the bars, as in stackedBars; the rest is the gutter
+       between groups, which must stay wider than the gap inside a pair or the
+       pairing stops reading */
+    const inner = bw * 0.64, gap = inner * 0.08;
+    const sw = (inner - gap * (subs.length - 1)) / subs.length;
+    groups.forEach((gname, gi) => {
+      const gx = f.m.l + gi * bw + bw * 0.18;
+      const glabel = groupLabel(gname);
+      const lattr = LFS === 11 ? {} : { "font-size": LFS };
+      if (rotate) {
+        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        t.setAttribute("transform", `translate(${gx + inner / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
+        f.svg.appendChild(t);
+      } else {
+        f.svg.appendChild(txt(gx + inner / 2, f.h - f.m.b + LFS + 5, glabel,
+          { "text-anchor": "middle", ...lattr }));
+      }
+      subs.forEach((sub, sui) => {
+        const x = gx + sui * (sw + gap);
+        const rows = values.filter(v => v.group === gname && v.sub === sub.name);
+        const total = rows.reduce((s, v) => s + v.count, 0);
+        if (!total) return;   /* absent, not zero — draw nothing */
+        const op = spec.subOp ? spec.subOp(total, gname, sub) : 1;
+        let acc = 0;
+        segments.forEach((s, si) => {
+          const d = rows.find(v => v.segment === s.name);
+          if (!d || !d.count) return;
+          const v = percent ? d.count / total : d.count;
+          const yTop = f.y(acc + v), yBot = f.y(acc);
+          const color = s.color || seriesColor(s.seriesIndex ?? si);
+          const hatch = sub.hatch || s.hatch;
+          const rect = el("rect", { x, y: yTop, width: sw, height: Math.max(0, yBot - yTop - 1) },
+            { fill: hatch ? makeHatch(defs, color, typeof hatch === "string" ? hatch : "/") : color,
+              ...(op < 1 ? { opacity: op } : {}) });
+          const pct = Math.round((d.count / total) * 1000) / 10;
+          const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
+          const head = `${groupFull(gname)} · ${subFull(sub)} · ${s.name}`;
+          a11y(rect, `${head}: ${pct}% (${d.count}/${total})${ci}`);
+          bindTip(rect, `<span class="tip-head">${head}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
+          if (spec.onSegmentClick) {
+            rect.style.cursor = "pointer";
+            const fire = () => spec.onSegmentClick(d, s, gname, sub);
+            rect.addEventListener("click", fire);
+            rect.addEventListener("keydown", e => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
+            });
+          }
+          f.svg.appendChild(rect);
+          acc += v;
+        });
+      });
+    });
+    legend(container, spec.legendItems || segments.map((s, i) =>
+      ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
+    return f;
+  }
+
   /* ---- multi-series line (dose-response) ----
      spec: { series: [{name, seriesIndex, dash, points: [{x, y, lo, hi, n}]}],
        xTicks: [values...], xFmt, yFmt, xTitle, yTitle, refLines: [{y,label}], w, h } */
@@ -605,6 +699,16 @@ const KitCharts = (() => {
       f.svg.appendChild(txt(X(v), f.h - f.m.b + 16, (spec.xFmt || String)(v), { "text-anchor": "middle", class: "num" })));
     (spec.refLines || []).forEach(r => refLine(f, r));
     const fmt = spec.yFmt || String;
+    /* hit radius shrinks to fit the x-spacing: at 9px a chart with 40 rounds
+       across 380px has every target overlapping its neighbours, so a click (or
+       a tooltip) lands on whichever step happens to be on top rather than the
+       one under the cursor */
+    const gaps = xs.slice(1).map((v, i) => X(v) - X(xs[i]));
+    const hitR = gaps.length ? Math.max(4, Math.min(9, Math.min(...gaps) * 0.6)) : 9;
+    /* hits go up in a second pass, AFTER every series: interleaved, the next
+       series' dots would sit on top of the previous series' hit circles and
+       swallow both the tooltip and the click (same reasoning as scatter) */
+    const hits = [];
     spec.series.forEach((s, si) => {
       const color = s.color || seriesColor(s.seriesIndex ?? si);
       const pts = s.points.slice().sort((a, b) => a.x - b.x);
@@ -614,13 +718,29 @@ const KitCharts = (() => {
       pts.forEach(p => {
         if (Number.isFinite(p.lo))
           f.svg.appendChild(el("line", { x1: X(p.x), x2: X(p.x), y1: f.y(p.lo), y2: f.y(p.hi), class: "whisker" }, { stroke: color }));
+        const tip = `<span class="tip-head">${full} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`;
+        const label = `${full} @ ${p.x}: ${fmt(p.y)}${fmtN(p)}`;
         const dot = el("circle", { cx: X(p.x), cy: f.y(p.y), r: 3.5 }, { fill: color });
-        a11y(dot, `${full} @ ${p.x}: ${fmt(p.y)}${fmtN(p)}`);
-        bindTip(dot, `<span class="tip-head">${full} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
+        a11y(dot, label);
+        bindTip(dot, tip);
         f.svg.appendChild(dot);
-        const hit = el("circle", { cx: X(p.x), cy: f.y(p.y), r: 9, fill: "transparent" });
-        bindTip(hit, `<span class="tip-head">${full} · x=${p.x}</span><br>${fmt(p.y)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
-        f.svg.appendChild(hit);
+        const hit = el("circle", { cx: X(p.x), cy: f.y(p.y), r: hitR, fill: "transparent" });
+        bindTip(hit, tip);
+        /* onPointClick(point, series): opt-in, mirrors groupedBars' onBarClick —
+           points become clickable (e.g. a trajectory dot opening the rows it
+           counts). The hit circle takes over focus from the dot: two elements
+           answering for one point would tab twice and flicker the tooltip. */
+        if (spec.onPointClick) {
+          dot.removeAttribute("tabindex");
+          dot.removeAttribute("role");
+          hit.style.cursor = "pointer";
+          a11y(hit, label);
+          hit.addEventListener("click", () => spec.onPointClick(p, s));
+          hit.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onPointClick(p, s); }
+          });
+        }
+        hits.push(hit);
       });
       /* endpoint direct label: s.short when the legend name is too long to sit
          beside the line (the legend still carries the full name); native title
@@ -633,6 +753,7 @@ const KitCharts = (() => {
       if (s.full && s.full !== dlText) { const ti = el("title"); ti.textContent = s.full; dl.appendChild(ti); }
       f.svg.appendChild(dl);
     });
+    hits.forEach(h => f.svg.appendChild(h));
     /* legendItems mirrors groupedBars/stackedBars: override the auto series
        legend, or pass [] to suppress it (e.g. side-by-side panels sharing one
        legend rendered below them) */
@@ -964,6 +1085,7 @@ const KitCharts = (() => {
            sharedLegend, frame, refLine,
            groupedBars: interactive(groupedBars, planSeries("series")),
            stackedBars: interactive(stackedBars, planSeries("segments")),
+           groupedStackedBars: interactive(groupedStackedBars, planSeries("segments")),
            line: interactive(line, planSeries("series")),
            scatter: interactive(scatter, planScatter),
            dotStrip, heatmap, forest };

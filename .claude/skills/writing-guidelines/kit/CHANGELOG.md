@@ -3,6 +3,38 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.6.34 — 2026-08-12
+
+- **`groupedStackedBars` — N stacked bars per x category.** Clément, asking an
+  appendix for "the distribution of answers in thinking and not thinking *for
+  each prompt*… a bunch of bar plots with 2 bars for thinking vs non thinking":
+  `stackedBars` puts one composition per slot, so a condition pair could only be
+  drawn as two charts the eye has to travel between — fine when the two charts
+  hold *different* quantities (a reasoning mix over an answer mix), wrong when
+  they hold the same one under two conditions. Sub-bars carry the `subs[].hatch`
+  convention the rest of the kit already uses for a condition, each normalizes to
+  its own n (the conditions rarely have equal n, and the question is the mix),
+  and a sub-bar with zero rows draws nothing rather than a flat zero — absent and
+  zero are different claims. `onSegmentClick(value, segment, group, sub)` mirrors
+  `stackedBars`, and `subOp(total, group, sub)` fades a thin sub-bar — a
+  percent stack of 3 draws and one of 30 are the same rectangle otherwise,
+  which is exactly the support floor the rest of the kit already fades for.
+
+## v0.6.33 — 2026-08-11
+
+- **`line`: `onPointClick(point, series)` — a trajectory dot opens the rows it
+  counts.** Clément, on an identity-trajectory figure whose sibling bar chart
+  was already click-to-explorer: "make fig 1b interactive, clicking on a point
+  should open the sample explorer with the right parameters". A point on a
+  fraction-over-training line IS a set of rows (run × step × bucket) exactly as
+  a bar is, so it gets the same affordance as `groupedBars.onBarClick`.
+  Two fixes came with it, both applying to every line chart: hit circles now go
+  up in a second pass after all series (interleaved, a later series' dots sat on
+  top of an earlier series' hit and swallowed its tooltip), and the hit radius
+  shrinks to 0.6× the smallest x-gap (at a fixed 9px, a 40-round trajectory had
+  every target overlapping its neighbours, so the tooltip you got was whichever
+  step drew last, not the one under the cursor).
+
 ## v0.6.32 — 2026-08-11
 
 - **`scatter`: `ciColor` / `ciOp` / `ciWidth` / `ciCap` — per-point intervals
