@@ -120,7 +120,7 @@ const KitCards = (() => {
   function highlight(root, re) {
     if (!re || !root) return 0;
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: n => n.nodeValue && !n.parentElement?.closest(".lab, .chip, .pt-more")
+      acceptNode: n => n.nodeValue && !n.parentElement?.closest(".lab, .chip, .pt-more, .kb-head, .kt-thead")
         ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
     });
     const nodes = [];

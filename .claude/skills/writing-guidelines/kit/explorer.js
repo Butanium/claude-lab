@@ -295,8 +295,14 @@ const KitExplorer = (() => {
     count.className = "ex-count";
     actionRow.append(drawBtn, clearAll, count);
 
-    const list = document.createElement("div");
-    list.className = "sample-list";
+    /* `view`: a host that owns the display of the matching rows — the transcript
+       viewer (KitTrace.viewer) is one. The explorer keeps the filter bank, the
+       count and the draw; the host keeps its own selection/paging, contributes
+       its state to getState() (so hashNav carries it) and takes set() filters
+       through apply(). Without one, rows render as cards in a scroll list. */
+    const host = spec.view || null;
+    const list = host ? host.el : document.createElement("div");
+    if (!host) list.className = "sample-list";
     el.append(controls, ...(advDims.length ? [advFold] : []), list);
 
     function syncChrome() {
@@ -399,6 +405,7 @@ const KitExplorer = (() => {
         const fl = Object.keys(sflags).filter(k => sflags[k]).map(k => k[0]).join("");
         if (fl) f._f = fl;
       }
+      if (host?.state) Object.assign(f, host.state());
       return f;
     }
     /* every control the reader can touch routes through here, so the state a
@@ -409,6 +416,12 @@ const KitExplorer = (() => {
 
     function renderList() {
       const m = view;
+      if (host) {
+        count.textContent = badRe ? "the regular expression doesn't compile"
+          : m.length === 0 ? "0 samples match" : `${m.length} samples match`;
+        host.setRows(m, { hitRe, shuffled });
+        return;
+      }
       list.textContent = "";
       if (m.length === 0) {
         count.textContent = badRe ? "the regular expression doesn't compile" : "0 samples match";
@@ -436,6 +449,8 @@ const KitExplorer = (() => {
     }
 
     if (spec.globalStore) spec.globalStore.on(() => update());
+    /* a selection made inside the host is the reader's own edit of the view */
+    host?.onChange?.(() => listener?.(getState()));
     update();
 
     /* Programmatic filter drive (e.g. a chart's onBarClick filtering the
@@ -466,10 +481,12 @@ const KitExplorer = (() => {
         scope = "_in" in filters ? Number([].concat(filters._in)[0]) || 0 : 0;
         if (scopeSel) scopeSel.value = String(scope);
       }
+      host?.apply?.(filters);
       update();
     }
     return { refresh: update, set, state: getState, onChange: fn => { listener = fn; },
-             keys: () => [...Object.keys(dimByKey), ...Object.keys(rangeByKey)] };
+             keys: () => [...Object.keys(dimByKey), ...Object.keys(rangeByKey),
+                          ...(host?.keys?.() || [])] };
   }
 
   /* ---- hash-linked explorer navigation ----

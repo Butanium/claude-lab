@@ -29,9 +29,9 @@ KIT = Path(__file__).resolve().parent
 # Order matters (tokens before consumers); every report gets every file. Reports
 # used to curate this per page, which saved ~50 kB against multi-MB payloads and
 # cost a silently missing feature whenever the kit grew.
-CSS_FILES = ["tokens.css", "layout.css", "cards.css", "charts.css"]
+CSS_FILES = ["tokens.css", "layout.css", "cards.css", "charts.css", "trace.css"]
 JS_FILES = ["stats.js", "filters.js", "cards.js", "explorer.js", "charts.js", "toc.js",
-            "theme.js"]
+            "theme.js", "trace.js"]
 
 STAMP_RE = re.compile(r"<!--\s*clab-report-kit[^>]*?-->\s*")
 META_RE = re.compile(r'<meta name="generator" content="clab-report-kit[^"]*">\s*')
@@ -51,7 +51,9 @@ def version() -> str:
 
 def _spellings(name: str) -> list[str]:
     bare = [f"%%{name}%%", f"__{name}__", f"{{{{{name}}}}}", name]
-    return [f"/*{b}*/" for b in bare] + bare
+    # both wrapped forms, tight and spaced: `/* %%KIT_JS%% */` used to fall through
+    # to the bare match, leaving stray `/* ` + ` */` that broke the page's JS silently
+    return [f"/*{b}*/" for b in bare] + [f"/* {b} */" for b in bare] + bare
 
 
 def _substitute(text: str, name: str, value: str) -> str:

@@ -3,6 +3,48 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.7.0 — 2026-09-15
+
+- **`KitTrace` — a transcript viewer (`trace.js` + `trace.css`).** Clément, asking
+  for the censorship-splits report to be rebuilt on the kit: "start by first
+  introducing an agentic trace viewer to the kit … it should be an inner box
+  scroll so that you can scroll across transcripts or in 1 transcript". The
+  design follows what he asked of dronescope (2026-08-28, pointing at
+  tim-hua-01/cc_transcript_viewer): everything on screen as you scroll,
+  reasoning included, nothing hidden behind a selection; foldable, resizable
+  side rails; a details pane. So: a bounded box (`resize: vertical`) with an
+  inner scroll, a rail of transcripts on the left, the transcript in the
+  middle, outline + details on the right. Mode `one` steps transcripts (j/k,
+  ‹ ›); mode `all` stacks the matching ones under sticky headers, and the one
+  under the top of the box becomes current. Blocks are typed — user, system,
+  assistant, thinking, tool (input/output, error), judge (prose + fields),
+  note — each a left rule in its kind's colour; thinking/tool/judge fold per
+  block, with toolbar fold-all buttons setting the default. Rail widths, open
+  state and fold defaults persist per viewer (localStorage: how they look);
+  the selected transcript and the mode travel in the explorer's hash state
+  (what they look at). Search hits from the explorer are highlighted in the
+  blocks and counted per block in the outline.
+- **`KitExplorer.explorer` takes `view: <host>`** — a display host that owns
+  the matching rows (the viewer above is one): the explorer keeps the filter
+  bank, count and draw; the host gets `setRows(rows, {hitRe})`, contributes
+  `state()` to the hash and takes `set()` filters through `apply()`. Chart
+  clicks, hashNav, shared links all work unchanged behind it.
+- `KitCards.highlight` skips the viewer's chrome (`.kb-head`, `.kt-thead`) the
+  way it already skipped card labels.
+
+## v0.6.35 — 2026-08-27
+
+- **TOC labels no longer carry the heading's "#" copy-link glyph.** `KitToc.build`
+  read `h.textContent` after `linkHeadings()` had appended the `#` button, so every
+  auto-collected sidebar entry rendered as "Section title#". Labels are now
+  collected before the affordance is injected (chain-holds digest).
+- **`kit_build` accepts spaced wrapped markers (`/* %%KIT_JS%% */`).** A digest
+  report wrote the wrapper with inner spaces; only the bare `%%KIT_JS%%` matched,
+  leaving stray `/* ` + ` */` around the inlined JS — the build passed all its
+  asserts and shipped a page whose whole script block was a syntax error (empty
+  TOC, no charts), caught only by the screenshot pass. Spaced variants now match
+  ahead of the bare forms, same as the tight wrapper.
+
 ## v0.6.34 — 2026-08-12
 
 - **`groupedStackedBars` — N stacked bars per x category.** Clément, asking an

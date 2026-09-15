@@ -1,0 +1,158 @@
+/* clab report kit — trace.css
+   The transcript viewer (trace.js): a bounded box with three panes — a rail
+   of transcripts, the transcript itself, a details/outline pane — so the
+   reader scrolls INSIDE it, across transcripts (mode "all") or within one
+   (mode "one"), while the page around it stays put. Widths are CSS variables
+   the JS sets from the drag handles / persisted prefs. */
+
+.kt {
+  --kt-rail: 240px; --kt-side: 230px;
+  display: grid;
+  grid-template-columns: var(--kt-rail) 6px minmax(0, 1fr) 6px var(--kt-side);
+  height: var(--kt-h, 78vh); min-height: 320px;
+  resize: vertical; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); font-family: var(--sans); font-size: 0.85rem;
+  margin: 0.8rem 0;
+}
+.kt.rail-closed { grid-template-columns: 0 0 minmax(0, 1fr) 6px var(--kt-side); }
+.kt.side-closed { grid-template-columns: var(--kt-rail) 6px minmax(0, 1fr) 0 0; }
+.kt.rail-closed.side-closed { grid-template-columns: 0 0 minmax(0, 1fr) 0 0; }
+.kt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.kt > * { min-height: 0; min-width: 0; }
+/* explicit columns: a hidden rail must not shift auto-placement (it did — the
+   main pane landed in the 0px column and the side pane took the whole box) */
+.kt > .kt-rail { grid-column: 1; } .kt > .g-rail { grid-column: 2; } .kt > .kt-main { grid-column: 3; }
+.kt > .g-side { grid-column: 4; } .kt > .kt-side { grid-column: 5; }
+.kt .kt-rail, .kt .kt-side { display: flex; flex-direction: column; overflow: hidden; }
+.kt.rail-closed .kt-rail, .kt.side-closed .kt-side { display: none; }
+.kt .kt-gutter { cursor: col-resize; background: var(--grid); }
+.kt .kt-gutter:hover, .kt .kt-gutter.drag { background: var(--accent); }
+.kt.rail-closed .kt-gutter.g-rail, .kt.side-closed .kt-gutter.g-side { display: none; }
+
+/* pane heads share one height so the three panes line up */
+.kt .kt-head {
+  display: flex; align-items: center; gap: 0.4rem; flex: none;
+  height: 2.3rem; padding: 0 0.55rem;
+  border-bottom: 1px solid var(--grid); color: var(--muted);
+  font-size: 0.78rem; white-space: nowrap; overflow: hidden;
+}
+.kt .kt-head .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* every button in the viewer is the same quiet chrome */
+.kt button {
+  font: inherit; font-size: 0.78rem; color: var(--ink-2); background: none;
+  border: 1px solid transparent; border-radius: 4px; padding: 0.15rem 0.4rem;
+  cursor: pointer; line-height: 1.4; white-space: nowrap;
+}
+.kt button:hover { color: var(--accent); border-color: var(--border); background: var(--paper); }
+.kt button:disabled { opacity: 0.4; cursor: default; }
+.kt button:disabled:hover { color: var(--ink-2); border-color: transparent; background: none; }
+.kt button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.kt button svg { width: 12px; height: 12px; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.kt .kt-seg { display: inline-flex; border: 1px solid var(--baseline); border-radius: 4px; overflow: hidden; }
+.kt .kt-seg button { border: 0; border-radius: 0; }
+.kt .kt-seg button + button { border-left: 1px solid var(--baseline); }
+.kt .kt-seg button.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.kt .kt-bar .sep { width: 1px; height: 1.1rem; background: var(--grid); margin: 0 0.15rem; }
+.kt .kt-pos { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* --- rail: the list of transcripts --- */
+.kt .kt-list { overflow-y: auto; flex: 1; }
+.kt .kt-item {
+  display: block; width: 100%; text-align: left; border: 0; border-radius: 0;
+  border-bottom: 1px solid var(--grid); border-left: 3px solid transparent;
+  padding: 0.45rem 0.55rem 0.45rem 0.5rem; white-space: normal; line-height: 1.35;
+}
+.kt .kt-item:hover { background: var(--paper); color: inherit; }
+.kt .kt-item.sel { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.kt .kt-item .t { color: var(--ink); font-weight: 600; font-size: 0.8rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.kt .kt-item .m { color: var(--muted); font-size: 0.72rem; margin-top: 0.1rem; }
+.kt .kt-item .chip { font-size: 0.66rem; margin-top: 0.2rem; }
+.kt .kt-more { display: block; width: 100%; margin: 0.4rem 0; text-align: center; }
+
+/* --- the transcript --- */
+.kt .kt-main { display: flex; flex-direction: column; overflow: hidden; }
+.kt .kt-scroll { overflow-y: auto; flex: 1; padding: 0 1rem 1.5rem; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { .kt .kt-scroll { scroll-behavior: auto; } }
+.kt .kt-empty { color: var(--muted); font-style: italic; padding: 1.5rem 0; font-family: var(--serif); }
+.kt .kt-trace { padding-bottom: 1.2rem; }
+.kt .kt-trace + .kt-trace { border-top: 2px solid var(--baseline); }
+.kt .kt-thead {
+  position: sticky; top: 0; z-index: 2; background: var(--surface);
+  padding: 0.6rem 0 0.45rem; border-bottom: 1px solid var(--grid); margin-bottom: 0.4rem;
+}
+.kt .kt-thead .t { font: 600 0.95rem/1.3 var(--sans); color: var(--ink); }
+.kt .kt-thead .meta { color: var(--muted); font-size: 0.76rem; margin-top: 0.15rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; }
+.kt .kt-trace.cur .kt-thead { border-bottom-color: var(--accent); }
+/* the "why this one" line, in the prose voice, not muted chrome */
+.kt .kt-lede { font-family: var(--serif); font-size: 0.95rem; line-height: 1.5; color: var(--ink); margin: 0.5rem 0 0.7rem; }
+
+/* blocks: one per message / event. A left rule in the kind's colour is the
+   whole visual grammar — the label under it says the kind in words too. */
+.kt .kb { position: relative; margin: 0.7rem 0; border-left: 3px solid var(--kb, var(--baseline)); padding: 0.1rem 0 0.1rem 0.75rem; }
+.kt .kb-user { --kb: var(--accent); }
+.kt .kb-system { --kb: var(--muted); }
+.kt .kb-assistant { --kb: var(--ink-2); }
+.kt .kb-thinking { --kb: var(--series-7); background: color-mix(in srgb, var(--series-7) 6%, transparent); border-radius: 0 var(--radius) var(--radius) 0; }
+.kt .kb-judge { --kb: var(--series-4); background: color-mix(in srgb, var(--series-4) 7%, transparent); border-radius: 0 var(--radius) var(--radius) 0; }
+.kt .kb-tool { --kb: var(--series-3); border: 1px solid var(--border); border-left-width: 3px; border-radius: 0 var(--radius) var(--radius) 0; background: var(--paper); padding-left: 0.6rem; }
+.kt .kb-tool.err { --kb: var(--critical); }
+.kt .kb-note { --kb: transparent; color: var(--muted); font-style: italic; }
+.kt .kb-head {
+  display: flex; align-items: center; gap: 0.4rem; min-height: 1.4rem;
+  font: 600 0.68rem/1.4 var(--sans); letter-spacing: 0.07em; text-transform: uppercase; color: var(--kb, var(--muted));
+}
+.kt .kb-assistant .kb-head, .kt .kb-system .kb-head { color: var(--muted); }
+.kt .kb-head .name { font: 600 0.8rem var(--mono); letter-spacing: 0; text-transform: none; color: var(--ink); }
+.kt .kb-head .sum { flex: 1; min-width: 0; font: 0.76rem var(--mono); letter-spacing: 0; text-transform: none; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kt .kb-head .hits { letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--accent); }
+/* foldable kinds: the head is the toggle; the chevron leads it, on the left */
+.kt .kb.foldable > .kb-head { cursor: pointer; user-select: none; }
+.kt .kb.foldable > .kb-head .chev { width: 0.55rem; height: 0.8rem; flex: none; }
+.kt .kb.foldable > .kb-head .chev svg { width: 100%; height: 100%; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transform: rotate(90deg); transition: transform 0.15s ease; }
+.kt .kb.folded > .kb-head .chev svg { transform: none; }
+.kt .kb.folded > .kb-body { display: none; }
+/* the one-line summary is the tool head's permanent second half; on the other
+   kinds it only stands in for a folded body */
+.kt .kb:not(.kb-tool) > .kb-head .sum { display: none; }
+.kt .kb.folded > .kb-head .sum { display: block; }
+.kt .kt-folds .chev-inline { font-size: 0.8em; }
+/* body text is the sample: serif, pre-wrap, never faded */
+.kt .kb-body { font: 0.95rem/1.55 var(--serif); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; padding: 0.15rem 0 0.3rem; }
+.kt .kb-thinking .kb-body { font-size: 0.92rem; }
+.kt .kb-body .empty { color: var(--muted); font-style: italic; }
+.kt .kb-body .ptext .pt-body { white-space: pre-wrap; }
+.kt .kb-tool .kb-sec { font: 600 0.62rem/1.4 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0.4rem 0 0.1rem; }
+.kt .kb-tool .kb-code, .kt .kb-tool .kb-code .pt-body { font: 0.8rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.kt .kb-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.7rem; margin: 0.35rem 0 0.2rem; font: 0.85rem/1.45 var(--sans); }
+.kt .kb-fields dt { color: var(--ink-2); font-weight: 600; }
+.kt .kb-fields dd { margin: 0; color: var(--ink); }
+/* copy, hover-only, top-right of the block */
+.kt .kb-copy { position: absolute; top: 0.15rem; right: 0.2rem; opacity: 0; font-size: 0.7rem; padding: 0.05rem 0.35rem; background: var(--surface); }
+.kt .kb:hover > .kb-copy, .kt .kb-copy:focus-visible { opacity: 1; }
+.kt .kb-copy.ok { color: var(--good-text); border-color: var(--good); }
+
+/* --- side pane: outline of the current transcript + its details --- */
+.kt .kt-side-body { overflow-y: auto; flex: 1; padding: 0.4rem 0.55rem 0.8rem; }
+.kt .kt-side h5 { font: 600 0.68rem/1.4 var(--sans); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0.6rem 0 0.25rem; }
+.kt .kt-outline button {
+  display: flex; gap: 0.4rem; align-items: baseline; width: 100%; text-align: left;
+  border: 0; border-radius: 3px; padding: 0.2rem 0.3rem; white-space: normal; line-height: 1.3;
+}
+.kt .kt-outline button .k { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 2px; background: var(--kb, var(--baseline)); align-self: center; }
+.kt .kt-outline button .s { color: var(--ink-2); font-size: 0.76rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.kt .kt-outline button .h { color: var(--accent); font-size: 0.7rem; flex: none; }
+.kt .kt-outline button.cur { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.kt .kt-details { display: grid; grid-template-columns: max-content 1fr; gap: 0.12rem 0.6rem; font-size: 0.76rem; margin: 0; }
+.kt .kt-details dt { color: var(--muted); }
+.kt .kt-details dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.kt .kt-details dd .chip { font-size: 0.66rem; }
+
+/* the flash that says "this is what you clicked to", reused from layout.css */
+.kt .kt-trace.hi-flash .kt-thead { animation: hi-flash 1.2s ease-out; }
+
+@media (max-width: 900px) {
+  .kt { --kt-rail: 160px; --kt-side: 0px; }
+  .kt .kt-side, .kt .kt-gutter.g-side { display: none; }
+}
+@media print { .kt { height: auto; resize: none; } .kt .kt-rail, .kt .kt-side, .kt .kt-gutter, .kt .kt-bar { display: none; } .kt .kt-scroll { overflow: visible; } }
