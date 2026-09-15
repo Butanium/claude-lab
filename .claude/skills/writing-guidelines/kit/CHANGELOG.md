@@ -3,6 +3,46 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.7.2 — 2026-09-15
+
+- **`KitTrace`: `group` blocks, and the outline reads the DOM.** Rebuilding the
+  agentic CoT-override report: every transcript starts with a frozen prefix of up
+  to 23 messages, which as flat blocks buried the sampled step the page is about.
+  `{ kind: "group", label, blocks }` renders a foldable run of blocks (folded by
+  default — a prefix, a sub-agent's transcript), and the side outline now walks
+  the rendered `.kb` tree (nested entries indented, hit counts per block) instead
+  of the spec, so clicking an outline entry unfolds its ancestors and lands on it.
+- Four fixes from driving the first viewer in Chromium: a hidden rail shifted grid
+  auto-placement (the main pane landed in the 0px column) — children now carry
+  explicit `grid-column`s; the viewer's own landing scrolls are instant and
+  invisible to the scroll-spy (a smooth one fired scroll events for hundreds of ms
+  and the spy wrote the wrong `_sel` to the hash, clobbering a chart click's
+  navigation); the rail reveals its selected item by scrolling the LIST, never
+  `scrollIntoView` (which walks every ancestor and yanked the page to the viewer
+  on load); the fold-all buttons remember every kind seen so an empty draw doesn't
+  make them vanish.
+
+## v0.7.1 — 2026-09-15
+
+- **`kit_build.build()` stamps after a leading `<!DOCTYPE html>`, not before
+  it.** Found rebuilding a report as a standalone served file (no Artifact
+  wrapper): `template.html` is a fragment and relies on the Artifact tool to
+  supply `<!doctype>`/`<head>`/`<meta charset>`, but a report meant to be
+  opened directly or served over plain HTTP needs its own full document,
+  charset included. The old stamp code always prepended
+  `<meta name="generator">` at position 0 — landing before the template's own
+  `<!DOCTYPE html>` when one was present. A tag before the doctype forces
+  quirks mode; worse, with no charset declared anywhere before it, Chromium
+  guessed windows-1252 and every em dash / curly apostrophe rendered as
+  mojibake (`—` → `â€"`) despite the bytes on disk being correct UTF-8 the
+  whole way through the build pipeline — costly to track down since it looks
+  exactly like data corruption, not a template bug. Fix: detect a leading
+  doctype and insert the stamp after it. Fragment templates (no doctype) are
+  unaffected. If you're authoring a standalone-document report, give
+  `report_src.html` a real `<!DOCTYPE html><html><head><meta charset="utf-8">
+  …</head><body>…</body></html>` shell — the fragment style in `template.html`
+  is for Artifact-published reports only.
+
 ## v0.7.0 — 2026-09-15
 
 - **`KitTrace` — a transcript viewer (`trace.js` + `trace.css`).** Clément, asking

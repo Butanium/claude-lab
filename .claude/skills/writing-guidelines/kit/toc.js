@@ -141,10 +141,13 @@ const KitToc = (() => {
   function build(nav, spec = {}) {
     audit();
     sameDocAnchors();
-    linkHeadings();
+    /* collect labels BEFORE linkHeadings(): it appends a "#" copy-link button
+       into each heading, and textContent read after that drags the "#" into
+       every TOC label */
     const items = spec.items ||
       [...document.querySelectorAll("h2[id], h3[id]")].map(h =>
-        ({ id: h.id, label: h.textContent, sub: h.tagName === "H3" }));
+        ({ id: h.id, label: h.textContent.trim(), sub: h.tagName === "H3" }));
+    linkHeadings();
     nav.classList.add("toc");
     const links = new Map();
     const groups = [];   /* { ids: Set, box: element } per children-item */

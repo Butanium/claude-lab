@@ -28,7 +28,10 @@
      { kind: "user"|"system"|"assistant"|"thinking"|"note", text, label?, evidence?, clamp? }
      { kind: "tool", name, input (string|object), output?, error?, label? }
      { kind: "judge", text, fields?: [[label, value]…], label? }
+     { kind: "group", label, blocks: [...], folded? }   — a foldable run of blocks
+       (a frozen prefix, a sub-agent's transcript), folded by default
      any block may carry `html` (trusted, report-authored) instead of `text`,
+     `cls` (extra class names for report-specific styling),
      and `folded: true|false` to override the fold-all default for itself. */
 "use strict";
 
@@ -42,7 +45,7 @@ const KitTrace = (() => {
     user: { label: "user" }, system: { label: "system", clamp: true },
     thinking: { label: "reasoning", fold: true }, assistant: { label: "assistant" },
     tool: { label: "tool", fold: true }, judge: { label: "judge", fold: true },
-    note: { label: "" },
+    note: { label: "" }, group: { label: "context", fold: true },
   };
   const FOLDABLE = ["thinking", "tool", "judge"];
   const firstLine = (s, n = 110) => {
@@ -56,7 +59,7 @@ const KitTrace = (() => {
     const kind = KINDS[b.kind] ? b.kind : "note";
     const K = KINDS[kind];
     const el = document.createElement("div");
-    el.className = `kb kb-${kind}` + (b.error ? " err" : "");
+    el.className = `kb kb-${kind}` + (b.error ? " err" : "") + (b.cls ? " " + b.cls : "");
     el.dataset.kind = kind;
     const foldable = !!K.fold && b.fold !== false;
     const head = document.createElement("div");
@@ -72,7 +75,8 @@ const KitTrace = (() => {
     }
     const sum = document.createElement("span");
     sum.className = "sum";
-    sum.textContent = kind === "tool" ? firstLine(asText(b.input)) : firstLine(b.text);
+    sum.textContent = kind === "group" ? `${(b.blocks || []).length} blocks`
+      : kind === "tool" ? firstLine(asText(b.input)) : firstLine(b.text);
     head.appendChild(sum);
     const hits = document.createElement("span");
     hits.className = "hits";
@@ -82,7 +86,9 @@ const KitTrace = (() => {
     const body = document.createElement("div");
     body.className = "kb-body";
     if (b.html != null) body.innerHTML = b.html;
-    else if (kind === "tool") {
+    else if (kind === "group") {
+      for (const c of b.blocks || []) body.appendChild(block(c, { folds }));
+    } else if (kind === "tool") {
       const sec = (label, text, clamp) => {
         const h = document.createElement("div"); h.className = "kb-sec"; h.textContent = label;
         body.appendChild(h);
@@ -112,7 +118,7 @@ const KitTrace = (() => {
     el.appendChild(body);
 
     /* hover-only copy of the block's raw text (markdown-ish, never the html) */
-    const raw = kind === "tool"
+    const raw = kind === "group" ? "" : kind === "tool"
       ? [b.input != null ? asText(b.input) : "", b.output != null ? asText(b.output) : ""].filter(Boolean).join("\n\n")
       : String(b.text ?? "");
     if (raw) {
@@ -131,7 +137,7 @@ const KitTrace = (() => {
 
     if (foldable) {
       el.classList.add("foldable");
-      const open = b.folded != null ? !b.folded : (folds[kind] ?? true);
+      const open = b.folded != null ? !b.folded : kind === "group" ? false : (folds[kind] ?? true);
       el.classList.toggle("folded", !open);
       head.setAttribute("role", "button");
       head.setAttribute("aria-expanded", String(open));
@@ -422,22 +428,25 @@ const KitTrace = (() => {
       const i = idx();
       if (i < 0) { outline.textContent = ""; details.textContent = ""; return; }
       const t = T(rows[i]), te = traceEl(sel);
-      const hits = te ? JSON.parse(te.dataset.hits || "[]") : [];
       outline.textContent = "";
-      (t.blocks || []).forEach((b, bi) => {
-        const kind = KINDS[b.kind] ? b.kind : "note";
+      /* read from the DOM, so nested blocks (groups) and their hit counts come
+         out in document order without a second walk over the spec */
+      (te ? [...te.querySelectorAll(".kb")] : []).forEach(kb => {
+        const kind = kb.dataset.kind;
+        const depth = (() => { let d = 0, p = kb.parentElement.closest(".kb"); while (p) { d++; p = p.parentElement.closest(".kb"); } return d; })();
+        const head = kb.querySelector(":scope > .kb-head");
+        const label = [...head.children].filter(c => !c.matches(".chev, .hits, .sum")).map(c => c.textContent).join(" ");
+        const sum = head.querySelector(".sum")?.textContent || "";
+        const n = kb.querySelectorAll("mark.hit").length;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = `kb-${kind}`;
+        btn.style.paddingLeft = (0.3 + depth * 0.8) + "rem";
         btn.title = "scroll to this block";
-        const s = kind === "tool" ? `${b.name ?? "tool"} — ${firstLine(asText(b.input), 70)}`
-          : `${b.label ?? KINDS[kind].label}${b.text ? " — " + firstLine(b.text, 70) : ""}`;
-        btn.innerHTML = `<span class="k"></span><span class="s">${esc(s)}</span>` +
-          (hits[bi] ? `<span class="h">${hits[bi]}</span>` : "");
+        btn.innerHTML = `<span class="k"></span><span class="s">${esc(label + (sum ? " — " + sum.slice(0, 70) : ""))}</span>` +
+          (n ? `<span class="h">${n}</span>` : "");
         btn.addEventListener("click", () => {
-          const kb = traceEl(sel)?.querySelectorAll(":scope > .kb")[bi];
-          if (!kb) return;
-          kb.classList.remove("folded");
+          for (let p = kb; p && p !== te; p = p.parentElement.closest(".kb")) p.classList.remove("folded");
           jumpTo(kb.offsetTop - scroll.offsetTop - 44);
           kb.classList.remove("hi-flash"); void kb.offsetWidth; kb.classList.add("hi-flash");
         });

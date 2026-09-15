@@ -60,7 +60,7 @@ so a smoke that needs one is a smoke nobody runs.
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
 | `explorer.js` | `KitExplorer.explorer` (filter bank of plain dropdowns — `multi: true` per dim for add-picker + chips — search with VS Code's Aa/ab/`.*` flags, count, random sample per filter change — `shuffle: false` for corpus order — draw-random re-roll, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure; and the reader's own filter/search state written back to the url, so any view they build by hand is a link) |
 | `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`); plus `linkHeadings` (auto-installed: click a section title to copy its deep link) and `copyText` |
-| `trace.css` + `trace.js` | `KitTrace.viewer` — transcript viewer: bounded inner-scroll box, rail of transcripts (fold/drag-resize), typed blocks (user / system / assistant / thinking / tool / judge / note) with per-kind fold + fold-all, mode `one` (j/k) or `all` (stacked), outline + details pane, search hits counted per block; plugs into the explorer as `view:` so filters, chart clicks and hashNav drive it. `KitTrace.trace(spec)` renders one transcript standalone |
+| `trace.css` + `trace.js` | `KitTrace.viewer` — transcript viewer: bounded inner-scroll box, rail of transcripts (fold/drag-resize), typed blocks (user / system / assistant / thinking / tool / judge / note, plus `group` — a folded run of blocks such as a frozen prefix) with per-kind fold + fold-all, mode `one` (j/k) or `all` (stacked), outline + details pane, search hits counted per block; plugs into the explorer as `view:` so filters, chart clicks and hashNav drive it. `KitTrace.trace(spec)` renders one transcript standalone |
 | `theme.js` | `KitTheme` — system/light/dark cycler, auto-mounted top-right of the sidebar panel's kicker |
 | `template.html` | report skeleton wiring all of it |
 | `kit_build.py` | `build(src, out, subs)` — inlines the kit, stamps the version, runs the build-time asserts |
@@ -74,6 +74,13 @@ so a smoke that needs one is a smoke nobody runs.
 - Scatter/small-multiples cap at 3 series (all-pairs validation), then fold to "Other".
 - Judge rubrics render as `.rubric` formatted prose — never a raw code-block dump.
 - Bootstrap in JS is always seeded.
+- **A report served standalone (not through the Artifact tool) needs its own
+  full `<!DOCTYPE html><html><head><meta charset="utf-8">…</head><body>…`**
+  shell in `report_src.html` — `template.html`'s fragment style relies on the
+  Artifact tool to supply the doctype/head/charset, and without a charset
+  declaration a plain HTTP/file:// load can get decoded as windows-1252
+  (em dashes/curly quotes render as mojibake) even though the bytes are
+  correct UTF-8. See CHANGELOG v0.7.1.
 - **Never inline a raw `data:image/svg+xml,<svg …>` URI** (favicon or image) —
   it publishes and renders fine but blocks *sharing* the artifact. Base64-encode
   it (`data:image/svg+xml;base64,…`). See CHANGELOG v0.6.7.

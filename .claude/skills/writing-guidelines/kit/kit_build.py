@@ -114,8 +114,19 @@ def build(src: str | Path, out: str | Path, subs: dict[str, str] | None = None,
     # stale on the report that prompted this module. Strips ALL prior stamps —
     # leaving a second, older one behind is the exact failure being designed out.
     text = META_RE.sub("", STAMP_RE.sub("", text))
-    text = (f"<!-- clab-report-kit v{v} · built {date.today()} -->\n"
-            f'<meta name="generator" content="clab-report-kit {v}">\n' + text)
+    stamp = (f"<!-- clab-report-kit v{v} · built {date.today()} -->\n"
+             f'<meta name="generator" content="clab-report-kit {v}">\n')
+    # A template that is a full standalone document (its own <!DOCTYPE html>,
+    # for a report meant to be opened directly / served with no Artifact
+    # wrapper) must keep that doctype first: a <meta> token before it forces
+    # the browser into quirks mode, and — worse — a template with no <meta
+    # charset> of its own (the Artifact-fragment templates rely on the tool
+    # to supply one) then has no charset declaration before content the
+    # browser must decode, so it guesses windows-1252 and every em dash /
+    # curly quote renders as mojibake. Insert the stamp after the doctype
+    # instead of before it; fragment templates (no doctype) are unaffected.
+    m = re.match(r"\s*<!doctype[^>]*>\s*\n?", text, re.I)
+    text = text[:m.end()] + stamp + text[m.end():] if m else stamp + text
 
     # on the finished page: a substituted value can carry one in (a favicon built
     # by the report, an inlined image), and it is the published page that fails
