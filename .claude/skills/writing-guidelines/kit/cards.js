@@ -281,7 +281,18 @@ const KitCards = (() => {
     el.appendChild(head);
     if (spec.prompt) {
       const p = document.createElement("div");
-      p.className = "prompt-box"; p.textContent = spec.prompt;
+      /* promptRendered: the prompt is the RENDERED token string a model received, not the
+         user's sentence — set it in mono and tint the chat-template markers, so the reader
+         can see the template and the trailing prefill as part of the input rather than
+         reading `<｜Assistant｜><think>Hmm,` as if it were prose. */
+      if (spec.promptRendered) {
+        p.className = "prompt-box rendered-prompt";
+        p.innerHTML = esc(spec.prompt).replace(
+          /(&lt;\|[^|\n]*\|&gt;|&lt;｜[^｜\n]*｜&gt;|&lt;\/?think&gt;|\[\/?INST\])/g,
+          '<span class="tmpl">$1</span>');
+      } else {
+        p.className = "prompt-box"; p.textContent = spec.prompt;
+      }
       el.appendChild(p);
     }
     for (const pane of spec.panes || []) {

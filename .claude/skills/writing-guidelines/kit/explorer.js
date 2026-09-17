@@ -178,6 +178,7 @@ const KitExplorer = (() => {
        search: [...] | {fields, scopes},  // see searchScopes above
        render: row => Element,    // card factory
        pageSize: 12, drawN: 5,
+       sort: [{key, label}],      // numeric fields the reader can order by ("random" default)
        shuffle: true,             // false = corpus order (ranked rows)
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
      }) → { refresh, set, state, onChange } */
@@ -236,8 +237,54 @@ const KitExplorer = (() => {
           input.value = v; state[key] = Number(input.value); setLabel();
         } };
         wrap.append(label, input);
-        dimRow.appendChild(wrap); inputs.push(input);
+        /* a range dim honours `advanced` like a select one: a slider that is inert for
+           what the reader is looking at is the same clutter whatever its input type */
+        if (d.advanced) { advDims.push(key); advBody.appendChild(wrap); }
+        else dimRow.appendChild(wrap);
+        inputs.push(input);
       }
+    }
+
+    /* sort: [{key, label, dir?}] — order the shown rows by a numeric field instead of
+       drawing them at random. The random draw is the right default (a corpus is written
+       grouped, so its head is a skewed look at it), but "which rows are most extreme on
+       this measure" is a question the reader has as soon as a card carries a number, and
+       answering it by hand means re-running the analysis. Default option is "random",
+       so the explorer behaves exactly as before until the reader picks a field. */
+    const sortDefs = spec.sort || [];
+    let sortSel = null;
+    if (sortDefs.length) {
+      const wrap = document.createElement("div");
+      const label = document.createElement("label");
+      label.textContent = "sort";
+      sortSel = document.createElement("select");
+      const opts = [["", spec.shuffle === false ? "corpus order" : "random"]];
+      for (const s of sortDefs) {
+        opts.push([`${s.key}:desc`, `${s.label || s.key} — highest first`]);
+        opts.push([`${s.key}:asc`, `${s.label || s.key} — lowest first`]);
+      }
+      for (const [v, t] of opts) {
+        const o = document.createElement("option");
+        o.value = v; o.textContent = t; sortSel.appendChild(o);
+      }
+      sortSel.addEventListener("change", userUpdate);
+      wrap.append(label, sortSel);
+      dimRow.appendChild(wrap);
+    }
+    /* rows missing the field sort last in both directions: a null is "unknown", never
+       "the smallest", and burying it under the extremes would misread as data */
+    function applySort(rows) {
+      const v = sortSel?.value;
+      if (!v) return null;
+      const [key, dir] = v.split(":");
+      const sign = dir === "asc" ? 1 : -1;
+      return rows.slice().sort((a, b) => {
+        const x = a[key], y = b[key];
+        const xn = x === null || x === undefined || Number.isNaN(x);
+        const yn = y === null || y === undefined || Number.isNaN(y);
+        if (xn || yn) return xn && yn ? 0 : xn ? 1 : -1;
+        return sign * (y - x);
+      });
     }
 
     const scopes = searchScopes(search);
@@ -305,6 +352,10 @@ const KitExplorer = (() => {
     clearAll.className = "ex-clear";
     clearAll.addEventListener("click", () => {
       for (const k in dimByKey) dimByKey[k].clear();
+      /* ranges are filters, so "clear filters" has to return them to their defaults —
+         it used to leave a slider hiding rows with nothing on screen saying so */
+      for (const k in rangeByKey) rangeByKey[k].set(rangeByKey[k].def);
+      if (sortSel) sortSel.value = "";
       if (searchBox) searchBox.value = "";
       if (scopeSel) { scope = 0; scopeSel.value = "0"; }
       userUpdate();
@@ -324,11 +375,16 @@ const KitExplorer = (() => {
     el.append(controls, ...(advDims.length ? [advFold] : []), list);
 
     function syncChrome() {
-      const active = Object.values(dimByKey).reduce((n, d) => n + (d.chosen.size ? 1 : 0), 0)
+      /* a slider moved off its default is an active filter too — it was never counted,
+         so "clear filters" read as disabled while a range was hiding rows */
+      const engaged = k => (dimByKey[k] ? dimByKey[k].chosen.size > 0
+        : rangeByKey[k] ? String(state[k]) !== rangeByKey[k].def : false);
+      const active = Object.keys(dimByKey).filter(engaged).length
+        + Object.keys(rangeByKey).filter(engaged).length
         + (searchBox?.value.trim() ? 1 : 0);
       clearAll.textContent = active ? `clear ${active} filter${active > 1 ? "s" : ""}` : "clear filters";
       clearAll.disabled = !active;
-      const advActive = advDims.filter(k => dimByKey[k].chosen.size).length;
+      const advActive = advDims.filter(engaged).length;
       advSummary.textContent = advActive
         ? `more filters — ${advActive} active`
         : "more filters (experiment-specific)";
@@ -349,6 +405,8 @@ const KitExplorer = (() => {
     let view = [];
     let shown = pageSize;
     drawBtn.addEventListener("click", () => {
+      /* a re-roll contradicts an explicit sort, so it drops back to random first */
+      if (sortSel && sortSel.value) sortSel.value = "";
       view = KitStats.shuffle(matches());   /* re-roll, even when shuffle:false */
       shown = drawN;
       renderList();
@@ -401,7 +459,7 @@ const KitExplorer = (() => {
 
     function update() {   /* filter/search/set() entry: fresh draw + reset paging */
       const m = matches();
-      view = shuffled ? KitStats.shuffle(m) : m;
+      view = applySort(m) || (shuffled ? KitStats.shuffle(m) : m);
       shown = pageSize;
       syncChrome();
       renderList();
@@ -416,6 +474,7 @@ const KitExplorer = (() => {
       for (const k in dimByKey) if (dimByKey[k].chosen.size) f[k] = [...dimByKey[k].chosen];
       for (const k in rangeByKey)
         if (String(state[k]) !== rangeByKey[k].def) f[k] = String(state[k]);
+      if (sortSel?.value) f._sort = sortSel.value;
       const q = searchBox?.value.trim();
       if (q) {
         f._q = q;
@@ -437,7 +496,7 @@ const KitExplorer = (() => {
       if (host) {
         count.textContent = badRe ? "the regular expression doesn't compile"
           : m.length === 0 ? "0 samples match" : `${m.length} samples match`;
-        host.setRows(m, { hitRe, shuffled });
+        host.setRows(m, { hitRe, shuffled: shuffled && !sortSel?.value });
         return;
       }
       list.textContent = "";
@@ -447,8 +506,10 @@ const KitExplorer = (() => {
         return;
       }
       const rows = m.slice(0, shown);
+      const ordered = !!sortSel?.value;
       count.textContent = `${m.length} samples match` + (rows.length === m.length ? ""
-        : ` — showing ${rows.length}` + (shuffled ? " at random" : " (first)"));
+        : ` — showing ${rows.length}` +
+          (ordered ? " (top of the sort)" : shuffled ? " at random" : " (first)"));
       rows.forEach(r => {
         const card = render(r);
         /* highlight before it is in the document: one reflow, not one per mark */
@@ -525,6 +586,8 @@ const KitExplorer = (() => {
         scope = "_in" in filters ? Number([].concat(filters._in)[0]) || 0 : 0;
         if (scopeSel) scopeSel.value = String(scope);
       }
+      if (sortSel && ("_sort" in filters || !keepOthers))
+        sortSel.value = "_sort" in filters ? String([].concat(filters._sort)[0]) : "";
       host?.apply?.(filters);
       update();
     }

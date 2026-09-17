@@ -219,3 +219,10 @@ details.ex-adv > summary.has-active { color: var(--accent); font-weight: 600; }
   font: inherit; color: var(--ink); background: var(--paper);
   border: 1px solid var(--baseline); border-radius: 4px; padding: 0.25rem 0.45rem;
 }
+
+/* a RENDERED prompt (KitCards.card promptRendered): the token string a model actually
+   received. Mono, with chat-template markers tinted so template and prefill read as input. */
+.prompt-box.rendered-prompt {
+  font: 0.78rem/1.6 var(--mono); overflow-x: auto;
+}
+.prompt-box.rendered-prompt .tmpl { color: var(--accent); }

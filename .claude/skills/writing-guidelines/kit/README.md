@@ -55,10 +55,10 @@ so a smoke that needs one is a smoke nobody runs.
 | `tokens.css` | light+dark palette (validated dataviz default), fonts, spacing |
 | `layout.css` | page grid + sticky sidebar, prose, TL;DR/`.note`/`.lesson`, folds, tables, `.rubric`, print styles |
 | `cards.css` + `cards.js` | `KitCards.card/transcript`, chips, expand/collapse with overflow detection, judge-evidence highlight + digest |
-| `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/heatmap` — CI whiskers, n= tooltips, per-run overlays, per-bar ref overlays (◆/tick), shaded scatter regions, stacked-segment CIs + shaped hatch, low-n ⚠, ref lines, x/y axis titles, click-to-hide legends (`sharedLegend()` + `legendGroup()` for a row of panels), `select:` click-to-select with its two ⇧ gestures (complement of a bar, and the rows no bar covers), a11y |
+| `charts.css` + `charts.js` | `KitCharts.groupedBars/stackedBars/line/scatter/dotStrip/violin/heatmap/forest` — CI whiskers, n= tooltips, per-run overlays, per-bar ref overlays (◆/tick), shaded scatter regions, stacked-segment CIs + shaped hatch, low-n ⚠, ref lines, x/y axis titles, click-to-hide legends (`sharedLegend()` + `legendGroup()` for a row of panels), `select:` click-to-select with its two ⇧ gestures (complement of a bar, and the rows no bar covers), a11y |
 | `stats.js` | `KitStats.wilson/bootstrap(seeded)/shuffle/fmtPct` — for filter-reactive recompute only |
 | `filters.js` | `KitFilters` global filter store + fold-aware lazy rendering |
-| `explorer.js` | `KitExplorer.explorer` (filter bank of plain dropdowns — `multi: true` per dim for add-picker + chips — search with VS Code's Aa/ab/`.*` flags, count, random sample per filter change — `shuffle: false` for corpus order — draw-random re-roll, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure; and the reader's own filter/search state written back to the url, so any view they build by hand is a link) + `{not: [...]}` filters, resolved against the corpus so a chart can hand over a complement |
+| `explorer.js` | `KitExplorer.explorer` (filter bank of plain dropdowns — `multi: true` per dim for add-picker + chips — search with VS Code's Aa/ab/`.*` flags, count, random sample per filter change — `shuffle: false` for corpus order — draw-random re-roll, `sort:` to order by a numeric field, pagination, empty state) + `comparisonExplorer` (linked/split A/B) + `hashNav` (chart→explorer jumps as browser history: Back returns to the figure; and the reader's own filter/search state written back to the url, so any view they build by hand is a link) + `{not: [...]}` filters, resolved against the corpus so a chart can hand over a complement |
 | `toc.js` | `KitToc.build` — sidebar "On this page" nav with scroll-position highlight (styles in `layout.css`); plus `linkHeadings` (auto-installed: click a section title to copy its deep link) and `copyText` |
 | `trace.css` + `trace.js` | `KitTrace.viewer` — transcript viewer: bounded inner-scroll box, rail of transcripts (fold/drag-resize), typed blocks (user / system / assistant / thinking / tool / judge / note, plus `group` — a folded run of blocks such as a frozen prefix) with per-kind fold + fold-all, mode `one` (j/k) or `all` (stacked), outline + details pane, search hits counted per block; plugs into the explorer as `view:` so filters, chart clicks and hashNav drive it. `KitTrace.trace(spec)` renders one transcript standalone |
 | `theme.js` | `KitTheme` — system/light/dark cycler, auto-mounted top-right of the sidebar panel's kicker |
@@ -74,6 +74,12 @@ so a smoke that needs one is a smoke nobody runs.
 - Scatter/small-multiples cap at 3 series (all-pairs validation), then fold to "Other".
 - Judge rubrics render as `.rubric` formatted prose — never a raw code-block dump.
 - Bootstrap in JS is always seeded.
+- **A filter-reactive chart keeps a FIXED y axis** (floor 0, which is `frame()`'s
+  default, and a ceiling that does not depend on the filtered data). A `yMax`
+  recomputed from the current rows rescales on every slider step, so bar heights
+  stop being comparable across the positions the reader is dragging between —
+  the one comparison the slider exists to make. Pin the ceiling; let it grow
+  only to avoid clipping a whisker in an extreme small-n state.
 - **Captions never carry operating instructions** — no "hover for n", no "click
   a bar to read those rows". The figure says it itself: n= is in every tooltip,
   and a click handler gives its mark a pointer cursor plus a hint line in the

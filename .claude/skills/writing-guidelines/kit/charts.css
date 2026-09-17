@@ -73,3 +73,8 @@ body.kit-shift .kit-chart .kit-bg { cursor: crosshair; }
   display: block; margin-top: 0.3rem; padding-top: 0.25rem;
   border-top: 1px solid var(--border); color: var(--muted); font-size: 0.72rem;
 }
+
+/* violin: the density ribbon is a soft fill so the jittered dots and the median
+   tick stay the ink; the band is the reference span a row is read against */
+.kit-violin-body { fill-opacity: 0.20; stroke-opacity: 0.55; stroke-width: 1; }
+.kit-violin-band { fill: color-mix(in srgb, var(--muted) 16%, transparent); }

@@ -3,6 +3,34 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.7.7 — 2026-09-17
+
+- **`KitCharts.violin`** — one distribution per row: a Python-computed KDE ribbon,
+  jittered per-item dots (clickable into the explorer), and a median tick with its
+  bootstrap CI. Added for the LoRA-souping serving gate, where the finding is the
+  distribution's *shape* — a spike at exactly zero (identical Tinker calls) next to a
+  mass shifted a few hundred nats (adapter vs base) — which `forest`'s center+CI row
+  cannot show and `dotStrip` cannot place (its x is hardcoded to 0..1).
+  - Jitter is keyed on the dot's index, not its value: a spike where 60% of items sit
+    at exactly 0 would otherwise stack into a single invisible dot.
+  - `sameScale` (default true) gives every row one density height, so a tall spike
+    reads as commoner than a flat spread; `band: {lo, hi, label}` shades a reference
+    span (e.g. the noise floor) behind all rows.
+- **`KitCards.card({promptRendered: true})`** — renders the prompt as the token string
+  the model received (mono, chat-template markers and `<think>` tinted) instead of as
+  prose. The writing guidelines require showing the prompt verbatim; for a Tinker/vLLM
+  report "verbatim" includes `<｜Assistant｜><think>Hmm,`, which is unreadable set in the
+  body serif and indistinguishable from the user's own words.
+- **`KitExplorer.explorer({sort: [{key, label}]})`** — order the shown rows by a numeric
+  field instead of drawing them at random. A card that carries numbers invites "which
+  rows are most extreme on this one", and the only alternative was a min-slider, which
+  answers it by making the reader guess where the tail starts. Random stays the default;
+  the choice rides in the URL (`_sort`), and "draw random" drops back to random rather
+  than silently contradicting the order.
+- **Fixed: a range dim ignored `advanced`** (it always landed in the main filter row),
+  and **an engaged slider counted as no filter at all** — "clear filters" read as
+  disabled, and clearing left the slider still hiding rows.
+
 ## v0.7.6 — 2026-09-17
 
 - **A bar chart now answers set questions, not just "show me this bar".**

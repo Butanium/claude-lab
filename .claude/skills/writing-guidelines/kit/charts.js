@@ -1215,6 +1215,101 @@ const KitCharts = (() => {
     return { svg };
   }
 
+  /* ---- violin: one distribution per row — KDE ribbon + jittered dots + median CI ----
+     For per-item quantities where the SHAPE is the finding (a spike at zero next to a
+     shifted mass), which a forest row's center+CI cannot show. Densities are computed
+     upstream in Python like every other statistic here; this mark only draws them.
+     spec: { rows: [{label, full?, color?, values: [{v, id?, tip?}], kde: {x, y},
+                     median, lo, hi, n?}],
+             xMin?, xMax?, xFmt, xTitle, w, rowH, x0?, sameScale?,
+             band?: {lo, hi, label},        // shaded reference span, drawn behind
+             onDotClick?: (d, row) => …, clickHint? }
+     lo/hi are ABSOLUTE bounds of the median's CI. sameScale (default true) gives every
+     row one density height, so a tall spike reads as commoner than a flat spread; pass
+     false to normalise each row to its own peak. */
+  function violin(container, spec) {
+    const rows = spec.rows, LFS = spec.labelSize ?? 11;
+    const autoL = 24 + Math.max(0, ...rows.map(r => estTextWidth(r.label, LFS)));
+    const rowH = spec.rowH ?? 76, w = spec.w ?? 720;
+    const m = { t: 10, r: 18, b: 34, l: Math.max(120, autoL), ...spec.m };
+    if (spec.xTitle) m.b += 14;
+    const h = m.t + rows.length * rowH + m.b;
+    const all = rows.flatMap(r => [...r.values.map(d => d.v), ...(r.kde?.x ?? [])]);
+    const lo0 = Math.min(...all, ...(spec.band ? [spec.band.lo] : []));
+    const hi0 = Math.max(...all, ...(spec.band ? [spec.band.hi] : []));
+    const pad = (hi0 - lo0) * 0.04 || 0.5;
+    const xMin = spec.xMin ?? lo0 - pad, xMax = spec.xMax ?? hi0 + pad;
+    container.classList.add("kit-chart");
+    const svg = el("svg", { viewBox: `0 0 ${w} ${h}` });
+    const iw = w - m.l - m.r;
+    const X = v => m.l + ((v - xMin) / (xMax - xMin || 1)) * iw;
+    const fmt = spec.xFmt || (v => (v > 0 ? "+" : "") + v.toFixed(2));
+    niceTicks(xMin, xMax).forEach(v => {
+      svg.appendChild(el("line", { x1: X(v), x2: X(v), y1: m.t, y2: h - m.b, class: "gridline" }));
+      svg.appendChild(txt(X(v), h - m.b + 14, fmt(v), { "text-anchor": "middle", class: "num" }));
+    });
+    if (spec.band) {
+      svg.appendChild(el("rect", { x: X(spec.band.lo), y: m.t,
+        width: Math.max(1, X(spec.band.hi) - X(spec.band.lo)), height: h - m.b - m.t,
+        class: "kit-violin-band" }));
+      if (spec.band.label) svg.appendChild(txt((X(spec.band.lo) + X(spec.band.hi)) / 2, m.t - 1,
+        spec.band.label, { "text-anchor": "middle", class: "axis-title" }));
+    }
+    if (spec.x0 !== undefined)
+      svg.appendChild(el("line", { x1: X(spec.x0), x2: X(spec.x0), y1: m.t, y2: h - m.b, class: "refline" }));
+    /* one density height across rows: the peak of the spikiest row sets the scale */
+    const peak = Math.max(1e-12, ...rows.map(r => Math.max(0, ...(r.kde?.y ?? [0]))));
+    rows.forEach((row, ri) => {
+      const cy = m.t + ri * rowH + rowH / 2;
+      const color = row.color || seriesColor(ri);
+      const half = rowH * 0.30;
+      const lab = txt(m.l - 8, cy + LFS * 0.34, row.label,
+        { "text-anchor": "end", ...(LFS === 11 ? {} : { "font-size": LFS }) });
+      if (row.full && row.full !== row.label) { const ti = el("title"); ti.textContent = row.full; lab.appendChild(ti); }
+      svg.appendChild(lab);
+      if (row.kde && row.kde.x.length) {
+        const top = (spec.sameScale === false ? Math.max(1e-12, ...row.kde.y) : peak);
+        const up = row.kde.x.map((x, i) => `${X(x).toFixed(2)},${(cy - half * row.kde.y[i] / top).toFixed(2)}`);
+        const down = row.kde.x.map((x, i) => `${X(x).toFixed(2)},${(cy + half * row.kde.y[i] / top).toFixed(2)}`).reverse();
+        svg.appendChild(el("path", { d: `M${up.join("L")}L${down.join("L")}Z`,
+          class: "kit-violin-body" }, { fill: color, stroke: color }));
+      }
+      row.values.forEach((d, di) => {
+        /* index-keyed jitter, not value-keyed: identical values (a spike at 0) must
+           still spread, which dotStrip's value hash cannot do */
+        const j = (((di * 2654435761) % 1000) / 1000 - 0.5) * half * 1.15;
+        const tip = d.tip || `${row.full || row.label}: ${fmt(d.v)}`;
+        const dot = el("circle", { cx: X(d.v), cy: cy + j, r: 2.6, "fill-opacity": 0.5 }, { fill: color });
+        bindTip(dot, tip);
+        svg.appendChild(dot);
+        if (spec.onDotClick) {
+          const halo = el("circle", { cx: X(d.v), cy: cy + j, r: 8, "fill-opacity": 0 }, { fill: "#000" });
+          bindTip(halo, tip);
+          clickable(halo, spec, () => spec.onDotClick(d, row));
+          a11y(halo, tip.replace(/<[^>]+>/g, " "));
+          svg.appendChild(halo);
+        }
+      });
+      if (row.median !== undefined) {
+        if (row.lo !== undefined && row.hi !== undefined)
+          svg.appendChild(el("line", { x1: X(row.lo), x2: X(row.hi), y1: cy, y2: cy },
+            { stroke: "var(--ink)", strokeWidth: 3, strokeLinecap: "round" }));
+        const tick = el("line", { x1: X(row.median), x2: X(row.median), y1: cy - half, y2: cy + half },
+          { stroke: "var(--ink)", strokeWidth: 2 });
+        const stip = `<span class="tip-head">${row.full || row.label}</span><br>median ${fmt(row.median)}` +
+          (row.lo !== undefined ? ` [${fmt(row.lo)}, ${fmt(row.hi)}]` : "") +
+          ` · n=${row.n ?? row.values.length}`;
+        bindTip(tick, stip);
+        a11y(tick, stip.replace(/<[^>]+>/g, " "));
+        svg.appendChild(tick);
+      }
+    });
+    if (spec.xTitle) svg.appendChild(txt(m.l + iw / 2, h - 4, spec.xTitle,
+      { "text-anchor": "middle", class: "axis-title" }));
+    container.appendChild(svg);
+    return { svg, X };
+  }
+
   /* ---- forest: paired-contrast rows, CI whisker per row, reference line ----
      For "A − B" difference panels (paired bootstrap over scenarios/prompts).
      spec: { rows: [{label, full?, est, lo, hi, color?, tip?, n?}], x0 = 0,
@@ -1275,5 +1370,5 @@ const KitCharts = (() => {
            groupedStackedBars: interactive(groupedStackedBars, planSeries("segments")),
            line: interactive(line, planSeries("series")),
            scatter: interactive(scatter, planScatter),
-           dotStrip, heatmap, forest };
+           dotStrip, heatmap, forest, violin };
 })();
