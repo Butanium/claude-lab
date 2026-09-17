@@ -292,6 +292,34 @@ const KitCharts = (() => {
      that spec carries a toggle context (see `interactive`), every entry becomes a
      button that hides/shows its series. Entries stay <span>s either way — a report
      that reaches into the legend to relabel it does so through `span > span.sw`. */
+  /* The legend's 1rem assumes the SVG is scaled UP to its container (viewBox 720 →
+     ~1000px ≈ ×1.4, so an 11px mark label lands near 16px). A row of small multiples
+     breaks that assumption in the other direction — a 520-viewBox panel in a 490px
+     grid cell renders at ×0.94, where 11px stays 11px and a 1rem legend towers over
+     the axis text. So size the legend to the chart's ACTUAL rendered text instead of
+     to an assumed scale. Falls back to the stylesheet's 1rem when nothing is
+     measurable yet (a chart inside a closed <details> has zero width). */
+  function sizeToChart(legendEl, container) {
+    /* sharedLegend() mounts into its own empty wrapper, so the chart is a sibling of an
+       ancestor rather than a descendant — walk up a couple of levels before giving up */
+    let svg = null, node = container;
+    for (let i = 0; i < 3 && node && !svg; i++, node = node.parentElement)
+      svg = node.querySelector(".kit-chart svg") || node.querySelector("svg");
+    if (!svg) return;
+    const vb = svg.viewBox?.baseVal?.width;
+    if (!vb) return;
+    const fit = () => {
+      const w = svg.getBoundingClientRect().width;
+      if (!w) return;
+      /* 11px is .kit-chart text; never shrink below 11px on screen (unreadable) nor
+         grow past the 1rem the stylesheet would have used */
+      const px = Math.max(11, Math.min(16, (11 * w) / vb));
+      legendEl.style.fontSize = px.toFixed(1) + "px";
+    };
+    fit();
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(svg);
+  }
+
   function legend(container, items, spec = null) {
     if (items.length < 2) return;
     const ctx = spec && spec.__legend;
@@ -320,6 +348,7 @@ const KitCharts = (() => {
       div.appendChild(e);
     }
     container.appendChild(div);
+    sizeToChart(div, container);
   }
 
   /* ---- interactive legend: a click drops a series and re-draws ----

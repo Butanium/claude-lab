@@ -3,6 +3,17 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.7.8 — 2026-09-17
+
+- **A legend now sizes itself to the chart's rendered text.** `.kit-legend`'s `1rem`
+  silently assumed every chart is scaled UP to its container (viewBox 720 → ~1000px
+  ≈ ×1.4, so an 11px mark label lands near 16px). A row of small multiples breaks
+  that the other way — a 520-viewBox panel in a 490px grid cell renders at ×0.94,
+  where the legend towers over the axis labels. Clément, on the souping report:
+  "the bottom legend of the violin figure renders at a much larger font than the
+  axis text". `legend()` now measures its chart's actual scale (and re-measures on
+  resize), clamped to 11–16px, so the same call reads right at any panel width.
+
 ## v0.7.7 — 2026-09-17
 
 - **`KitCharts.violin`** — one distribution per row: a Python-computed KDE ribbon,
