@@ -3,6 +3,103 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.7.6 — 2026-09-17
+
+- **A bar chart now answers set questions, not just "show me this bar".**
+  Clément, on the kit: "would be nice if shift + click on a bar plot, if u
+  click on a subbar you get the complement if u click outside the bar you get
+  the rest that is None of the bars." Three gestures, on grouped, stacked and
+  grouped-stacked bars:
+  - click a mark → its rows (unchanged);
+  - ⇧ click a mark → the same slot with the mark's own dimension inverted
+    (segment SIDE_1 of prompt p3 → p3 with every other side);
+  - ⇧ click the plot area → the rows no mark covers: above a group's bars,
+    that group minus every value the chart plots; in the gutter between
+    groups, the groups the chart doesn't plot at all.
+- **A grouped bar's hit zone is its whole column** (deliberately — a 2% bar is
+  otherwise unhoverable), so the blank band above the bar belongs to a mark and
+  "⇧ click outside the bar" would have silently meant "⇧ click on it". Above
+  the bar's ink, the column hands the gesture back to its group, and the hint
+  line tracks the pointer to say which of the two you would get. Stacked bars
+  need none of this: a segment covers only its own slice, so the space above a
+  stack already is the background.
+- **The new `spec.select` is where this lives, and it inverts the old
+  contract**: `onBarClick` had the REPORT compute the filter, so set algebra
+  would have been re-derived per chart (and gotten subtly different each time).
+  `select.rows(d, s, group, sub) -> {dimKey: value}` says only what a mark
+  stands for; the chart infers which dimension the mark picks (the filter key
+  that varies between marks of one group) and which one the group picks, and
+  owns every complement from there. `onBarClick`/`onSegmentClick` still work
+  and now get a trailing `{shift, event}`; `select` takes over the click when
+  both are given.
+- **Negation travels as `{not: [...]}` and the EXPLORER resolves it**, against
+  the values the corpus actually has — so a complement lands as an ordinary
+  chip selection: visible, editable, and in the url like any other view. The
+  alternative (a second kind of filter state the reader can't see or undo)
+  would have made every complement a dead end. Two consequences worth knowing:
+  a dimension a chart may invert needs `multi: true`, and an empty complement
+  selects `__none__` — a value no row has — because an empty chip set reads as
+  "unconstrained", i.e. the whole corpus, the exact opposite of the ask.
+- **⇧ is the gate for the background gesture, and the background says nothing
+  until it is held** (cursor, tooltip). An always-live click target over every
+  blank pixel of a figure would have to advertise itself permanently, and a
+  figure is meant to be read, not operated. Same reason the mark's hint line
+  only switches to "⇧ click: every row but these" while ⇧ is down.
+- Gridlines no longer take pointer events: they sit above the background hit
+  zone, and a 1px line swallowing a click is indistinguishable from a dead
+  gesture.
+
+## v0.7.5 — 2026-09-17
+
+- **A bar overlay can carry its own CI (`ov.lo` / `ov.hi`).** A reference
+  diamond is often an ESTIMATE measured on other rows, not a constant, and
+  drawing it as a bare glyph hides that. Thin capless interval through the
+  diamond, same treatment a point's CI gets.
+- Presentation lesson behind it, worth reusing: **a baseline computed on a
+  different set of rows should not be a second bar.** Fig 3 of the Choosing
+  Activities report paired "share of flips toward the more-liked option"
+  (n = flips) with "where that would sit under the null" (n = consistent rows);
+  as two bars they read as two measurements of one thing and the differing n=
+  was unexplainable — Clément's question, verbatim: "i'm not sure i understand
+  what the null is here and why it has different n=". One bar plus a reference
+  overlay says which is measured and which is expected.
+
+## v0.7.4 — 2026-09-17
+
+- **`d.noClick` opts one bar out of `onBarClick`.** Immediately needed by the
+  change below: a figure that pairs an observed rate with a baseline had both
+  bars showing a pointer cursor and a "click to open these rows" hint, but only
+  the observed one led anywhere — the baseline is computed over rows the page
+  does not embed. A per-value flag is the right grain; the alternative (the
+  handler returning early) leaves the affordance lying about itself.
+- Reporting-level lesson from the same review, for whoever wires the next
+  chart→explorer jump: **the filter a bar opens must select the rows the bar's
+  own label names.** Fig 3's "flips toward the more-liked option" opened every
+  flip in the cell — the denominator, not the numerator — and nothing in the
+  explorer's filter bank said "more-liked", so the mismatch was invisible until
+  Clément clicked it. If a bar's value is a subset, the corpus needs a field
+  naming that subset, and the click sets it.
+
+## v0.7.3 — 2026-09-17
+
+- **TOC labels no longer end in "#".** `linkHeadings()` appends a `#` copy-link
+  button to every heading and runs unconditionally at load; a report that calls
+  `KitToc.build()` from inside an async callback (any page that gzip-decodes its
+  payload before rendering — i.e. most of them) therefore auto-collected labels
+  from headings that already carried the button, and every sidebar entry read
+  "… #". "Collect before linking" was never something such a report could
+  arrange, so the fix is `KitToc.headingText(h)`: strip `.h-link` from a clone,
+  then read the text. Used for the auto-collected labels and the button's own
+  aria-label; exported for anything else that needs a heading's words.
+- **A clickable mark says so in its own tooltip.** Clément, on the Choosing
+  Activities report: captions must not carry operating instructions ("Hover for
+  n. Click an observed bar to read those flips."). `KitCharts.clickable()` now
+  wires every click handler (bars, stacked segments, line/scatter points, dot
+  strips, heatmap cells) — pointer cursor, Enter/Space, and a faint "click to
+  open these rows" line appended to that mark's tooltip. `clickHint: "…"` on the
+  spec rewords it, `clickHint: false` drops it. Captions state what is plotted
+  and the CI method; the figure explains how to operate itself.
+
 ## v0.7.2 — 2026-09-15
 
 - **`KitTrace`: `group` blocks, and the outline reads the DOM.** Rebuilding the

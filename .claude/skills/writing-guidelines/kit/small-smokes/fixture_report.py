@@ -22,7 +22,8 @@ LONG = " ".join(f"Sentence number {i} of a block long enough to clamp."
 # the three chart shapes that carry a legend, and an explorer with one dimension
 # of each kind
 FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
-           '<div id="fig3"></div><div id="explorer"></div>')
+           '<div id="fig3"></div><div id="explorer"></div>'
+           '<div id="fig4"></div><div id="fig5"></div><div id="explorer2"></div>')
 BODY = "".join(
     f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
     f'<div style="height:900px"></div>'
@@ -41,6 +42,9 @@ TEMPLATE = """<title>kit behaviour fixture</title>
   <aside class="sidebar"><div class="panel">
     <span class="kicker">On this page</span>
     <nav id="toc"></nav>
+    <!-- a second TOC built LATE from auto-collected headings: the shape that
+         broke in v0.7.3 (labels picking up the "#" copy-link button) -->
+    <nav id="toc-auto"></nav>
   </div></aside>
   <main class="content">
     <h1>kit behaviour fixture</h1>
@@ -68,7 +72,9 @@ for (const g of GROUPS) for (const s of SERIES)
     values.push({ group: g, series: s.name, n: 40,
                   est: 0.2 + 0.1 * GROUPS.indexOf(g) + (s.name === "beta" ? 0.3 : 0) });
 KitCharts.groupedBars(document.getElementById("fig1"),
-  { groups: GROUPS, series: SERIES, values, yMax: 1, yFmt: KitCharts.pctFmt });
+  { groups: GROUPS, series: SERIES, values, yMax: 1, yFmt: KitCharts.pctFmt,
+    /* clickable bars: the hint line belongs in the tooltip, never in a caption */
+    onBarClick: (d, s, g) => { window.__lastBarClick = `${g}/${s.name}`; } });
 /* appended AFTER the chart: a legend toggle re-renders it, and the caller's own
    nodes must stay where the caller put them */
 document.getElementById("fig1").insertAdjacentHTML("beforeend",
@@ -103,7 +109,52 @@ const exApi = KitExplorer.explorer(document.getElementById("explorer"), {
   render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
 });
 window.exNav = KitExplorer.hashNav(exApi, { anchorId: "explorer" });
+
+/* spec.select's three gestures, over a corpus DELIBERATELY wider than the
+   chart: arm "w" and tag "r" exist in the rows and in no bar, so "the rows no
+   bar covers" is a non-empty answer rather than a vacuous one. */
+const rows2 = [], nOf = arm => (arm === "z" ? 2 : 4);
+for (const arm of ["x", "y", "z", "w"]) for (const tag of ["p", "q", "r"])
+  for (let k = 0; k < nOf(arm); k++) rows2.push({ arm, tag, text: `r2 ${arm}${tag}${k}` });
+const ex2 = KitExplorer.explorer(document.getElementById("explorer2"), {
+  data: rows2,
+  dims: [{ key: "arm", label: "arm", multi: true }, { key: "tag", label: "tag", multi: true }],
+  render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
+});
+const nav2 = KitExplorer.hashNav(ex2, { anchorId: "explorer2" });
+/* the same select spec on the other bar shape: grouped bars infer the mark's
+   dimension from the SERIES, stacked from the segment, and neither report says
+   which */
+KitCharts.groupedBars(document.getElementById("fig5"), {
+  groups: ["x", "y", "z"],
+  series: [{ name: "p" }, { name: "q" }],
+  values: ["x", "y", "z"].flatMap(g => [{ group: g, series: "p", est: 0.4, n: nOf(g) },
+                                        { group: g, series: "q", est: 0.6, n: nOf(g) }]),
+  yMax: 1, yFmt: KitCharts.pctFmt,
+  select: {
+    rows: (d, s, g) => ({ arm: g, tag: s.name }),
+    go: (filters, info) => { window.__lastSelect = info.mode; nav2.goto(filters); },
+  },
+});
+KitCharts.stackedBars(document.getElementById("fig4"), {
+  groups: ["x", "y", "z"],
+  segments: [{ name: "p" }, { name: "q" }],
+  /* z's stack is half-height, so the band above it is blank and in-column —
+     that is where the "none of these bars" gesture is aimed */
+  values: ["x", "y", "z"].flatMap(g => [{ group: g, segment: "p", count: nOf(g) },
+                                        { group: g, segment: "q", count: nOf(g) }]),
+  percent: false,
+  select: {
+    rows: (d, s, g) => ({ arm: g, tag: s.name }),
+    go: (filters, info) => { window.__lastSelect = info.mode; nav2.goto(filters); },
+  },
+});
 KitCards.observeShort();
+
+/* built last and asynchronously, from headings linkHeadings() has already
+   stamped with their "#" button — the arrangement every payload-decoding
+   report has, and the one that put a "#" on every sidebar label */
+Promise.resolve().then(() => KitToc.build(document.getElementById("toc-auto")));
 </script>
 """
 

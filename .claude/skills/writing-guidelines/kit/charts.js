@@ -75,10 +75,16 @@ const KitCharts = (() => {
     }
     return tipEl;
   }
-  function bindTip(target, html) {
+  /* `when` gates the tooltip on the live pointer event — the plot background
+     carries one that only exists while Shift is held, and a box that appeared
+     over every blank pixel of every chart would be noise. */
+  function bindTip(target, html, { when = null } = {}) {
     target.addEventListener("mousemove", e => {
+      if (when && !when(e)) { tip().style.display = "none"; return; }
       const t = tip();
-      t.innerHTML = typeof html === "function" ? html() : html;
+      const hint = (e.shiftKey && target.dataset?.hintShift) || target.dataset?.hint;
+      t.innerHTML = (typeof html === "function" ? html(e) : html) +
+        (hint ? `<span class="tip-hint">${hint}</span>` : "");
       t.style.display = "block";
       const r = t.getBoundingClientRect();
       let x = e.clientX + 14, y = e.clientY + 12;
@@ -89,6 +95,191 @@ const KitCharts = (() => {
     target.addEventListener("mouseleave", () => tip().style.display = "none");
     target.addEventListener("focus", () => { /* tooltip text also in aria-label */ });
   }
+  /* Wire a mark to a click handler: pointer cursor, Enter/Space, and a hint
+     line the mark's own tooltip picks up (bindTip reads dataset.hint at hover
+     time, so the order of the two calls doesn't matter). The hint is why a
+     caption never has to say "click a bar to read those rows" — figure
+     captions state what is plotted, not how to operate it. spec.clickHint
+     rewords the line; spec.clickHint = false drops it. */
+  const CLICK_HINT = "click to open these rows";
+  const SHIFT_HINT = "⇧ click: every row but these";
+  const OUTSIDE_HINT = "⇧ click: rows here that no bar covers";
+  function clickable(mark, spec, fire, shiftHint = null) {
+    mark.style.cursor = "pointer";
+    if (spec.clickHint !== false) {
+      mark.dataset.hint = spec.clickHint || CLICK_HINT;
+      if (shiftHint) mark.dataset.hintShift = shiftHint;
+    }
+    mark.addEventListener("click", fire);
+    mark.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(e); }
+    });
+  }
+
+  /* Shift is a live modifier here (it switches what a click means and what the
+     hint line says), so the page has to know it is held, not just read it off
+     the click. One document-level listener, a class on <body>: the background
+     hit zones take their cursor from it. */
+  let shiftWired = false;
+  function wireShift() {
+    if (shiftWired) return;
+    shiftWired = true;
+    const set = on => document.body.classList.toggle("kit-shift", on);
+    addEventListener("keydown", e => { if (e.key === "Shift") set(true); });
+    addEventListener("keyup", e => { if (e.key === "Shift") set(false); });
+    addEventListener("blur", () => set(false));
+  }
+
+  /* ---- click-to-select: a mark is a set of rows, and so is what it leaves out ----
+     `select` is the declarative alternative to onBarClick / onSegmentClick. The
+     report says which rows a mark stands for; the CHART owns the set algebra,
+     so the same three gestures work on every bar chart instead of each report
+     re-deriving them:
+
+       click                        rows of this mark
+       ⇧ click on a mark            the same slot, every other value of the
+                                    dimension the mark itself picks
+       ⇧ click on the plot area     the rows no mark covers — inside a group's
+                                    column, that group minus every value the
+                                    chart plots; outside every column, the
+                                    groups the chart doesn't plot at all
+
+     spec.select = {
+       rows(d, s, group, sub) -> {dimKey: value},   // required
+       go(filters, info),                           // required; info.mode is
+                                                    // "only" | "complement" | "outside"
+       key, groupKey,        // override the inferred dimensions
+       outside: false,       // drop the background gesture
+     }
+
+     The negated dimension is INFERRED as the filter key that varies between the
+     marks of one group (what a sub-bar picks) and the group key as the one that
+     varies between groups — so a report that already writes `rows` gets the
+     complement for free. Negation leaves here as `{not: [...]}` and the
+     explorer resolves it against the values the corpus actually has: a
+     complement lands as an ordinary chip selection the reader can see and edit.
+
+     Why ⇧ and not a plain click on the background: an invisible affordance over
+     every blank pixel of a figure would have to advertise itself (a cursor, a
+     tooltip) all the time, and the figure is meant to be read, not operated. */
+  function selectLayer(f, spec, cells, { label = l => String(l[0].group) } = {}) {
+    const S = spec.select;
+    if (!S || !S.rows || !S.go) return null;
+    cells = cells.filter(c => !c.d?.noClick);
+    for (const c of cells) c.filters = S.rows(c.d, c.s, c.group, c.sub) || {};
+    if (!cells.length) return null;
+    const keys = [...new Set(cells.flatMap(c => Object.keys(c.filters)))];
+    /* the unit the algebra works in is the SLOT — one stack, one group of bars
+       — not necessarily the x category: a chart with two stacks per category
+       has two, and "every other value here" means within the stack you clicked */
+    const byGroup = new Map();
+    for (const c of cells) {
+      const k = c.slot ?? c.group;
+      if (!byGroup.has(k)) byGroup.set(k, []);
+      byGroup.get(k).push(c);
+    }
+    const vals = (list, k) => [...new Set(list.map(c => c.filters[k]).filter(v => v !== undefined))];
+    const perGroup = [...byGroup.values()];
+    let markKey = S.key || keys.find(k => perGroup.some(g => vals(g, k).length > 1));
+    const groupKey = S.groupKey || keys.find(k => k !== markKey
+      && perGroup.every(g => vals(g, k).length === 1) && vals(cells, k).length > 1);
+    /* one mark per group (a plain bar chart): the bar IS its group, so the
+       dimension it picks is the group's */
+    if (!markKey) markKey = groupKey;
+    /* keys pinned to one value across `list` travel with the complement: a
+       chart drawn over one model stays inside that model when you invert it */
+    const constants = (list, skip) => Object.fromEntries(
+      keys.filter(k => !skip.includes(k) && vals(list, k).length === 1)
+          .map(k => [k, vals(list, k)[0]]));
+
+    /* viewBox units, via the live CTM: the svg is laid out responsively, so
+       its on-screen size is not the size the marks were placed in */
+    const at = (e, axis) => {
+      const ctm = f.svg.getScreenCTM();
+      if (!ctm || e.clientX === undefined) return NaN;
+      const p = f.svg.createSVGPoint();
+      p.x = e.clientX; p.y = e.clientY;
+      return p.matrixTransform(ctm.inverse())[axis];
+    };
+    /* A grouped bar's hit zone is its whole COLUMN on purpose — a 2% bar is
+       otherwise unhoverable and a click shouldn't demand pixel aim — so the
+       blank band above the bar belongs to a mark, and "⇧ click outside the
+       bar" would silently mean "⇧ click on it". Above the ink, the column
+       hands the gesture back to the group. (Stacked bars need none of this:
+       their segments cover only their own slice, so the space above a stack
+       already IS the background.) */
+    const aboveInk = (c, e) => c.inkTop != null && at(e, "y") < c.inkTop - PAD;
+
+    const info = (c, mode, event) => ({ mode, event, d: c?.d, s: c?.s, group: c?.group, sub: c?.sub });
+    function fire(c, e) {
+      const shift = !!(e && e.shiftKey);
+      if (shift && aboveInk(c, e)) {
+        const g = c.slot ?? c.group;
+        return S.go(outsideFilters(g), { ...info(c, "outside", e), group: c.group });
+      }
+      const v = c.filters[markKey];
+      if (!shift || !markKey || v === undefined)
+        return S.go({ ...c.filters }, info(c, "only", e));
+      S.go({ ...c.filters, [markKey]: { not: [v] } }, info(c, "complement", e));
+    }
+
+    /* A slot owns the full-height band ABOVE its bars (where "this group, but
+       none of these bars" is the obvious reading of a click) but not the gutter
+       between slots — that empty lane is what makes the chart-level "no bar at
+       all anywhere" reachable. PAD keeps the band forgiving at its edges. */
+    const PAD = 4;
+    const span = g => {
+      const l = byGroup.get(g);
+      return [Math.min(...l.map(c => c.gx0)) - PAD, Math.max(...l.map(c => c.gx1)) + PAD];
+    };
+    const groupAt = x => [...byGroup.keys()].find(g => {
+      const [a, b] = span(g);
+      return x >= a && x <= b;
+    });
+    const outsideFilters = g => g !== undefined
+      ? { ...constants(byGroup.get(g), [markKey]), [markKey]: { not: vals(byGroup.get(g), markKey) } }
+      : groupKey
+        ? { ...constants(cells, [markKey, groupKey]), [groupKey]: { not: vals(cells, groupKey) } }
+        : { ...constants(cells, [markKey]), [markKey]: { not: vals(cells, markKey) } };
+
+    function mount() {
+      if (S.outside === false || !markKey) return;
+      wireShift();
+      const bg = el("rect", { x: f.m.l, y: f.m.t, width: f.iw, height: f.ih,
+        class: "kit-bg" }, { fill: "transparent" });
+      f.svg.insertBefore(bg, f.svg.firstChild);
+      const atX = e => at(e, "x");
+      bindTip(bg, e => {
+        const g = groupAt(atX(e));
+        return g !== undefined
+          ? `<span class="tip-head">${label(byGroup.get(g))}</span><br>rows here that no bar covers`
+          : `rows that no bar in this chart covers`;
+      }, { when: e => e.shiftKey });
+      bg.addEventListener("click", e => {
+        if (!e.shiftKey) return;
+        const g = groupAt(atX(e));
+        S.go(outsideFilters(g), { ...info(null, "outside", e), group: g });
+      });
+    }
+    return { fire, mount, cells, aboveInk, shiftHint: markKey ? SHIFT_HINT : null };
+  }
+
+  /* build the layer, make every mark it kept clickable, add the background */
+  function wireSelect(f, spec, cells, opts) {
+    const sel = selectLayer(f, spec, cells, opts);
+    if (!sel) return null;
+    for (const c of sel.cells) if (c.hit) {
+      clickable(c.hit, spec, e => sel.fire(c, e), sel.shiftHint);
+      /* a full-height hit zone means two ⇧ gestures share one mark, so the
+         hint has to track the pointer rather than sit on the element */
+      if (c.inkTop != null && sel.shiftHint) c.hit.addEventListener("mousemove", e => {
+        c.hit.dataset.hintShift = sel.aboveInk(c, e) ? OUTSIDE_HINT : SHIFT_HINT;
+      });
+    }
+    sel.mount();
+    return sel;
+  }
+
   function a11y(mark, label) {
     mark.classList.add("mark");
     mark.setAttribute("tabindex", "0");
@@ -371,6 +562,7 @@ const KitCharts = (() => {
     const slot = bw / (series.length + 0.8);
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
     const y0 = f.y(Math.max(spec.yMin ?? 0, 0));
+    const cells = [];   /* one per drawn bar, for spec.select (see selectLayer) */
     /* A group's label sits under the bars that group actually draws, not under
        the middle of its slot. Empty slots are common — a series with no value
        here, or one the reader just hid from the legend — and a label centred on
@@ -458,15 +650,18 @@ const KitCharts = (() => {
         hit.addEventListener("mouseleave", () => glow(false));
         hit.addEventListener("focus", () => glow(true));
         hit.addEventListener("blur", () => glow(false));
-        /* onBarClick(value, seriesObj, groupName): opt-in — bars become
-           clickable (e.g. to drive an explorer filtered to that bar's rows) */
-        if (spec.onBarClick) {
-          hit.style.cursor = "pointer";
-          hit.addEventListener("click", () => spec.onBarClick(d, s, gname));
-          hit.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onBarClick(d, s, gname); }
-          });
-        }
+        /* onBarClick(value, seriesObj, groupName, ctx): opt-in — bars become
+           clickable (e.g. to drive an explorer filtered to that bar's rows).
+           ctx = {shift, event}; `spec.select` (see selectLayer) is the richer
+           path and takes over the click when both are given. */
+        /* d.noClick opts one bar out: a chart where only some bars lead
+           somewhere (an observed rate you can open, next to a baseline whose
+           rows aren't in the page) must not advertise a click on the others */
+        if (spec.onBarClick && !spec.select && !d.noClick)
+          clickable(hit, spec, e => spec.onBarClick(d, s, gname, { shift: !!e?.shiftKey, event: e }));
+        cells.push({ d, s, group: gname, hit,
+                     gx0: gx + bw * 0.12 + si * slot, gx1: gx + bw * 0.12 + (si + 1) * slot,
+                     inkTop: Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv) });
         f.svg.appendChild(hit);
         /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n).
            Stroke follows the bar's own color when the value overrides it
@@ -498,6 +693,13 @@ const KitCharts = (() => {
            kind: "diamond" | "tick"; the caption names the glyph. */
         (d.overlays || []).forEach(ov => {
           const cx = x + bwid / 2, oy = f.y(ov.y);
+          /* ov.lo/ov.hi: a reference level ESTIMATED from data (a baseline
+             measured on other rows) carries its own uncertainty, and hiding it
+             makes an estimate look like a constant. Capless and ink-colored,
+             like a point's CI. */
+          if (Number.isFinite(ov.lo))
+            f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: f.y(ov.lo), y2: f.y(ov.hi),
+              class: "whisker-dot" }));
           let mark;
           if (ov.kind === "tick") {
             mark = el("line", { x1: x - bwid * 0.08, x2: x + bwid * 1.08, y1: oy, y2: oy, "stroke-width": 2, "stroke-dasharray": "3 2" }, { stroke: "var(--ink-2)" });
@@ -512,6 +714,7 @@ const KitCharts = (() => {
       });
     });
     if (spec.baseline) refLine(f, spec.baseline);
+    wireSelect(f, spec, cells, { label: l => groupFull(l[0].group) });
     /* legendItems overrides the auto series-legend (e.g. when bars are colored
        by a per-value entity rather than by series) */
     legend(container, spec.legendItems || series.map((s, i) => ({ name: s.name, color: colorOf(s) })), spec);
@@ -546,6 +749,7 @@ const KitCharts = (() => {
     f.svg.appendChild(defs);
     const hatchFor = (color, shape) => makeHatch(defs, color, shape);
     const bw = f.iw / groups.length;
+    const cells = [];   /* one per drawn segment, for spec.select */
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw + bw * 0.18, bwid = bw * 0.64;
       const glabel = groupLabel(gname);
@@ -572,21 +776,19 @@ const KitCharts = (() => {
         const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
         a11y(rect, `${groupFull(gname)}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
         bindTip(rect, `<span class="tip-head">${groupFull(gname)} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
-        /* onSegmentClick(value, segment, groupName): opt-in, mirrors
+        /* onSegmentClick(value, segment, groupName, ctx): opt-in, mirrors
            groupedBars' onBarClick — a segment IS a set of rows, so clicking it
            can load exactly those. No enlarged hit zone here: unlike a 2% bar, a
-           thin segment has nowhere to grow into that isn't another segment. */
-        if (spec.onSegmentClick) {
-          rect.style.cursor = "pointer";
-          rect.addEventListener("click", () => spec.onSegmentClick(d, s, gname));
-          rect.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onSegmentClick(d, s, gname); }
-          });
-        }
+           thin segment has nowhere to grow into that isn't another segment.
+           ctx = {shift, event}; `spec.select` takes over the click if given. */
+        if (spec.onSegmentClick && !spec.select)
+          clickable(rect, spec, e => spec.onSegmentClick(d, s, gname, { shift: !!e?.shiftKey, event: e }));
+        cells.push({ d, s, group: gname, hit: rect, gx0: gx, gx1: gx + bwid });
         f.svg.appendChild(rect);
         acc += v;
       });
     });
+    wireSelect(f, spec, cells, { label: l => groupFull(l[0].group) });
     /* legendItems mirrors groupedBars: override the auto segment-legend, or
        pass [] to suppress it (e.g. the top chart of an aligned pair) */
     legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
@@ -634,6 +836,7 @@ const KitCharts = (() => {
        between groups, which must stay wider than the gap inside a pair or the
        pairing stops reading */
     const inner = bw * 0.64, gap = inner * 0.08;
+    const cells = [];   /* one per drawn segment, for spec.select */
     const sw = (inner - gap * (subs.length - 1)) / subs.length;
     groups.forEach((gname, gi) => {
       const gx = f.m.l + gi * bw + bw * 0.18;
@@ -669,19 +872,18 @@ const KitCharts = (() => {
           const head = `${groupFull(gname)} · ${subFull(sub)} · ${s.name}`;
           a11y(rect, `${head}: ${pct}% (${d.count}/${total})${ci}`);
           bindTip(rect, `<span class="tip-head">${head}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
-          if (spec.onSegmentClick) {
-            rect.style.cursor = "pointer";
-            const fire = () => spec.onSegmentClick(d, s, gname, sub);
-            rect.addEventListener("click", fire);
-            rect.addEventListener("keydown", e => {
-              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
-            });
-          }
+          /* ctx (shift/event) is the LAST argument here as everywhere, i.e.
+             the 5th: this chart's marks are identified by group AND sub */
+          if (spec.onSegmentClick && !spec.select)
+            clickable(rect, spec, e => spec.onSegmentClick(d, s, gname, sub, { shift: !!e?.shiftKey, event: e }));
+          cells.push({ d, s, sub, group: gname, hit: rect, slot: `${gname}\u0000${sub.name}`,
+                       gx0: x - gap / 2, gx1: x + sw + gap / 2 });
           f.svg.appendChild(rect);
           acc += v;
         });
       });
     });
+    wireSelect(f, spec, cells, { label: l => `${groupFull(l[0].group)} · ${subFull(l[0].sub)}` });
     legend(container, spec.legendItems || segments.map((s, i) =>
       ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
     return f;
@@ -733,12 +935,8 @@ const KitCharts = (() => {
         if (spec.onPointClick) {
           dot.removeAttribute("tabindex");
           dot.removeAttribute("role");
-          hit.style.cursor = "pointer";
           a11y(hit, label);
-          hit.addEventListener("click", () => spec.onPointClick(p, s));
-          hit.addEventListener("keydown", e => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onPointClick(p, s); }
-          });
+          clickable(hit, spec, () => spec.onPointClick(p, s));
         }
         hits.push(hit);
       });
@@ -865,13 +1063,9 @@ const KitCharts = (() => {
         dot.removeAttribute("tabindex");
         dot.removeAttribute("role");
         const hit = el("circle", { cx, cy, r: Math.max(r + 4, 9), "fill-opacity": 0 }, { fill: "#000" });
-        hit.style.cursor = "pointer";
         a11y(hit, label);
         bindTip(hit, tipHtml);
-        hit.addEventListener("click", () => spec.onPointClick(p));
-        hit.addEventListener("keydown", e => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onPointClick(p); }
-        });
+        clickable(hit, spec, () => spec.onPointClick(p));
         hits.push(hit);
       }
     });
@@ -920,9 +1114,8 @@ const KitCharts = (() => {
            widens the 3.5px dot's hit target to something clickable */
         if (spec.onDotClick) {
           const halo = el("circle", { cx: X(d.v), cy: dcy, r: 9, "fill-opacity": 0 }, { fill: "#000" });
-          halo.style.cursor = "pointer";
           bindTip(halo, d.tip || fmt(d.v));
-          halo.addEventListener("click", () => spec.onDotClick(d, row));
+          clickable(halo, spec, () => spec.onDotClick(d, row));
           svg.appendChild(halo);
         }
       });
@@ -1001,13 +1194,7 @@ const KitCharts = (() => {
       bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
       /* onCellClick(cell): opt-in, mirrors groupedBars' onBarClick — cells
          become clickable (e.g. to drive an explorer filtered to that cell) */
-      if (spec.onCellClick) {
-        rect.style.cursor = "pointer";
-        rect.addEventListener("click", () => spec.onCellClick(c));
-        rect.addEventListener("keydown", e => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); spec.onCellClick(c); }
-        });
-      }
+      if (spec.onCellClick) clickable(rect, spec, () => spec.onCellClick(c));
       svg.appendChild(rect);
       if (c.text !== undefined) {
         const dark = spec.diverging ? Math.abs(c.value) > 0.6 * Math.max(Math.abs(vMin), vMax) : (c.value - vMin) / (vMax - vMin || 1) > 0.6;

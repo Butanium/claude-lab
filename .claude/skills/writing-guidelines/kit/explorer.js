@@ -6,6 +6,14 @@
 "use strict";
 
 const KitExplorer = (() => {
+  /* The value no row has. `{not: [...]}` (see expand) resolves to the OTHER
+     values a dimension takes, and when a chart negates every value there are
+     none left — an empty chip set would read as "unconstrained" and show the
+     whole corpus, the opposite of what was asked. NONE is what an empty
+     complement selects instead, so the explorer says 0 rows and the chip says
+     why. */
+  const NONE = "__none__";
+
   const uniq = (data, key) =>
     [...new Set(data.map(r => r[key]).filter(v => v !== undefined && v !== null))]
       .sort((a, b) => (typeof a === "number" ? a - b : String(a).localeCompare(String(b))));
@@ -38,7 +46,8 @@ const KitExplorer = (() => {
   function makeDim(d, values, onChange) {
     const multi = !!d.multi;
     const chosen = new Set();
-    const optLabel = v => (d.optionLabel ? d.optionLabel(v) : String(v));
+    const optLabel = v => (String(v) === NONE ? "(no such rows)"
+                           : d.optionLabel ? d.optionLabel(v) : String(v));
     /* optionTitle: hover text for an option, its chip, and the picker once it is
        the chosen one. A dimension whose values are identifiers (`p3`, an arm code)
        is unreadable in the dropdown even when the report holds the text they
@@ -80,6 +89,10 @@ const KitExplorer = (() => {
         opt.title = optTitle(v);
         sel.appendChild(opt);
       }
+      /* a single-select dimension holding NONE has nothing in the list to show
+         as chosen, and the picker would silently fall back to displaying "all" */
+      if (!multi) for (const v of chosen)
+        if (!values.some(x => String(x) === String(v))) sel.appendChild(new Option(optLabel(v), String(v)));
       sel.value = multi ? "__all__" : ([...chosen][0] ?? "__all__");
       sel.title = multi || sel.value === "__all__" ? "" : optTitle(sel.value);
       if (!multi) return;
@@ -122,13 +135,18 @@ const KitExplorer = (() => {
       apply(vals) {
         chosen.clear();
         for (const v of [].concat(vals)) {
-          if (!known.has(String(v))) continue;
+          /* NONE is the one value that needn't be in the corpus: it is how an
+             empty complement stays empty. Dropping it would leave the dimension
+             unconstrained, i.e. "all rows" where the caller asked for none. */
+          if (!known.has(String(v)) && String(v) !== NONE) continue;
           chosen.add(String(v));
           if (!multi) break;
         }
         sync();
       },
       clear() { chosen.clear(); sync(); },
+      all: known,
+      multi,
     };
   }
 
@@ -453,6 +471,31 @@ const KitExplorer = (() => {
     host?.onChange?.(() => listener?.(getState()));
     update();
 
+    /* `{dimKey: {not: [v, ...]}}` -> every OTHER value that dimension takes.
+       Charts emit it for the shift-click gestures ("everything except this
+       bar", "the rows no bar covers"); resolving it HERE, against the values
+       the corpus actually has, is what lets a complement stay an ordinary chip
+       selection — visible, editable, and URL-encodable like any other view,
+       rather than a second kind of filter state the reader can't see.
+       Complement of a multi-valued dimension needs `multi: true`, or the
+       picker can only hold the first of the values it resolves to. */
+    function expand(filters) {
+      const out = {};
+      for (const k in filters) {
+        const v = filters[k];
+        if (!v || typeof v !== "object" || Array.isArray(v) || !("not" in v)) { out[k] = v; continue; }
+        const dim = dimByKey[k];
+        if (!dim) continue;
+        const drop = new Set([].concat(v.not).map(String));
+        const keep = [...dim.all].filter(x => !drop.has(x));
+        if (keep.length > 1 && !dim.multi)
+          console.warn(`KitExplorer: {not:} on single-select dim "${k}" resolves to ` +
+                       `${keep.length} values; mark the dim multi: true`);
+        out[k] = keep.length ? keep : [NONE];
+      }
+      return out;
+    }
+
     /* Programmatic filter drive (e.g. a chart's onBarClick filtering the
        explorer to that bar's rows). filters: {dimKey: value | [values]},
        plus the `_q`/`_in`/`_f` search keys getState() emits.
@@ -460,6 +503,7 @@ const KitExplorer = (() => {
        keepOthers is true: a chart click means "show me these rows", and a
        leftover query would quietly show fewer than the mark it came from. */
     function set(filters, { keepOthers = false } = {}) {
+      filters = expand(filters);
       for (const d of dims) {
         const dim = dimByKey[d.key];
         if (!dim) continue;
@@ -484,7 +528,7 @@ const KitExplorer = (() => {
       host?.apply?.(filters);
       update();
     }
-    return { refresh: update, set, state: getState, onChange: fn => { listener = fn; },
+    return { refresh: update, set, expand, state: getState, onChange: fn => { listener = fn; },
              keys: () => [...Object.keys(dimByKey), ...Object.keys(rangeByKey),
                           ...(host?.keys?.() || [])] };
   }
@@ -572,6 +616,10 @@ const KitExplorer = (() => {
     });
 
     function goto(filters, { from = null } = {}) {
+      /* resolve `{not: [...]}` before the hash is written, not after: the URL
+         has to carry the values the view ends up on, or Back/copy-link would
+         replay a complement the explorer already spent */
+      filters = api.expand ? api.expand(filters) : filters;
       const target = enc(filters);
       if (location.hash === target) {   /* same view again: no entry, just go */
         api.set(filters); scrollTo(anchorId); return;

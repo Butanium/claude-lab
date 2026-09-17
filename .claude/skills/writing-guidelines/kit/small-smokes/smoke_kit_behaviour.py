@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as td:
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
         pg.on("load", lambda _: loads.append(pg.evaluate("location.href")))
         pg.route("**/fixture*", lambda r: r.fulfill(
-            status=200, content_type="text/html", body=page_html))
+            status=200, content_type="text/html; charset=utf-8", body=page_html))
         pg.goto("https://example.test/fixture?__frame_t=TOKEN")
         pg.wait_for_timeout(600)
         start = pg.evaluate("location.href").split("#")[0]
@@ -86,6 +86,33 @@ with tempfile.TemporaryDirectory() as td:
             landed, kept = top(i), pg.evaluate("location.href").split("#")[0] == start
             check(f"#{i}", abs(landed) < 40 and kept, f"top={landed}px url-kept={kept}")
         check("no extra document loads", len(loads) == 1, f"loads={len(loads)}")
+
+        print("toc labels — built late, from headings that already carry '#'")
+        labels = pg.evaluate(
+            "() => [...document.querySelectorAll('#toc-auto a')].map(a => a.textContent)")
+        check("auto-collected the headings", len(labels) >= 8, f"{len(labels)} entries")
+        bad = [x for x in labels if "#" in x]
+        check("no '#' dragged in from the copy-link button", not bad, str(bad[:3]))
+        check("the copy-link buttons are still there",
+              pg.evaluate("() => document.querySelectorAll('h2 .h-link').length") >= 4)
+
+        print("clickable marks — the affordance is in the tooltip, not the caption")
+        bar = pg.locator("#fig1 svg rect[role=img]").first
+        bar.hover()
+        pg.wait_for_timeout(200)
+        hint = pg.evaluate(
+            "() => document.querySelector('.kit-tip .tip-hint')?.textContent || ''")
+        check("tooltip carries the click hint", "click" in hint.lower(), repr(hint))
+        check("pointer cursor on the mark",
+              pg.evaluate("() => getComputedStyle("
+                          "document.querySelector('#fig1 svg rect[role=img]')).cursor") == "pointer")
+        bar.click()
+        check("and the click fires", bool(pg.evaluate("() => window.__lastBarClick")),
+              str(pg.evaluate("() => window.__lastBarClick")))
+        nohint = pg.evaluate(
+            "() => [...document.querySelectorAll('#fig3 svg [role=img]')]"
+            ".every(m => !m.dataset.hint)")
+        check("a chart with no click handler has no hint", nohint)
 
         print("toc group — follows the reader until pinned")
         box = pg.locator("#toc .toc-children")
@@ -562,6 +589,105 @@ with tempfile.TemporaryDirectory() as td:
         card.click()
         pg.wait_for_timeout(300)
         check("a plain click still expands", expanded())
+
+        print("select — a mark, its complement, and what no mark covers")
+        pg.locator("#fig4").scroll_into_view_if_needed()
+        pg.wait_for_timeout(300)
+        # corpus: arm x/y/z/w * tag p/q/r; the chart plots arms x/y/z and tags
+        # p/q only, so every gesture below has a non-empty, distinct answer
+        shown2 = lambda: pg.evaluate(                                    # noqa: E731
+            "() => document.querySelector('#explorer2 .ex-count').textContent")
+        chips2 = lambda i: pg.evaluate(                                  # noqa: E731
+            "() => [...document.querySelectorAll('#explorer2 .ex-dim')"
+            f"[{i}].querySelectorAll('.ex-chip span:first-child')].map(e => e.textContent)")
+        seg = lambda i: pg.locator("#fig4 svg rect[role=img]").nth(i)    # noqa: E731
+
+        def shift_click(x, y):
+            """Mouse.click takes no modifiers — and holding the key for real is
+            what the kit's cursor/tooltip state reads anyway."""
+            pg.keyboard.down("Shift")
+            pg.mouse.click(x, y)
+            pg.keyboard.up("Shift")
+
+        def aim(fig):
+            """Every gesture jumps the page to the explorer, SMOOTHLY — a
+            bounding box read while that is still in flight aims at where the
+            figure was. Scroll back and let it stop before measuring."""
+            pg.locator(f"#{fig}").scroll_into_view_if_needed()
+            settled()
+
+        seg(0).click()                      # arm x, tag p
+        pg.wait_for_timeout(300)
+        check("plain click opens the mark's own rows",
+              shown2().startswith("4 samples") and chips2(0) == ["x"] and chips2(1) == ["p"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+
+        seg(0).click(modifiers=["Shift"])   # arm x, tag != p
+        pg.wait_for_timeout(300)
+        check("shift-click inverts the mark's own dimension",
+              shown2().startswith("8 samples") and chips2(0) == ["x"] and chips2(1) == ["q", "r"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+
+        check("the complement reaches the url as values, not as a negation",
+              "tag=q&tag=r" in pg.evaluate("() => decodeURIComponent(location.href)"),
+              pg.evaluate("() => location.hash"))
+
+        # the band above z's half-height stack: in z's column, on no bar
+        aim("fig4")
+        box = pg.locator("#fig4 svg rect[role=img]").nth(5).bounding_box()   # z / q
+        plot = pg.locator("#fig4 svg").bounding_box()
+        shift_click(box["x"] + box["width"] / 2, box["y"] - 20)
+        pg.wait_for_timeout(300)
+        check("shift-click above a stack: that group, none of its segments",
+              shown2().startswith("2 samples") and chips2(0) == ["z"] and chips2(1) == ["r"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+
+        # the gutter between two columns belongs to no group
+        aim("fig4")
+        gap = pg.locator("#fig4 svg rect[role=img]")
+        xb, yb = gap.nth(1).bounding_box(), gap.nth(2).bounding_box()
+        plot = pg.locator("#fig4 svg").bounding_box()
+        shift_click((xb["x"] + xb["width"] + yb["x"]) / 2, plot["y"] + plot["height"] / 2)
+        pg.wait_for_timeout(300)
+        check("shift-click between columns: the groups the chart doesn't plot",
+              shown2().startswith("12 samples") and chips2(0) == ["w"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+
+        # grouped bars: same three gestures, mark dimension inferred from the series
+        aim("fig5")
+        gb = lambda i: pg.locator("#fig5 svg rect[role=img]").nth(i)     # noqa: E731
+        gb(0).click()
+        pg.wait_for_timeout(300)
+        check("grouped: plain click", shown2().startswith("4 samples")
+              and chips2(0) == ["x"] and chips2(1) == ["p"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+        # a grouped bar's hit zone is its whole column, so WHERE in the column
+        # decides which gesture: on the bar's ink, its complement; above the
+        # ink, the group's "none of these bars"
+        # fractions of the measured box, not pixel offsets: the svg scales to
+        # the column, so a y in viewBox units lands somewhere else on screen
+        aim("fig5")
+        b0 = gb(0).bounding_box()
+        shift_click(b0["x"] + b0["width"] / 2, b0["y"] + b0["height"] * 0.95)
+        pg.wait_for_timeout(300)
+        check("grouped: shift-click on the ink inverts the series dimension",
+              shown2().startswith("8 samples") and chips2(1) == ["q", "r"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+        aim("fig5")
+        b4 = gb(4).bounding_box()
+        shift_click(b4["x"] + b4["width"] / 2, b4["y"] + b4["height"] * 0.05)
+        pg.wait_for_timeout(300)
+        check("grouped: shift-click above the ink: that group, none of its bars",
+              shown2().startswith("2 samples") and chips2(0) == ["z"] and chips2(1) == ["r"],
+              f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+
+        seg(0).hover(modifiers=["Shift"])
+        pg.wait_for_timeout(250)
+        hint2 = pg.evaluate(
+            "() => document.querySelector('.kit-tip .tip-hint')?.textContent || ''")
+        check("holding shift rewrites the mark's hint line", "\u21e7" in hint2, repr(hint2))
+        check("and the background says what it would open", pg.evaluate(
+            "() => !!document.querySelector('#fig4 .kit-bg')"))
 
         check("no console errors", not errs, str(errs[:2]))
 

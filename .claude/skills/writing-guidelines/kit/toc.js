@@ -45,6 +45,18 @@ const KitToc = (() => {
      `?__frame_t=`, having loaded `?__frame_t=…` a moment earlier. `location.hash`
      can only touch the fragment of the url we are already on, so it is always a
      same-document navigation — and the browser still does the scrolling. */
+  /* A heading's own text, with the "#" copy-link button linkHeadings() appends
+     left out. Read h.textContent directly and every label picks up a trailing
+     "#" — which is what happened whenever a report built its TOC from inside an
+     async callback (the module-level linkHeadings() below has already run by
+     then, so "collect before linking" is not something a report can arrange).
+     Anything that needs a heading's words goes through here. */
+  function headingText(h) {
+    const c = h.cloneNode(true);
+    for (const b of c.querySelectorAll(".h-link")) b.remove();
+    return c.textContent.trim();
+  }
+
   let anchorsBound = false;
   function sameDocAnchors() {
     if (anchorsBound) return;
@@ -112,7 +124,7 @@ const KitToc = (() => {
       mark.className = "h-link";
       mark.textContent = "#";
       mark.title = "copy a link to this section";
-      mark.setAttribute("aria-label", `copy a link to "${h.textContent.trim()}"`);
+      mark.setAttribute("aria-label", `copy a link to "${headingText(h)}"`);
       h.appendChild(mark);
       let downX = 0, downY = 0;
       h.addEventListener("pointerdown", e => { downX = e.clientX; downY = e.clientY; });
@@ -141,12 +153,9 @@ const KitToc = (() => {
   function build(nav, spec = {}) {
     audit();
     sameDocAnchors();
-    /* collect labels BEFORE linkHeadings(): it appends a "#" copy-link button
-       into each heading, and textContent read after that drags the "#" into
-       every TOC label */
     const items = spec.items ||
       [...document.querySelectorAll("h2[id], h3[id]")].map(h =>
-        ({ id: h.id, label: h.textContent.trim(), sub: h.tagName === "H3" }));
+        ({ id: h.id, label: headingText(h), sub: h.tagName === "H3" }));
     linkHeadings();
     nav.classList.add("toc");
     const links = new Map();
@@ -230,5 +239,5 @@ const KitToc = (() => {
     addEventListener("DOMContentLoaded", () => linkHeadings());
   else linkHeadings();
 
-  return { build, sameDocAnchors, linkHeadings, copyText, pageLink };
+  return { build, sameDocAnchors, linkHeadings, headingText, copyText, pageLink };
 })();

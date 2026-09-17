@@ -57,6 +57,7 @@ One trap when you write a report, is to write it for yourself: which things you 
 - Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
 - Optimize figures for clarity, which is not the same as simplicity — a well-organized multi-panel composite often reads better than several scattered simple figures. And look at the rendered output: no overlapping titles/axes/labels ("it rendered without errors" is not "it reads well").
 - Prefer interactive plots over tables for any numerical comparison — tables of numbers are hard to read
+- Captions never tell the reader how to operate the figure — no "hover for n", no "click a bar to read those rows". A caption says what is plotted, the CI method, and what to notice. The figure carries its own affordances (pointer cursor, the n= in the tooltip, the kit's `clickHint` line).
 - Plot must be interactive and have an hover text stating how many samples are used to compute the datapoint. This is particularly useful when we will filter the data according to some criteria like coherence which might dramatically change the number of samples used to compute the datapoint (and vary across different datapoints)
 - Always add a global slider (preferably as a sticky component on the left side of the page) that allows to filter the data according to some criteria like a min coherence slider.
 - When showing aggregated data, add foldable sections with disaggregated views (per-prompt, per-model, etc.) so readers can spot outliers
@@ -134,6 +135,12 @@ Embed the **full corpus** by default — the explorer exists to *find* the weird
 - every hover tooltip shows the n= behind the datapoint (it changes under filtering)
 - per-run values overlay the aggregate bars as points
 - charts re-render from the filtered dataset when a global filter moves
+- a chart that drives the explorer uses `select: {rows, go}`, not `onBarClick`:
+  the report says which rows a mark stands for and the chart owns the set
+  algebra, which is what gives every bar chart the same three gestures —
+  click a mark, ⇧-click it for everything else in that slot, ⇧-click the plot
+  area for the rows no mark covers. Dimensions a chart may invert need
+  `multi: true` on the explorer side.
 
 Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex figures (3D, dense linked brushing) — never the default. A clear static figure with a good caption still beats a buggy interactive widget.
 
