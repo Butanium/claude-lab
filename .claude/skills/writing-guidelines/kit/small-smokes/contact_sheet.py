@@ -9,12 +9,17 @@ screenshot does not know what the author expected.
 Use it while building an interaction, before showing anyone: open the sheet, look
 at the states, fix what looks wrong. Then paste the sheet instead of "ALL PASS".
 
-ONE IMAGE PER CHART, not one per state. The first version wrote 26 loose PNGs for a
-seven-chart report, which costs an agent 26 reads to look at — Clément, immediately:
-"is it like all different files? how many turns does it take you to read all that?"
-The states of one chart belong side by side anyway, since what you are checking is
-how they differ. Working on a single figure: `--only fig-gap` gives you exactly one
-image to look at.
+OUTPUT IS ONE IMAGE. `sheet.png` holds every chart in every state — a seven-chart
+report lands at ~2400x2600, which survives the downscale well enough to see which
+bar a wash is on and which tooltip is up. That is the whole cost of looking: one
+read. (Two earlier cuts got this wrong: 26 loose PNGs, then one strip per chart,
+both because I assumed a full sheet would be unreadable instead of rendering one and
+checking. Clément asked "why not 1 sheet with all images?" and the answer was that it
+works fine.)
+
+Per-chart strips (`NN-<id>.png`) and full-resolution per-state frames (`states/`) are
+written too, for when a detail is too small on the sheet — a torn edge, a hairline.
+`--only fig-gap` while iterating on one figure.
 
     uv run --no-project --with playwright python small-smokes/contact_sheet.py \
         path/to/report.html [--out DIR] [--only fig-gap,fig-int] [--open]
@@ -173,6 +178,21 @@ def main():
         b.close()
 
     cells = "\n".join(f'<section><img src="{f}"></section>' for _, f in rows)
+    whole = None
+    if len(rows) > 1:
+        sheet = out / "_sheet.html"
+        sheet.write_text("<!doctype html><meta charset=utf-8>"
+                         "<style>body{margin:0;background:#fff}img{display:block;width:100%}</style>"
+                         + "".join(f'<img src="{f}">' for _, f in rows))
+        with sync_playwright() as pw:
+            b = pw.chromium.launch()
+            pg = b.new_page(viewport={"width": 2400, "height": 900})
+            pg.goto("file://" + str(sheet))
+            pg.wait_for_timeout(400)
+            pg.locator("body").screenshot(path=str(out / "sheet.png"))
+            b.close()
+        sheet.unlink()
+        whole = "sheet.png"
     (out / "index.html").write_text(f"""<!doctype html><meta charset=utf-8>
 <title>{html.escape(report.name)} — interaction states</title>
 <style>
@@ -187,6 +207,8 @@ def main():
 {cells}
 """)
     print(f"\n{out / 'index.html'}")
+    if whole:
+        print(f"  {out / whole}   <- every chart, one image")
     for _, f in rows:
         print(f"  {out / f}")
     if errs:
