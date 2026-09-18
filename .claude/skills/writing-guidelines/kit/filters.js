@@ -29,6 +29,18 @@ const KitFilters = (() => {
     update();
   }
 
+  /* wire an <input type=checkbox> to the store; the checkbox's own `checked`
+     attribute in the HTML is the initial value, so the markup stays the single
+     place a default is written */
+  function bindCheckbox(input, store, key, { readout, readoutEl } = {}) {
+    const update = () => {
+      store.set(key, input.checked);
+      if (readoutEl && readout) readoutEl.textContent = readout(input.checked, store.state);
+    };
+    input.addEventListener("change", update);
+    update();
+  }
+
   function bindSelect(select, store, key, { readout, readoutEl } = {}) {
     const update = () => {
       store.set(key, select.value);
@@ -65,5 +77,5 @@ const KitFilters = (() => {
     else run();
   }
 
-  return { createFilters, bindRange, bindSelect, lazyRender, renderOnOpen, reactive };
+  return { createFilters, bindRange, bindCheckbox, bindSelect, lazyRender, renderOnOpen, reactive };
 })();

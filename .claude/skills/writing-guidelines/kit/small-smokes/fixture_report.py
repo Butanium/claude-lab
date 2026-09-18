@@ -74,7 +74,8 @@ for (const g of GROUPS) for (const s of SERIES)
 KitCharts.groupedBars(document.getElementById("fig1"),
   { groups: GROUPS, series: SERIES, values, yMax: 1, yFmt: KitCharts.pctFmt,
     /* clickable bars: the hint line belongs in the tooltip, never in a caption */
-    onBarClick: (d, s, g) => { window.__lastBarClick = `${g}/${s.name}`; } });
+    select: { rows: (d, s, g) => ({ group: g, series: s.name }),
+              go: (f) => { window.__lastBarClick = `${f.group}/${f.series}`; } } });
 /* appended AFTER the chart: a legend toggle re-renders it, and the caller's own
    nodes must stay where the caller put them */
 document.getElementById("fig1").insertAdjacentHTML("beforeend",

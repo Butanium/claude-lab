@@ -193,7 +193,8 @@ with tempfile.TemporaryDirectory() as td:
         # blank canvas
         label_offsets = """() => {
           const bars = [...document.querySelectorAll('#fig1 rect')]
-            .filter(r => !r.classList.contains('halo') && !r.classList.contains('mark'))
+            .filter(r => !r.classList.contains('halo') && !r.classList.contains('mark')
+                         && !r.classList.contains('kit-bg'))
             .map(r => r.getBBox());
           const labels = [...document.querySelectorAll('#fig1 text')]
             .filter(t => /^g[0-9]$/.test(t.textContent))

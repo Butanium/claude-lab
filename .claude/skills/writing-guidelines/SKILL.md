@@ -135,12 +135,12 @@ Embed the **full corpus** by default — the explorer exists to *find* the weird
 - every hover tooltip shows the n= behind the datapoint (it changes under filtering)
 - per-run values overlay the aggregate bars as points
 - charts re-render from the filtered dataset when a global filter moves
-- a chart that drives the explorer uses `select: {rows, go}`, not `onBarClick`:
-  the report says which rows a mark stands for and the chart owns the set
-  algebra, which is what gives every bar chart the same three gestures —
-  click a mark, ⇧-click it for everything else in that slot, ⇧-click the plot
-  area for the rows no mark covers. Dimensions a chart may invert need
-  `multi: true` on the explorer side.
+- a mark is made clickable with `select: {rows, go}` — the report says which
+  rows a mark stands for, the chart owns the set algebra. That is what gives
+  every chart the same gestures: click a mark, ⇧-click it for everything else
+  in that slot, and on the bar charts ⇧-click the plot area for the rows no
+  mark covers. Dimensions a chart may invert need `multi: true` on the
+  explorer side.
 
 Inlining `plotly.min.js` (~4.5 MB) is the escape hatch for genuinely complex figures (3D, dense linked brushing) — never the default. A clear static figure with a good caption still beats a buggy interactive widget.
 

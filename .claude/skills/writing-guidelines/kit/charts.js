@@ -131,10 +131,10 @@ const KitCharts = (() => {
   }
 
   /* ---- click-to-select: a mark is a set of rows, and so is what it leaves out ----
-     `select` is the declarative alternative to onBarClick / onSegmentClick. The
-     report says which rows a mark stands for; the CHART owns the set algebra,
-     so the same three gestures work on every bar chart instead of each report
-     re-deriving them:
+     `select` is how a mark becomes clickable — the only way, on every chart
+     type. The report says which rows a mark stands for; the CHART owns the set
+     algebra, so the same gestures work everywhere instead of each report
+     re-deriving them (and mostly not bothering):
 
        click                        rows of this mark
        ⇧ click on a mark            the same slot, every other value of the
@@ -151,6 +151,20 @@ const KitCharts = (() => {
        key, groupKey,        // override the inferred dimensions
        outside: false,       // drop the background gesture
      }
+
+     What (d, s, group, sub) are, per chart — the arguments each one's marks
+     naturally have, so a handler reads the same as the old callback's body:
+       groupedBars        (value, series, group)
+       stackedBars        (value, segment, group)
+       groupedStackedBars (value, segment, group, sub)
+       line               (point, series)     · group is the point's x
+       scatter            (point)             · group is its label / id
+       dotStrip, violin   (dot, row)          · group is the row's label
+       heatmap            (cell)              · group is the cell's row
+
+     The background gesture needs columns to resolve "here" against, so it is
+     live on the bar charts and on `line`; a scatter or a heatmap gets the two
+     mark gestures.
 
      The negated dimension is INFERRED as the filter key that varies between the
      marks of one group (what a sub-bar picks) and the group key as the one that
@@ -242,8 +256,12 @@ const KitCharts = (() => {
         ? { ...constants(cells, [markKey, groupKey]), [groupKey]: { not: vals(cells, groupKey) } }
         : { ...constants(cells, [markKey]), [markKey]: { not: vals(cells, markKey) } };
 
+    /* The background gesture needs COLUMNS to resolve "here" against, and a
+       frame to cover: bars and their kin pass gx0/gx1, a scatter has no such
+       structure and gets the two mark gestures only. */
     function mount() {
       if (S.outside === false || !markKey) return;
+      if (!(f.iw > 0) || !cells.some(c => Number.isFinite(c.gx0))) return;
       wireShift();
       const bg = el("rect", { x: f.m.l, y: f.m.t, width: f.iw, height: f.ih,
         class: "kit-bg" }, { fill: "transparent" });
@@ -621,7 +639,9 @@ const KitCharts = (() => {
         if (!d) return;
         const x = gx + bw * 0.12 + si * slot;
         const bwid = slot * 0.82;
-        const yv = f.y(d.est);
+        /* same clamp as the whiskers: a value above a fixed ceiling draws a
+           full-height bar rather than painting over the chart's own margins */
+        const yv = Math.max(f.m.t, Math.min(f.m.t + f.ih, f.y(d.est)));
         const low = lowN && d.n !== undefined && d.n < lowN;
         const fmt = spec.yFmt || String;
         /* a value may override its own fill / opacity / hatch — e.g. a risk bar
@@ -639,11 +659,20 @@ const KitCharts = (() => {
         }, { fill: d.hatch ? makeHatch(defs, fillColor, typeof d.hatch === "string" ? d.hatch : "/") : fillColor,
              fillOpacity: d.op ?? 1 });
         f.svg.appendChild(bar);
+        /* whiskers are clamped to the plot area, and a clamped end loses its
+           cap — so an interval running past the ceiling reads as "continues"
+           rather than "ends here". Without this, a chart with a deliberately
+           fixed yMax (the one thing that makes bar heights comparable across
+           filter positions) has to grow its axis for any filtered cell with a
+           wide interval, which is exactly the rescaling it was fixed to avoid. */
         if (Number.isFinite(d.lo)) {
-          const cx = x + bwid / 2;
-          f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: f.y(d.lo), y2: f.y(d.hi), class: "whisker" }));
-          f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(d.lo), y2: f.y(d.lo), class: "whisker" }));
-          f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: f.y(d.hi), y2: f.y(d.hi), class: "whisker" }));
+          const cx = x + bwid / 2, lim = v => Math.max(f.m.t, Math.min(f.m.t + f.ih, v));
+          const yl = f.y(d.lo), yh = f.y(d.hi);
+          f.svg.appendChild(el("line", { x1: cx, x2: cx, y1: lim(yl), y2: lim(yh), class: "whisker" }));
+          if (lim(yl) === yl)
+            f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: yl, y2: yl, class: "whisker" }));
+          if (lim(yh) === yh)
+            f.svg.appendChild(el("line", { x1: cx - 3, x2: cx + 3, y1: yh, y2: yh, class: "whisker" }));
         }
         /* showN: permanent small n= label above the whisker/bar top. Neighbors
            at similar heights collide (a fixed series stagger cancels out when
@@ -679,15 +708,9 @@ const KitCharts = (() => {
         hit.addEventListener("mouseleave", () => glow(false));
         hit.addEventListener("focus", () => glow(true));
         hit.addEventListener("blur", () => glow(false));
-        /* onBarClick(value, seriesObj, groupName, ctx): opt-in — bars become
-           clickable (e.g. to drive an explorer filtered to that bar's rows).
-           ctx = {shift, event}; `spec.select` (see selectLayer) is the richer
-           path and takes over the click when both are given. */
         /* d.noClick opts one bar out: a chart where only some bars lead
            somewhere (an observed rate you can open, next to a baseline whose
            rows aren't in the page) must not advertise a click on the others */
-        if (spec.onBarClick && !spec.select && !d.noClick)
-          clickable(hit, spec, e => spec.onBarClick(d, s, gname, { shift: !!e?.shiftKey, event: e }));
         cells.push({ d, s, group: gname, hit,
                      gx0: gx + bw * 0.12 + si * slot, gx1: gx + bw * 0.12 + (si + 1) * slot,
                      inkTop: Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv) });
@@ -805,13 +828,8 @@ const KitCharts = (() => {
         const ci = Number.isFinite(d.lo) ? ` [${(d.lo * 100).toFixed(1)}, ${(d.hi * 100).toFixed(1)}]` : "";
         a11y(rect, `${groupFull(gname)}, ${s.name}: ${pct}% (${d.count}/${total})${ci}`);
         bindTip(rect, `<span class="tip-head">${groupFull(gname)} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
-        /* onSegmentClick(value, segment, groupName, ctx): opt-in, mirrors
-           groupedBars' onBarClick — a segment IS a set of rows, so clicking it
-           can load exactly those. No enlarged hit zone here: unlike a 2% bar, a
-           thin segment has nowhere to grow into that isn't another segment.
-           ctx = {shift, event}; `spec.select` takes over the click if given. */
-        if (spec.onSegmentClick && !spec.select)
-          clickable(rect, spec, e => spec.onSegmentClick(d, s, gname, { shift: !!e?.shiftKey, event: e }));
+        /* the segment rect IS the hit zone: unlike a 2% bar, a thin segment has
+           nowhere to grow into that isn't another segment */
         cells.push({ d, s, group: gname, hit: rect, gx0: gx, gx1: gx + bwid });
         f.svg.appendChild(rect);
         acc += v;
@@ -830,7 +848,7 @@ const KitCharts = (() => {
      comparison instead of two charts the eye has to travel between.
      spec: { groups, subs: [{name, hatch}], segments: [{name, color, seriesIndex}],
        values: [{group, sub, segment, count, lo, hi}], percent = true,
-       groupLabel, groupFull, subFull, onSegmentClick(value, segment, group, sub),
+       groupLabel, groupFull, subFull, select (see selectLayer),
        subOp(total, group, sub), legendItems, w, h, m, labelSize, rotateLabels }
      subOp is the low-support affordance a percent stack otherwise can't have: a
      mix of 3 draws and a mix of 30 draw the same bar, so the caller fades the
@@ -901,10 +919,6 @@ const KitCharts = (() => {
           const head = `${groupFull(gname)} · ${subFull(sub)} · ${s.name}`;
           a11y(rect, `${head}: ${pct}% (${d.count}/${total})${ci}`);
           bindTip(rect, `<span class="tip-head">${head}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
-          /* ctx (shift/event) is the LAST argument here as everywhere, i.e.
-             the 5th: this chart's marks are identified by group AND sub */
-          if (spec.onSegmentClick && !spec.select)
-            clickable(rect, spec, e => spec.onSegmentClick(d, s, gname, sub, { shift: !!e?.shiftKey, event: e }));
           cells.push({ d, s, sub, group: gname, hit: rect, slot: `${gname}\u0000${sub.name}`,
                        gx0: x - gap / 2, gx1: x + sw + gap / 2 });
           f.svg.appendChild(rect);
@@ -936,6 +950,7 @@ const KitCharts = (() => {
        one under the cursor */
     const gaps = xs.slice(1).map((v, i) => X(v) - X(xs[i]));
     const hitR = gaps.length ? Math.max(4, Math.min(9, Math.min(...gaps) * 0.6)) : 9;
+    const cells = [];   /* one per point, for spec.select */
     /* hits go up in a second pass, AFTER every series: interleaved, the next
        series' dots would sit on top of the previous series' hit circles and
        swallow both the tooltip and the click (same reasoning as scatter) */
@@ -957,15 +972,14 @@ const KitCharts = (() => {
         f.svg.appendChild(dot);
         const hit = el("circle", { cx: X(p.x), cy: f.y(p.y), r: hitR, fill: "transparent" });
         bindTip(hit, tip);
-        /* onPointClick(point, series): opt-in, mirrors groupedBars' onBarClick —
-           points become clickable (e.g. a trajectory dot opening the rows it
-           counts). The hit circle takes over focus from the dot: two elements
-           answering for one point would tab twice and flicker the tooltip. */
-        if (spec.onPointClick) {
+        /* the hit circle takes over focus from the dot: two elements answering
+           for one point would tab twice and flicker the tooltip */
+        if (spec.select) {
           dot.removeAttribute("tabindex");
           dot.removeAttribute("role");
           a11y(hit, label);
-          clickable(hit, spec, () => spec.onPointClick(p, s));
+          cells.push({ d: p, s, group: p.x, hit,
+                       gx0: X(p.x) - hitR, gx1: X(p.x) + hitR });
         }
         hits.push(hit);
       });
@@ -984,6 +998,7 @@ const KitCharts = (() => {
     /* legendItems mirrors groupedBars/stackedBars: override the auto series
        legend, or pass [] to suppress it (e.g. side-by-side panels sharing one
        legend rendered below them) */
+    wireSelect(f, spec, cells, { label: l => `x = ${l[0].group}` });
     legend(container, spec.legendItems
       || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
     return f;
@@ -999,6 +1014,7 @@ const KitCharts = (() => {
      NOTE (dataviz all-pairs rule): cap scatter series at 3; fold the rest. */
   function scatter(container, spec) {
     const f = frame(container, spec);
+    const cells = [];   /* one per point, for spec.select */
     const xr = [spec.xMin ?? 0, spec.xMax ?? 1];
     const X = v => f.m.l + ((v - xr[0]) / (xr[1] - xr[0] || 1)) * f.iw;
     const fmtX = spec.xFmt || String, fmtY = spec.yFmt || String;
@@ -1079,22 +1095,20 @@ const KitCharts = (() => {
       a11y(dot, label);
       bindTip(dot, tipHtml);
       f.svg.appendChild(dot);
-      /* onPointClick(point): opt-in, mirrors groupedBars' onBarClick — points
-         become clickable (e.g. a per-prompt dot opening that prompt's draws).
-         An invisible halo widens the hit target, as in dotStrip: a scatter dot
+      /* An invisible halo widens the hit target, as in dotStrip: a scatter dot
          is 3-4px and a click shouldn't demand pixel aim. It carries the tooltip
          and the focus ring, so the dot underneath gives both up — two elements
          answering for one point would tab twice and flicker the tip.
          Halos go up in a second pass, AFTER every dot: interleaved, the next
          dot would sit on top of the previous halo and swallow the click with a
          tooltip and no handler — which is most of a jittered cloud. */
-      if (spec.onPointClick) {
+      if (spec.select) {
         dot.removeAttribute("tabindex");
         dot.removeAttribute("role");
         const hit = el("circle", { cx, cy, r: Math.max(r + 4, 9), "fill-opacity": 0 }, { fill: "#000" });
         a11y(hit, label);
         bindTip(hit, tipHtml);
-        clickable(hit, spec, () => spec.onPointClick(p));
+        cells.push({ d: p, s: p.series, group: p.label ?? p.id ?? `${p.x},${p.y}`, hit });
         hits.push(hit);
       }
     });
@@ -1107,12 +1121,14 @@ const KitCharts = (() => {
       f.svg.appendChild(txt(f.m.l + f.iw - 4, f.m.t + 12, "⚠ " + spec.warnText, { "text-anchor": "end", class: "canvas-warn" }));
     legend(container, spec.legendItems
       || (spec.seriesDef || []).map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
+    wireSelect(f, spec, cells, { label: l => String(l[0].group) });
     return f;
   }
 
   /* ---- dot strip: one row per entity, a dot per sample on [0,1], mean tick */
   function dotStrip(container, spec) {
     const rows = spec.rows;
+    const cells = [];   /* one per dot, for spec.select */
     const LFS = spec.labelSize ?? 11;   /* see groupedBars */
     const autoL = 24 + Math.max(0, ...rows.map(r => estTextWidth(r.label, LFS)));
     const rowH = 34, w = spec.w ?? 720, m = { t: 8, r: 16, b: 26, l: Math.max(120, autoL), ...spec.m };
@@ -1139,12 +1155,11 @@ const KitCharts = (() => {
         bindTip(dot, d.tip || fmt(d.v));
         a11y(dot, `${row.label}: ${d.tip ? d.tip.replace(/<[^>]+>/g, " ") : fmt(d.v)}`);
         svg.appendChild(dot);
-        /* onDotClick(dot, row): opt-in, mirrors onBarClick — an invisible halo
-           widens the 3.5px dot's hit target to something clickable */
-        if (spec.onDotClick) {
+        /* an invisible halo widens the 3.5px dot's hit target to something clickable */
+        if (spec.select) {
           const halo = el("circle", { cx: X(d.v), cy: dcy, r: 9, "fill-opacity": 0 }, { fill: "#000" });
           bindTip(halo, d.tip || fmt(d.v));
-          clickable(halo, spec, () => spec.onDotClick(d, row));
+          cells.push({ d, s: row, group: row.label, hit: halo });
           svg.appendChild(halo);
         }
       });
@@ -1156,6 +1171,7 @@ const KitCharts = (() => {
           cy - 14, `mean ${fmt(row.mean)} (n=${row.dots.length})`, { "text-anchor": anchor, class: "axis-title" }));
       }
     });
+    wireSelect({ svg }, spec, cells, { label: l => String(l[0].group) });
     container.appendChild(svg);
     return { svg };
   }
@@ -1168,6 +1184,7 @@ const KitCharts = (() => {
      e.g. "biggest unfaithful cell" when outlineMax's |value| rule is wrong) */
   function heatmap(container, spec) {
     const { rows, cols, cells } = spec;
+    const marks = [];   /* one per drawn cell, for spec.select */
     const rowFull = spec.rowFull || (r => r);
     /* rowLabel: optional (key -> row-axis text) resolver, mirrors groupLabel
        in groupedBars/stackedBars — `rows`/`cell.row` stay a unique join key
@@ -1221,9 +1238,7 @@ const KitCharts = (() => {
       const rect = el("rect", { x: m.l + ci * cw + 1, y: m.t + ri * ch + 1, width: cw - 2, height: ch - 2, rx: 2 }, { fill: c.hatch ? makeHatch(defs, typeof c.hatch === "string" ? c.hatch : base, "/") : base });
       a11y(rect, `${rowFull(c.row)} × ${c.col}: ${c.text ?? c.value}`);
       bindTip(rect, c.tip || `<span class="tip-head">${rowFull(c.row)} × ${c.col}</span><br>${c.text ?? c.value}`);
-      /* onCellClick(cell): opt-in, mirrors groupedBars' onBarClick — cells
-         become clickable (e.g. to drive an explorer filtered to that cell) */
-      if (spec.onCellClick) clickable(rect, spec, () => spec.onCellClick(c));
+      if (spec.select) marks.push({ d: c, s: { name: c.col }, group: c.row, hit: rect });
       svg.appendChild(rect);
       if (c.text !== undefined) {
         const dark = spec.diverging ? Math.abs(c.value) > 0.6 * Math.max(Math.abs(vMin), vMax) : (c.value - vMin) / (vMax - vMin || 1) > 0.6;
@@ -1240,6 +1255,7 @@ const KitCharts = (() => {
       yt.setAttribute("transform", `translate(11 ${m.t + rows.length * ch / 2}) rotate(-90)`);
       svg.appendChild(yt);
     }
+    wireSelect({ svg }, spec, marks, { label: l => rowFull(l[0].group) });
     container.appendChild(svg);
     return { svg };
   }
@@ -1252,12 +1268,13 @@ const KitCharts = (() => {
                      median, lo, hi, n?}],
              xMin?, xMax?, xFmt, xTitle, w, rowH, x0?, sameScale?,
              band?: {lo, hi, label},        // shaded reference span, drawn behind
-             onDotClick?: (d, row) => …, clickHint? }
+             select? (see selectLayer), clickHint? }
      lo/hi are ABSOLUTE bounds of the median's CI. sameScale (default true) gives every
      row one density height, so a tall spike reads as commoner than a flat spread; pass
      false to normalise each row to its own peak. */
   function violin(container, spec) {
     const rows = spec.rows, LFS = spec.labelSize ?? 11;
+    const cells = [];   /* one per dot, for spec.select */
     const autoL = 24 + Math.max(0, ...rows.map(r => estTextWidth(r.label, LFS)));
     const rowH = spec.rowH ?? 76, w = spec.w ?? 720;
     const m = { t: 10, r: 18, b: 34, l: Math.max(120, autoL), ...spec.m };
@@ -1311,10 +1328,10 @@ const KitCharts = (() => {
         const dot = el("circle", { cx: X(d.v), cy: cy + j, r: 2.6, "fill-opacity": 0.5 }, { fill: color });
         bindTip(dot, tip);
         svg.appendChild(dot);
-        if (spec.onDotClick) {
+        if (spec.select) {
           const halo = el("circle", { cx: X(d.v), cy: cy + j, r: 8, "fill-opacity": 0 }, { fill: "#000" });
           bindTip(halo, tip);
-          clickable(halo, spec, () => spec.onDotClick(d, row));
+          cells.push({ d, s: row, group: row.label, hit: halo });
           a11y(halo, tip.replace(/<[^>]+>/g, " "));
           svg.appendChild(halo);
         }
@@ -1335,6 +1352,7 @@ const KitCharts = (() => {
     });
     if (spec.xTitle) svg.appendChild(txt(m.l + iw / 2, h - 4, spec.xTitle,
       { "text-anchor": "middle", class: "axis-title" }));
+    wireSelect({ svg }, spec, cells, { label: l => String(l[0].group) });
     container.appendChild(svg);
     return { svg, X };
   }

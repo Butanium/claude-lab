@@ -3,7 +3,47 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.8.0 — 2026-09-17
+
+- **`select` is now the ONLY way to make a mark clickable.** `onBarClick`,
+  `onSegmentClick`, `onPointClick`, `onDotClick` and `onCellClick` are gone
+  from every chart. Clément, on finding v0.7.6's gestures inert in a live
+  report: "just make the sensible design choice of making it mandatory […]
+  don't focus too much on backward compat."
+- Why the additive version was the wrong call: a feature that five published
+  reports don't opt into is a feature that exists in zero of them. v0.7.6 kept
+  the old callbacks working, so every chart already written stayed on the plain
+  click and nobody would have migrated without being asked to.
+- Migration is mechanical — `rows` is the old handler's body minus the
+  `nav.goto` line, and side effects (a slider nudged before navigating) move
+  into `go`, which still receives the clicked mark as `info.s`:
+
+      onBarClick: (d, s, g) => nav.goto({model: g, side: s.name}, {from: "f1"})
+      select: { rows: (d, s, g) => ({model: g, side: s.name}),
+                go: f => nav.goto(f, {from: "f1"}) }
+
+- The gestures now reach every chart type, with the arguments each one's marks
+  already had (line: point+series, heatmap: cell, dotStrip/violin: dot+row,
+  scatter: point). The background gesture needs columns to resolve "here"
+  against, so it is live on the bar charts and `line`; the rest get the click
+  and its complement.
+- **A dimension a chart may invert needs `multi: true`** on the explorer — a
+  complement usually resolves to several values and a single-select dropdown
+  can only hold one. `expand()` warns in the console when it has to drop some.
+
 ## v0.7.8 — 2026-09-17
+
+- **`KitFilters.bindCheckbox(input, store, key)`** — the boolean twin of
+  `bindRange`/`bindSelect`; the checkbox's own `checked` attribute is the
+  initial value, so the default lives in the markup and nowhere else.
+- First use, and the pattern it is for: a figure under a filter slider offers
+  "keep the y axis at the full-corpus scale" (on by default). Fixed axis =
+  moving the filter moves the BARS, which is the comparison the slider exists
+  to make; unchecked = fit the current view, for reading small rates up close.
+  The fixed branch still grows to avoid clipping a whisker, since a hard filter
+  can leave a cell at n=1 whose Wilson bound reaches 100%.
+
+## v0.7.7b — 2026-09-17  (stamped v0.7.8 by a parallel session; renumbered here)
 
 - **A legend now sizes itself to the chart's rendered text.** `.kit-legend`'s `1rem`
   silently assumed every chart is scaled UP to its container (viewBox 720 → ~1000px
