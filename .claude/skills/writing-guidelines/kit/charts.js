@@ -308,23 +308,17 @@ const KitCharts = (() => {
       const ceil = Math.max(c.whole, top);
       const clipped = c.whole < top - 0.5;
       const g = el("g", { class: "kit-ghost", "pointer-events": "none" });
-      /* ONE rule: the wash is the slot minus the mark you are on, because that
-         is what the click opens — every row here that this mark does not count.
-         A stacked segment's slot is its own bar, so the wash is the rest of the
-         stack. A grouped bar's slot is its group, so the wash also covers its
-         neighbours: their rows ARE in the complement. (Grouped bars had a second
-         gesture for a while, on the theory that the empty band above a bar meant
-         "no bar here" — that reads a group as if its bars partitioned a whole,
-         which is what a STACK does. Clément: "you're treating grouped bar as
-         stacked bar which is dumb ... not this bar equals anything that's not a
-         bar.") */
-      const [sx0, sx1] = span(c.slot ?? c.group);
+      /* The wash stays inside the mark's OWN width. Every bar is its own
+         question with its own denominator, and its ⇧ click is its own wiring —
+         so the preview may never reach across to a neighbour, which would read
+         as the two being hovered together (Clément: "i see that the shift is
+         hovering both bars at the same time"). Above the mark and below it,
+         nowhere else: for a stacked segment that is the rest of its stack, for
+         a bar the rest of its denominator. */
       const ink = c.ink;
       const bands = [
-        [ceil, c.base, sx0, ink.x - sx0],                       /* left of it */
-        [ceil, c.base, ink.x + ink.w, sx1 - (ink.x + ink.w)],   /* right of it */
-        [ceil, ink.top, ink.x, ink.w],                          /* over it */
-        [ink.bot, c.base, ink.x, ink.w],                        /* under it */
+        [ceil, ink.top, ink.x, ink.w],        /* over it */
+        [ink.bot, c.base, ink.x, ink.w],      /* under it */
       ];
       for (const [y1, y2, x, w] of bands) {
         if (!(w > 0.5)) continue;

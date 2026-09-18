@@ -3,6 +3,14 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.8.4 — 2026-09-17
+
+- **The ⇧ wash stays inside the hovered mark's own width.** v0.8.3 spread it
+  across the whole group, so hovering one bar tinted its neighbour — "i see that
+  the shift is hovering both bars at the same time". Every bar is its own
+  question with its own denominator and its own wiring; the preview must never
+  reach across to another one. Above the mark and below it, nowhere else.
+
 ## v0.8.3 — 2026-09-17
 
 - **A grouped bar owns its whole column; there is no second gesture in it.**
