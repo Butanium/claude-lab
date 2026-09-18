@@ -9,6 +9,13 @@ screenshot does not know what the author expected.
 Use it while building an interaction, before showing anyone: open the sheet, look
 at the states, fix what looks wrong. Then paste the sheet instead of "ALL PASS".
 
+ONE IMAGE PER CHART, not one per state. The first version wrote 26 loose PNGs for a
+seven-chart report, which costs an agent 26 reads to look at — Clément, immediately:
+"is it like all different files? how many turns does it take you to read all that?"
+The states of one chart belong side by side anyway, since what you are checking is
+how they differ. Working on a single figure: `--only fig-gap` gives you exactly one
+image to look at.
+
     uv run --no-project --with playwright python small-smokes/contact_sheet.py \
         path/to/report.html [--out DIR] [--only fig-gap,fig-int] [--open]
 
@@ -48,6 +55,30 @@ def shot(pg, path, box, pad=40):
     })
 
 
+def strip(pg, out, fid, idx, made):
+    """Tile one chart's states into a single labelled image. Composed by loading a
+    tiny HTML page in the browser we already have open, so this needs no imaging
+    library — and the caption sits in the picture, where a reader needs it."""
+    cells = "".join(
+        f'<figure><img src="states/{f}"><figcaption>{html.escape(state)}</figcaption></figure>'
+        for state, f in made)
+    sheet = out / f"_strip-{fid}.html"
+    sheet.write_text(f"""<!doctype html><meta charset=utf-8><style>
+ body {{ margin: 0; background: #fff; font: 13px system-ui, sans-serif; }}
+ .row {{ display: flex; align-items: flex-start; }}
+ figure {{ margin: 0; padding: 6px; width: 620px; }}
+ img {{ width: 100%; display: block; border: 1px solid #e0e0e0; }}
+ figcaption {{ padding: 4px 2px 0; color: #444; font-weight: 600; }}
+ h1 {{ font-size: 14px; margin: 8px 8px 0; color: #222; }}
+</style><h1>{html.escape(fid)}</h1><div class=row>{cells}</div>""")
+    pg.goto("file://" + str(sheet))
+    pg.wait_for_timeout(250)
+    name = f"{idx:02d}-{fid}.png"
+    pg.locator("body").screenshot(path=str(out / name))
+    sheet.unlink()
+    return name
+
+
 def capture(pg, out, fid, idx):
     """One chart, four states. Returns [(state, filename), ...] for the states
     that exist — a chart with no clickable marks yields only `rest`."""
@@ -62,7 +93,7 @@ def capture(pg, out, fid, idx):
     pg.mouse.move(4, 4)          # park the pointer off every mark
     pg.wait_for_timeout(150)
     name = f"{idx:02d}-{fid}-rest.png"
-    shot(pg, out / name, box)
+    shot(pg, out / "states" / name, box)
     made.append(("rest", name))
 
     marks = pg.locator(f"#{fid} [role=img]")
@@ -82,7 +113,7 @@ def capture(pg, out, fid, idx):
         pg.mouse.move(mx, my)
         pg.wait_for_timeout(250)
         name = f"{idx:02d}-{fid}-{state.replace(' ', '-')}.png"
-        shot(pg, out / name, box)
+        shot(pg, out / "states" / name, box)
         made.append((state, name))
         if shift:
             pg.keyboard.up("Shift")
@@ -104,7 +135,7 @@ def capture(pg, out, fid, idx):
             pg.mouse.move(gap["x"], gap["y"])
             pg.wait_for_timeout(250)
             name = f"{idx:02d}-{fid}-shift-background.png"
-            shot(pg, out / name, box)
+            shot(pg, out / "states" / name, box)
             made.append(("shift on the background", name))
             pg.keyboard.up("Shift")
     return made
@@ -120,7 +151,7 @@ def main():
 
     report = Path(args.report).resolve()
     out = Path(args.out) if args.out else report.with_name(report.stem + "-states")
-    out.mkdir(parents=True, exist_ok=True)
+    (out / "states").mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as pw:
         b = pw.chromium.launch()
@@ -135,24 +166,20 @@ def main():
         for i, fid in enumerate(ids):
             made = capture(pg, out, fid, i)
             if made:
-                rows.append((fid, made))
+                rows.append((fid, strip(pg, out, fid, i, made)))
+                pg.goto("file://" + str(report))   # strip() navigated away
+                pg.wait_for_timeout(1200)
             print(f"  {fid}: {', '.join(s for s, _ in made) or 'nothing to show'}")
         b.close()
 
-    cells = "\n".join(
-        f"<section><h2>{html.escape(fid)}</h2><div class=row>" + "".join(
-            f'<figure><img src="{f}"><figcaption>{html.escape(state)}</figcaption></figure>'
-            for state, f in made) + "</div></section>"
-        for fid, made in rows)
+    cells = "\n".join(f'<section><img src="{f}"></section>' for _, f in rows)
     (out / "index.html").write_text(f"""<!doctype html><meta charset=utf-8>
 <title>{html.escape(report.name)} — interaction states</title>
 <style>
  body {{ font: 14px/1.5 system-ui, sans-serif; margin: 24px; background: #f7f7f5; color: #1a1a1a; }}
  h1 {{ font-size: 18px; }} h2 {{ font-size: 14px; font-weight: 600; margin: 24px 0 8px; }}
- .row {{ display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }}
- figure {{ margin: 0; max-width: 520px; }}
- img {{ width: 100%; border: 1px solid #ddd; border-radius: 4px; background: #fff; }}
- figcaption {{ font-size: 12px; color: #666; margin-top: 4px; }}
+ section {{ margin-bottom: 18px; }}
+ img {{ max-width: 100%; border: 1px solid #ddd; border-radius: 4px; background: #fff; }}
  .err {{ color: #a11; }}
 </style>
 <h1>{html.escape(report.name)} — interaction states</h1>
@@ -160,6 +187,8 @@ def main():
 {cells}
 """)
     print(f"\n{out / 'index.html'}")
+    for _, f in rows:
+        print(f"  {out / f}")
     if errs:
         print(f"page errors: {errs[:3]}")
 
