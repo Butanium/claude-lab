@@ -717,6 +717,21 @@ with tempfile.TemporaryDirectory() as td:
         pg.keyboard.up("Shift")
         pg.wait_for_timeout(150)
 
+        # one selectable bar in the column: both ⇧ targets are the same gesture
+        aim("fig-solo")
+        sb = pg.locator("#fig-solo svg rect[role=img]").first
+        sbox = sb.bounding_box()
+        def hint_at(frac):
+            pg.mouse.move(sbox["x"] + sbox["width"] / 2, sbox["y"] + sbox["height"] * frac)
+            pg.wait_for_timeout(200)
+            return pg.evaluate(
+                "() => document.querySelector('.kit-tip .tip-hint')?.textContent || ''")
+        pg.keyboard.down("Shift")
+        on_ink, above = hint_at(0.95), hint_at(0.05)
+        pg.keyboard.up("Shift")
+        check("one bar: ⇧ on it and ⇧ above it say the same thing", on_ink == above,
+              f"{on_ink!r} vs {above!r}")
+
         # Shift held for real, not passed as a click modifier: releasing it now
         # redraws the tooltip back, so the hint cannot be read after the fact
         aim("fig4")

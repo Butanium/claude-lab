@@ -24,6 +24,7 @@ LONG = " ".join(f"Sentence number {i} of a block long enough to clamp."
 FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
            '<div id="fig3"></div><div id="explorer"></div>'
            '<div id="fig4"></div><div id="fig5"></div><div id="fig-torn"></div>'
+           '<div id="fig-solo"></div>'
            '<div id="explorer2"></div>')
 BODY = "".join(
     f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
@@ -124,6 +125,16 @@ const ex2 = KitExplorer.explorer(document.getElementById("explorer2"), {
   render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
 });
 const nav2 = KitExplorer.hashNav(ex2, { anchorId: "explorer2" });
+/* one selectable bar per group (the second is noClick, the shape a figure has
+   when it pairs an observed rate with a baseline it cannot open): ⇧ anywhere in
+   the column must mean one thing */
+KitCharts.groupedBars(document.getElementById("fig-solo"), {
+  groups: ["x", "y", "z"], series: [{ name: "p" }, { name: "baseline" }],
+  values: ["x", "y", "z"].flatMap(g => [{ group: g, series: "p", est: 0.3, n: 40 },
+                                        { group: g, series: "baseline", est: 0.5, n: 40, noClick: true }]),
+  yMax: 1, yFmt: KitCharts.pctFmt,
+  select: { rows: (d, s, g) => ({ arm: g, tag: "p" }), go: f => nav2.goto(f) },
+});
 /* a rate axis with headroom only for the bars: the complement of a 6% bar is
    94%, far above the ceiling, so its wash has to be cut rather than capped */
 KitCharts.groupedBars(document.getElementById("fig-torn"), {

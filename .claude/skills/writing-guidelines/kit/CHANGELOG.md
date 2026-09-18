@@ -3,6 +3,30 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.8.2 — 2026-09-17
+
+- **The ⇧ wash for the group gesture now avoids the bars instead of covering
+  them.** "the rows no bar here covers" washed over the bars themselves, which
+  reads as "these two bars" — the opposite of what the click does (Clément:
+  "looks weird that it's on both column"). It now fills the empty part of the
+  column: the gutters at full height and the headroom over each bar, stopping
+  at their tops. The per-bar hover halo is suppressed while it shows, since a
+  halo names one bar and this gesture is about all of them.
+- **The modifier is read off mouse events, not only off the keyboard.** A
+  report is read inside an iframe, and an iframe gets no key events until it has
+  focus — so the whole gesture silently required clicking the page first
+  (Clément: "the reactive works only if i click on the page first"). Every mouse
+  event carries `shiftKey` regardless of focus: hold Shift, move a pixel, and
+  the page knows. A pointer that never moves and a page never clicked is the
+  one case left, and the first pixel of movement ends it.
+- **One bar in a slot: ⇧ above it does what ⇧ on it does.** The two gestures
+  name the same rows there by construction — "every other value of this
+  dimension" and "no value any bar here covers" differ only by which bars they
+  exclude, and there is one — so the column stops offering a second hint and a
+  second wash for it. Bites more often than it sounds: a figure pairing an
+  observed bar with a `noClick` baseline has exactly one selectable bar per
+  group.
+
 ## v0.8.1 — 2026-09-17
 
 - **The open tooltip now redraws when Shift goes down or up.** It only updated

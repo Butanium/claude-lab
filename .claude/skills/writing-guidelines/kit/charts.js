@@ -155,6 +155,14 @@ const KitCharts = (() => {
     addEventListener("keydown", e => { if (e.key === "Shift") set(true); });
     addEventListener("keyup", e => { if (e.key === "Shift") set(false); });
     addEventListener("blur", () => set(false));
+    /* A report is read inside an iframe, and an iframe receives no key events
+       until it has focus — so keydown alone made the whole gesture depend on
+       having clicked the page first (Clément: "the reactive works only if i
+       click on the page first"). Every mouse event carries the modifier state
+       regardless of focus, so the pointer reports it: hold Shift, move a pixel,
+       and the page knows. Cheap — set() returns immediately when unchanged. */
+    for (const ev of ["mousemove", "mouseover", "mousedown"])
+      addEventListener(ev, e => set(e.shiftKey), true);
   }
 
   /* ---- click-to-select: a mark is a set of rows, and so is what it leaves out ----
@@ -249,7 +257,12 @@ const KitCharts = (() => {
        hands the gesture back to the group. (Stacked bars need none of this:
        their segments cover only their own slice, so the space above a stack
        already IS the background.) */
-    const aboveInk = (c, e) => c.inkTop != null && at(e, "y") < c.inkTop - PAD;
+    const aboveInk = (c, e) => c.inkTop != null && at(e, "y") < c.inkTop - PAD
+      /* one selectable bar in the slot and the two gestures name the same rows:
+         "every other value" and "no value any bar here covers" differ only by
+         the bars you exclude, and there is one. Two affordances doing one thing
+         — different hint, different wash — is just a reader wondering which. */
+      && byGroup.get(c.slot ?? c.group).length > 1;
 
     const info = (c, mode, event) => ({ mode, event, d: c?.d, s: c?.s, group: c?.group, sub: c?.sub });
     function fire(c, e) {
@@ -294,7 +307,11 @@ const KitCharts = (() => {
        wash is cut with a torn edge instead of a rounded cap, so it reads as
        continuing past the frame rather than ending at it. */
     let ghostEl = null;
-    const clearGhost = () => { ghostEl?.remove(); ghostEl = null; };
+    const clearGhost = () => {
+      ghostEl?.remove();
+      ghostEl = null;
+      f.svg?.classList?.remove("kit-ghosting");
+    };
     function tornTop(x, y, w, h) {
       const step = 7, amp = 3.5;
       let d = `M${x},${y + h}L${x},${y + amp}`, up = false;
@@ -311,19 +328,41 @@ const KitCharts = (() => {
       const ceil = Math.max(c.whole, top);
       const clipped = c.whole < top - 0.5;
       const g = el("g", { class: "kit-ghost", "pointer-events": "none" });
-      /* the group gesture leaves out every bar here, so its wash is the whole
-         slot; the mark gesture leaves out one, so its wash is the slot minus it */
-      const [sx0, sx1] = span(c.slot ?? c.group);
-      const bands = mode === "outside"
-        ? [[ceil, c.base, sx0, sx1 - sx0]]
-        : [[ceil, c.ink.top, c.ink.x, c.ink.w], [c.ink.bot, c.base, c.ink.x, c.ink.w]];
-      bands.forEach(([y1, y2, x, w], i) => {
-        if (!(y2 - y1 > 0.5)) return;
-        g.appendChild(clipped && i === 0 && Math.abs(y1 - top) < 0.5
+      let bands;
+      if (mode === "outside") {
+        /* "the rows no bar here covers" — so the wash must AVOID the bars.
+           Washing over them reads as "these two bars", the opposite of what the
+           click does (Clément, on the first version: "looks weird that it's on
+           both column"). What is left is the empty part of the column: the
+           gutters at full height, and the headroom over each bar. */
+        const [sx0, sx1] = span(c.slot ?? c.group);
+        const inks = byGroup.get(c.slot ?? c.group).map(x => x.ink)
+          .filter(Boolean).sort((a, b) => a.x - b.x);
+        bands = [];
+        let cursor = sx0;
+        for (const ink of inks) {
+          if (ink.x - cursor > 0.5) bands.push([ceil, c.base, cursor, ink.x - cursor]);
+          bands.push([ceil, ink.top, ink.x, ink.w]);
+          cursor = Math.max(cursor, ink.x + ink.w);
+        }
+        if (sx1 - cursor > 0.5) bands.push([ceil, c.base, cursor, sx1 - cursor]);
+      } else {
+        /* the mark gesture leaves out one mark, so its wash is its slot minus it */
+        bands = [[ceil, c.ink.top, c.ink.x, c.ink.w], [c.ink.bot, c.base, c.ink.x, c.ink.w]];
+      }
+      for (const [y1, y2, x, w] of bands) {
+        if (!(y2 - y1 > 0.5)) continue;
+        g.appendChild(clipped && Math.abs(y1 - top) < 0.5
           ? tornTop(x, y1, w, y2 - y1)
           : el("rect", { x, y: y1, width: w, height: y2 - y1, rx: 2, class: "ghost-fill" }));
-      });
-      if (g.childNodes.length) { f.svg.appendChild(g); ghostEl = g; }
+      }
+      if (g.childNodes.length) {
+        f.svg.appendChild(g);
+        /* the per-bar hover halo names ONE bar, which contradicts a gesture
+           about all of them */
+        f.svg.classList.toggle("kit-ghosting", mode === "outside");
+        ghostEl = g;
+      }
     }
     /* what the pointer is on, so Shift going down redraws the preview without
        waiting for the reader to move the mouse */
