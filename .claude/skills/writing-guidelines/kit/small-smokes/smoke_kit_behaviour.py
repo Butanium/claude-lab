@@ -682,10 +682,50 @@ with tempfile.TemporaryDirectory() as td:
               shown2().startswith("2 samples") and chips2(0) == ["z"] and chips2(1) == ["r"],
               f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
 
-        seg(0).hover(modifiers=["Shift"])
+        print("the complement preview, and a tooltip that answers to the key")
+        aim("fig4")
+        seg(0).hover()
+        pg.wait_for_timeout(200)
+        before = pg.evaluate("() => document.querySelector('.kit-tip .tip-hint').textContent")
+        ghost = lambda: pg.evaluate(                                     # noqa: E731
+            "() => document.querySelectorAll('#fig4 .kit-ghost .ghost-fill').length")
+        check("no wash until the key is down", ghost() == 0)
+        # the key alone, pointer parked where it already was: the reader who
+        # presses Shift without moving must still see what changed
+        pg.keyboard.down("Shift")
+        pg.wait_for_timeout(200)
+        after = pg.evaluate("() => document.querySelector('.kit-tip .tip-hint').textContent")
+        check("the open tooltip redraws on Shift alone", after != before and "\u21e7" in after,
+              f"{before!r} -> {after!r}")
+        check("and the complement is washed in", ghost() >= 1, f"{ghost()} bands")
+        pg.keyboard.up("Shift")
+        pg.wait_for_timeout(200)
+        check("released, both go back", ghost() == 0 and pg.evaluate(
+            "() => document.querySelector('.kit-tip .tip-hint').textContent") == before)
+
+        # fig5's axis stops at 100%, fig4's stack is the whole: neither is cut.
+        # The torn edge belongs to a rate axis whose complement runs off the top.
+        aim("fig-torn")
+        tb = pg.locator("#fig-torn svg rect[role=img]").first.bounding_box()
+        pg.mouse.move(tb["x"] + tb["width"] / 2, tb["y"] + tb["height"] * 0.95)
+        pg.keyboard.down("Shift")
+        pg.wait_for_timeout(250)
+        check("a complement that runs off the axis is cut, not capped",
+              pg.evaluate("() => document.querySelectorAll('#fig-torn .kit-ghost path').length") == 1,
+              str(pg.evaluate("() => [...document.querySelectorAll('#fig-torn .kit-ghost *')]"
+                              ".map(e => e.tagName)")))
+        pg.keyboard.up("Shift")
+        pg.wait_for_timeout(150)
+
+        # Shift held for real, not passed as a click modifier: releasing it now
+        # redraws the tooltip back, so the hint cannot be read after the fact
+        aim("fig4")
+        seg(0).hover()
+        pg.keyboard.down("Shift")
         pg.wait_for_timeout(250)
         hint2 = pg.evaluate(
             "() => document.querySelector('.kit-tip .tip-hint')?.textContent || ''")
+        pg.keyboard.up("Shift")
         check("holding shift rewrites the mark's hint line", "\u21e7" in hint2, repr(hint2))
         check("and the background says what it would open", pg.evaluate(
             "() => !!document.querySelector('#fig4 .kit-bg')"))

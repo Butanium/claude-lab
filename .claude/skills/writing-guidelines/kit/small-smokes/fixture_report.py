@@ -23,7 +23,8 @@ LONG = " ".join(f"Sentence number {i} of a block long enough to clamp."
 # of each kind
 FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
            '<div id="fig3"></div><div id="explorer"></div>'
-           '<div id="fig4"></div><div id="fig5"></div><div id="explorer2"></div>')
+           '<div id="fig4"></div><div id="fig5"></div><div id="fig-torn"></div>'
+           '<div id="explorer2"></div>')
 BODY = "".join(
     f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
     f'<div style="height:900px"></div>'
@@ -123,6 +124,15 @@ const ex2 = KitExplorer.explorer(document.getElementById("explorer2"), {
   render: r => KitCards.card({ meta: [r.arm, r.tag], panes: [{ label: "row", text: r.text }] }),
 });
 const nav2 = KitExplorer.hashNav(ex2, { anchorId: "explorer2" });
+/* a rate axis with headroom only for the bars: the complement of a 6% bar is
+   94%, far above the ceiling, so its wash has to be cut rather than capped */
+KitCharts.groupedBars(document.getElementById("fig-torn"), {
+  groups: ["x", "y", "z"], series: [{ name: "p" }, { name: "q" }],
+  values: ["x", "y", "z"].flatMap(g => [{ group: g, series: "p", est: 0.06, n: 40 },
+                                        { group: g, series: "q", est: 0.09, n: 40 }]),
+  yMax: 0.15, yFmt: KitCharts.pctFmt,
+  select: { rows: (d, s, g) => ({ arm: g, tag: s.name }), go: f => nav2.goto(f) },
+});
 /* the same select spec on the other bar shape: grouped bars infer the mark's
    dimension from the SERIES, stacked from the segment, and neither report says
    which */

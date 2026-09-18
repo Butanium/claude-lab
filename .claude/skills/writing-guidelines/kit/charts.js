@@ -75,25 +75,42 @@ const KitCharts = (() => {
     }
     return tipEl;
   }
+  /* The tooltip that is up RIGHT NOW, so a modifier press can redraw it in
+     place. Shift changes what a click would do, and a hint line that only
+     caught up on the next mouse movement was a tooltip saying one thing while
+     the click did another — for a reader who presses Shift with the pointer
+     already parked on a bar, which is how one reads a figure. */
+  let shown = null;
+  function renderTip(target, html, when, e) {
+    if (!target.isConnected || (when && !when(e))) { tip().style.display = "none"; shown = null; return; }
+    const t = tip();
+    const hs = target.__kitHintShift;
+    const hint = (e.shiftKey && (typeof hs === "function" ? hs(e) : target.dataset?.hintShift))
+      || target.dataset?.hint;
+    t.innerHTML = (typeof html === "function" ? html(e) : html) +
+      (hint ? `<span class="tip-hint">${hint}</span>` : "");
+    t.style.display = "block";
+    const r = t.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY + 12;
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 10;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 10;
+    t.style.left = x + "px"; t.style.top = y + "px";
+    shown = { target, html, when, e };
+  }
   /* `when` gates the tooltip on the live pointer event — the plot background
      carries one that only exists while Shift is held, and a box that appeared
      over every blank pixel of every chart would be noise. */
   function bindTip(target, html, { when = null } = {}) {
-    target.addEventListener("mousemove", e => {
-      if (when && !when(e)) { tip().style.display = "none"; return; }
-      const t = tip();
-      const hint = (e.shiftKey && target.dataset?.hintShift) || target.dataset?.hint;
-      t.innerHTML = (typeof html === "function" ? html(e) : html) +
-        (hint ? `<span class="tip-hint">${hint}</span>` : "");
-      t.style.display = "block";
-      const r = t.getBoundingClientRect();
-      let x = e.clientX + 14, y = e.clientY + 12;
-      if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 10;
-      if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 10;
-      t.style.left = x + "px"; t.style.top = y + "px";
-    });
-    target.addEventListener("mouseleave", () => tip().style.display = "none");
+    target.addEventListener("mousemove", e => renderTip(target, html, when, e));
+    target.addEventListener("mouseleave", () => { tip().style.display = "none"; shown = null; });
     target.addEventListener("focus", () => { /* tooltip text also in aria-label */ });
+  }
+  /* redraw the open tooltip against a new modifier state, reusing the pointer
+     position the reader last put it at */
+  function retip(shiftKey) {
+    if (!shown) return;
+    const { target, html, when, e } = shown;
+    renderTip(target, html, when, { clientX: e.clientX, clientY: e.clientY, shiftKey });
   }
   /* Wire a mark to a click handler: pointer cursor, Enter/Space, and a hint
      line the mark's own tooltip picks up (bindTip reads dataset.hint at hover
@@ -120,11 +137,21 @@ const KitCharts = (() => {
      hint line says), so the page has to know it is held, not just read it off
      the click. One document-level listener, a class on <body>: the background
      hit zones take their cursor from it. */
-  let shiftWired = false;
+  let shiftWired = false, shiftDown = false;
+  const shiftHooks = new Set();   /* layers redrawing their hover preview */
   function wireShift() {
     if (shiftWired) return;
     shiftWired = true;
-    const set = on => document.body.classList.toggle("kit-shift", on);
+    const set = on => {
+      if (on === shiftDown) return;
+      shiftDown = on;
+      document.body.classList.toggle("kit-shift", on);
+      retip(on);
+      for (const fn of shiftHooks) {
+        if (fn.dead()) shiftHooks.delete(fn);   /* the chart it previewed is gone */
+        else fn(on);
+      }
+    };
     addEventListener("keydown", e => { if (e.key === "Shift") set(true); });
     addEventListener("keyup", e => { if (e.key === "Shift") set(false); });
     addEventListener("blur", () => set(false));
@@ -259,10 +286,57 @@ const KitCharts = (() => {
     /* The background gesture needs COLUMNS to resolve "here" against, and a
        frame to cover: bars and their kin pass gx0/gx1, a scatter has no such
        structure and gets the two mark gestures only. */
+    /* ---- the complement, drawn ----
+       A ⇧ click opens rows the figure does not draw, so the hover shows which:
+       a wash over the part of the slot the mark leaves out — the rest of the
+       stack, or the rest of the bar's denominator. Where "all of it" sits above
+       the axis ceiling (a 10% rate on a 16% axis leaves an 90% complement), the
+       wash is cut with a torn edge instead of a rounded cap, so it reads as
+       continuing past the frame rather than ending at it. */
+    let ghostEl = null;
+    const clearGhost = () => { ghostEl?.remove(); ghostEl = null; };
+    function tornTop(x, y, w, h) {
+      const step = 7, amp = 3.5;
+      let d = `M${x},${y + h}L${x},${y + amp}`, up = false;
+      for (let px = x; px < x + w - 0.01; px += step) {
+        d += `L${Math.min(px + step, x + w)},${y + (up ? amp : 0)}`;
+        up = !up;
+      }
+      return el("path", { d: d + `L${x + w},${y + h}Z`, class: "ghost-fill" });
+    }
+    function drawGhost(c, mode) {
+      clearGhost();
+      if (!c || !c.ink || !(f.iw > 0) || c.whole == null) return;
+      const top = f.m.t;
+      const ceil = Math.max(c.whole, top);
+      const clipped = c.whole < top - 0.5;
+      const g = el("g", { class: "kit-ghost", "pointer-events": "none" });
+      /* the group gesture leaves out every bar here, so its wash is the whole
+         slot; the mark gesture leaves out one, so its wash is the slot minus it */
+      const [sx0, sx1] = span(c.slot ?? c.group);
+      const bands = mode === "outside"
+        ? [[ceil, c.base, sx0, sx1 - sx0]]
+        : [[ceil, c.ink.top, c.ink.x, c.ink.w], [c.ink.bot, c.base, c.ink.x, c.ink.w]];
+      bands.forEach(([y1, y2, x, w], i) => {
+        if (!(y2 - y1 > 0.5)) return;
+        g.appendChild(clipped && i === 0 && Math.abs(y1 - top) < 0.5
+          ? tornTop(x, y1, w, y2 - y1)
+          : el("rect", { x, y: y1, width: w, height: y2 - y1, rx: 2, class: "ghost-fill" }));
+      });
+      if (g.childNodes.length) { f.svg.appendChild(g); ghostEl = g; }
+    }
+    /* what the pointer is on, so Shift going down redraws the preview without
+       waiting for the reader to move the mouse */
+    let hoverCell = null;
+    const preview = () => (shiftDown && hoverCell
+      ? drawGhost(hoverCell.c, aboveInk(hoverCell.c, hoverCell.e) ? "outside" : "complement")
+      : clearGhost());
+    preview.dead = () => !f.svg.isConnected;
+    shiftHooks.add(preview);
+
     function mount() {
       if (S.outside === false || !markKey) return;
       if (!(f.iw > 0) || !cells.some(c => Number.isFinite(c.gx0))) return;
-      wireShift();
       const bg = el("rect", { x: f.m.l, y: f.m.t, width: f.iw, height: f.ih,
         class: "kit-bg" }, { fill: "transparent" });
       f.svg.insertBefore(bg, f.svg.firstChild);
@@ -279,20 +353,25 @@ const KitCharts = (() => {
         S.go(outsideFilters(g), { ...info(null, "outside", e), group: g });
       });
     }
-    return { fire, mount, cells, aboveInk, shiftHint: markKey ? SHIFT_HINT : null };
+    return { fire, mount, cells, aboveInk, shiftHint: markKey ? SHIFT_HINT : null,
+             hover(c, e) { hoverCell = c && { c, e }; preview(); } };
   }
 
   /* build the layer, make every mark it kept clickable, add the background */
   function wireSelect(f, spec, cells, opts) {
     const sel = selectLayer(f, spec, cells, opts);
     if (!sel) return null;
+    /* not only where the background gesture mounts: every select chart has a
+       hint line and a preview that answer to the key */
+    wireShift();
     for (const c of sel.cells) if (c.hit) {
       clickable(c.hit, spec, e => sel.fire(c, e), sel.shiftHint);
-      /* a full-height hit zone means two ⇧ gestures share one mark, so the
-         hint has to track the pointer rather than sit on the element */
-      if (c.inkTop != null && sel.shiftHint) c.hit.addEventListener("mousemove", e => {
-        c.hit.dataset.hintShift = sel.aboveInk(c, e) ? OUTSIDE_HINT : SHIFT_HINT;
-      });
+      /* a full-height hit zone means two ⇧ gestures share one mark, so its hint
+         is a function of where in the column the pointer is */
+      if (c.inkTop != null && sel.shiftHint)
+        c.hit.__kitHintShift = e => (sel.aboveInk(c, e) ? OUTSIDE_HINT : SHIFT_HINT);
+      c.hit.addEventListener("mousemove", e => sel.hover(c, e));
+      c.hit.addEventListener("mouseleave", () => sel.hover(null));
     }
     sel.mount();
     return sel;
@@ -610,6 +689,11 @@ const KitCharts = (() => {
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
     const y0 = f.y(Math.max(spec.yMin ?? 0, 0));
     const cells = [];   /* one per drawn bar, for spec.select (see selectLayer) */
+    /* what "all the rows this bar counts" is worth on the y axis, for the
+       complement wash. A rate axis knows it (1); a count axis does not, and
+       `select.whole` is how a report says — pass null to drop the wash. */
+    const WHOLE = spec.select && "whole" in spec.select ? spec.select.whole
+                : (spec.yMax ?? 1) <= 1 ? 1 : null;
     /* A group's label sits under the bars that group actually draws, not under
        the middle of its slot. Empty slots are common — a series with no value
        here, or one the reader just hid from the legend — and a label centred on
@@ -713,7 +797,9 @@ const KitCharts = (() => {
            rows aren't in the page) must not advertise a click on the others */
         cells.push({ d, s, group: gname, hit,
                      gx0: gx + bw * 0.12 + si * slot, gx1: gx + bw * 0.12 + (si + 1) * slot,
-                     inkTop: Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv) });
+                     inkTop: Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv),
+                     ink: { x, w: bwid, top: Math.min(yv, y0), bot: Math.max(yv, y0) },
+                     base: y0, whole: WHOLE == null ? null : f.y(WHOLE) });
         f.svg.appendChild(hit);
         /* per-run overlay dots, deterministic jitter, radius ∝ sqrt(n).
            Stroke follows the bar's own color when the value overrides it
@@ -830,7 +916,9 @@ const KitCharts = (() => {
         bindTip(rect, `<span class="tip-head">${groupFull(gname)} · ${s.name}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
         /* the segment rect IS the hit zone: unlike a 2% bar, a thin segment has
            nowhere to grow into that isn't another segment */
-        cells.push({ d, s, group: gname, hit: rect, gx0: gx, gx1: gx + bwid });
+        cells.push({ d, s, group: gname, hit: rect, gx0: gx, gx1: gx + bwid,
+                     ink: { x: gx, w: bwid, top: yTop, bot: yBot },
+                     base: f.y(0), whole: f.y(percent ? 1 : total) });
         f.svg.appendChild(rect);
         acc += v;
       });
@@ -920,7 +1008,9 @@ const KitCharts = (() => {
           a11y(rect, `${head}: ${pct}% (${d.count}/${total})${ci}`);
           bindTip(rect, `<span class="tip-head">${head}</span><br>${pct}%${ci} <span class="tip-head">(${d.count}/${total})</span>`);
           cells.push({ d, s, sub, group: gname, hit: rect, slot: `${gname}\u0000${sub.name}`,
-                       gx0: x - gap / 2, gx1: x + sw + gap / 2 });
+                       gx0: x - gap / 2, gx1: x + sw + gap / 2,
+                       ink: { x, w: sw, top: yTop, bot: yBot },
+                       base: f.y(0), whole: f.y(percent ? 1 : total) });
           f.svg.appendChild(rect);
           acc += v;
         });

@@ -3,6 +3,30 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.8.1 — 2026-09-17
+
+- **The open tooltip now redraws when Shift goes down or up.** It only updated
+  on mouse movement, so a reader who parks the pointer on a bar and then presses
+  the key saw a hint line describing the other gesture — the tooltip saying one
+  thing while the click did another. Reading a figure is exactly the moment the
+  pointer is still.
+- **⇧-hover washes in the complement.** Clément: "visual cues should be here.
+  e.g. for the other part of the bar, it should show the shadow of a bar that
+  would cover the rest". The wash covers the part of the slot the mark leaves
+  out — the rest of the stack for a segment, the rest of the denominator for a
+  rate bar — and above a grouped bar's ink, where the gesture belongs to the
+  group, it covers the whole slot instead. Ink-coloured, not the mark's hue: it
+  lands on top of other marks and a second saturated colour there reads as a
+  third series.
+- **A complement that runs off the top of the axis is cut, not capped.** Same
+  ask: "if y doesn't go to 100%, would be nice if the top is not round, showing
+  that this includes more." A 6% bar on a 15% axis has a 94% complement, so the
+  wash gets a torn edge at the frame rather than a rounded corner, which would
+  have drawn a quantity that ends there.
+- A rate axis knows what "all of these rows" is worth (1). A count axis does
+  not: `select.whole` is how such a chart says, and `whole: null` drops the wash
+  rather than guessing. A stacked bar always knows — it is the stack's total.
+
 ## v0.8.0 — 2026-09-17
 
 - **`select` is now the ONLY way to make a mark clickable.** `onBarClick`,
