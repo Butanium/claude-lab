@@ -19,7 +19,6 @@ body.kit-shift .kit-chart .kit-bg { cursor: crosshair; }
    open. Ink rather than the mark's own hue — it lands on top of other marks,
    and a second saturated colour there reads as a third series. */
 .kit-chart .kit-ghost .ghost-fill { fill: var(--ink); fill-opacity: 0.14; }
-.kit-chart svg.kit-ghosting .halo { opacity: 0 !important; }
 .kit-chart .refline { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
 .kit-chart .whisker { stroke: var(--ink-2); stroke-width: 1.4; }
 /* CI on an overlay dot: ink, not the dot's hue — the interval reaches down into

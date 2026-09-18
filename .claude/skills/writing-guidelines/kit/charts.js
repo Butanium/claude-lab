@@ -120,7 +120,6 @@ const KitCharts = (() => {
      rewords the line; spec.clickHint = false drops it. */
   const CLICK_HINT = "click to open these rows";
   const SHIFT_HINT = "⇧ click: every row but these";
-  const OUTSIDE_HINT = "⇧ click: rows here that no bar covers";
   function clickable(mark, spec, fire, shiftHint = null) {
     mark.style.cursor = "pointer";
     if (spec.clickHint !== false) {
@@ -250,27 +249,9 @@ const KitCharts = (() => {
       p.x = e.clientX; p.y = e.clientY;
       return p.matrixTransform(ctm.inverse())[axis];
     };
-    /* A grouped bar's hit zone is its whole COLUMN on purpose — a 2% bar is
-       otherwise unhoverable and a click shouldn't demand pixel aim — so the
-       blank band above the bar belongs to a mark, and "⇧ click outside the
-       bar" would silently mean "⇧ click on it". Above the ink, the column
-       hands the gesture back to the group. (Stacked bars need none of this:
-       their segments cover only their own slice, so the space above a stack
-       already IS the background.) */
-    const aboveInk = (c, e) => c.inkTop != null && at(e, "y") < c.inkTop - PAD
-      /* one selectable bar in the slot and the two gestures name the same rows:
-         "every other value" and "no value any bar here covers" differ only by
-         the bars you exclude, and there is one. Two affordances doing one thing
-         — different hint, different wash — is just a reader wondering which. */
-      && byGroup.get(c.slot ?? c.group).length > 1;
-
     const info = (c, mode, event) => ({ mode, event, d: c?.d, s: c?.s, group: c?.group, sub: c?.sub });
     function fire(c, e) {
       const shift = !!(e && e.shiftKey);
-      if (shift && aboveInk(c, e)) {
-        const g = c.slot ?? c.group;
-        return S.go(outsideFilters(g), { ...info(c, "outside", e), group: c.group });
-      }
       const v = c.filters[markKey];
       if (!shift || !markKey || v === undefined)
         return S.go({ ...c.filters }, info(c, "only", e));
@@ -310,7 +291,6 @@ const KitCharts = (() => {
     const clearGhost = () => {
       ghostEl?.remove();
       ghostEl = null;
-      f.svg?.classList?.remove("kit-ghosting");
     };
     function tornTop(x, y, w, h) {
       const step = 7, amp = 3.5;
@@ -321,55 +301,44 @@ const KitCharts = (() => {
       }
       return el("path", { d: d + `L${x + w},${y + h}Z`, class: "ghost-fill" });
     }
-    function drawGhost(c, mode) {
+    function drawGhost(c) {
       clearGhost();
       if (!c || !c.ink || !(f.iw > 0) || c.whole == null) return;
       const top = f.m.t;
       const ceil = Math.max(c.whole, top);
       const clipped = c.whole < top - 0.5;
       const g = el("g", { class: "kit-ghost", "pointer-events": "none" });
-      let bands;
-      if (mode === "outside") {
-        /* "the rows no bar here covers" — so the wash must AVOID the bars.
-           Washing over them reads as "these two bars", the opposite of what the
-           click does (Clément, on the first version: "looks weird that it's on
-           both column"). What is left is the empty part of the column: the
-           gutters at full height, and the headroom over each bar. */
-        const [sx0, sx1] = span(c.slot ?? c.group);
-        const inks = byGroup.get(c.slot ?? c.group).map(x => x.ink)
-          .filter(Boolean).sort((a, b) => a.x - b.x);
-        bands = [];
-        let cursor = sx0;
-        for (const ink of inks) {
-          if (ink.x - cursor > 0.5) bands.push([ceil, c.base, cursor, ink.x - cursor]);
-          bands.push([ceil, ink.top, ink.x, ink.w]);
-          cursor = Math.max(cursor, ink.x + ink.w);
-        }
-        if (sx1 - cursor > 0.5) bands.push([ceil, c.base, cursor, sx1 - cursor]);
-      } else {
-        /* the mark gesture leaves out one mark, so its wash is its slot minus it */
-        bands = [[ceil, c.ink.top, c.ink.x, c.ink.w], [c.ink.bot, c.base, c.ink.x, c.ink.w]];
-      }
+      /* ONE rule: the wash is the slot minus the mark you are on, because that
+         is what the click opens — every row here that this mark does not count.
+         A stacked segment's slot is its own bar, so the wash is the rest of the
+         stack. A grouped bar's slot is its group, so the wash also covers its
+         neighbours: their rows ARE in the complement. (Grouped bars had a second
+         gesture for a while, on the theory that the empty band above a bar meant
+         "no bar here" — that reads a group as if its bars partitioned a whole,
+         which is what a STACK does. Clément: "you're treating grouped bar as
+         stacked bar which is dumb ... not this bar equals anything that's not a
+         bar.") */
+      const [sx0, sx1] = span(c.slot ?? c.group);
+      const ink = c.ink;
+      const bands = [
+        [ceil, c.base, sx0, ink.x - sx0],                       /* left of it */
+        [ceil, c.base, ink.x + ink.w, sx1 - (ink.x + ink.w)],   /* right of it */
+        [ceil, ink.top, ink.x, ink.w],                          /* over it */
+        [ink.bot, c.base, ink.x, ink.w],                        /* under it */
+      ];
       for (const [y1, y2, x, w] of bands) {
+        if (!(w > 0.5)) continue;
         if (!(y2 - y1 > 0.5)) continue;
         g.appendChild(clipped && Math.abs(y1 - top) < 0.5
           ? tornTop(x, y1, w, y2 - y1)
           : el("rect", { x, y: y1, width: w, height: y2 - y1, rx: 2, class: "ghost-fill" }));
       }
-      if (g.childNodes.length) {
-        f.svg.appendChild(g);
-        /* the per-bar hover halo names ONE bar, which contradicts a gesture
-           about all of them */
-        f.svg.classList.toggle("kit-ghosting", mode === "outside");
-        ghostEl = g;
-      }
+      if (g.childNodes.length) { f.svg.appendChild(g); ghostEl = g; }
     }
     /* what the pointer is on, so Shift going down redraws the preview without
        waiting for the reader to move the mouse */
     let hoverCell = null;
-    const preview = () => (shiftDown && hoverCell
-      ? drawGhost(hoverCell.c, aboveInk(hoverCell.c, hoverCell.e) ? "outside" : "complement")
-      : clearGhost());
+    const preview = () => (shiftDown && hoverCell ? drawGhost(hoverCell.c) : clearGhost());
     preview.dead = () => !f.svg.isConnected;
     shiftHooks.add(preview);
 
@@ -392,7 +361,7 @@ const KitCharts = (() => {
         S.go(outsideFilters(g), { ...info(null, "outside", e), group: g });
       });
     }
-    return { fire, mount, cells, aboveInk, shiftHint: markKey ? SHIFT_HINT : null,
+    return { fire, mount, cells, shiftHint: markKey ? SHIFT_HINT : null,
              hover(c, e) { hoverCell = c && { c, e }; preview(); } };
   }
 
@@ -405,10 +374,6 @@ const KitCharts = (() => {
     wireShift();
     for (const c of sel.cells) if (c.hit) {
       clickable(c.hit, spec, e => sel.fire(c, e), sel.shiftHint);
-      /* a full-height hit zone means two ⇧ gestures share one mark, so its hint
-         is a function of where in the column the pointer is */
-      if (c.inkTop != null && sel.shiftHint)
-        c.hit.__kitHintShift = e => (sel.aboveInk(c, e) ? OUTSIDE_HINT : SHIFT_HINT);
       c.hit.addEventListener("mousemove", e => sel.hover(c, e));
       c.hit.addEventListener("mouseleave", () => sel.hover(null));
     }
@@ -836,7 +801,6 @@ const KitCharts = (() => {
            rows aren't in the page) must not advertise a click on the others */
         cells.push({ d, s, group: gname, hit,
                      gx0: gx + bw * 0.12 + si * slot, gx1: gx + bw * 0.12 + (si + 1) * slot,
-                     inkTop: Math.min(yv, Number.isFinite(d.hi) ? f.y(d.hi) : yv),
                      ink: { x, w: bwid, top: Math.min(yv, y0), bot: Math.max(yv, y0) },
                      base: y0, whole: WHOLE == null ? null : f.y(WHOLE) });
         f.svg.appendChild(hit);

@@ -3,6 +3,26 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.8.3 — 2026-09-17
+
+- **A grouped bar owns its whole column; there is no second gesture in it.**
+  v0.8.1-2 made the empty band above a grouped bar mean "rows no bar here
+  covers", which reads a group as if its bars partitioned something. They do
+  not — that is what a STACK does; grouped bars each carry their own
+  denominator. Clément: "you're treating grouped bar as stacked bar which is
+  dumb … not this bar equals anything that's not a bar." ⇧ anywhere in the
+  column now means the one thing: every row here this bar does not count.
+- **One wash rule, both shapes: the slot minus the mark you are on** — which is
+  exactly what the click opens. A stacked segment's slot is its own bar, so the
+  wash is the rest of the stack; a grouped bar's slot is its group, so the wash
+  also covers its neighbours, whose rows genuinely are in the complement. The
+  special-cases this replaces (a group-level wash that dodged the bars, the
+  suppressed halo, the single-bar coincidence rule from v0.8.2) are all gone —
+  they were patches on the wrong model.
+- The background gesture is unchanged and still means "no mark covers these": on
+  a stacked chart that is the band above a stack whose segments do not add to
+  the whole, and on any bar chart the gutter between groups.
+
 ## v0.8.2 — 2026-09-17
 
 - **The ⇧ wash for the group gesture now avoids the bars instead of covering

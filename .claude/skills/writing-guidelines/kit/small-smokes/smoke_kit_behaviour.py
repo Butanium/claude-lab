@@ -674,12 +674,14 @@ with tempfile.TemporaryDirectory() as td:
         check("grouped: shift-click on the ink inverts the series dimension",
               shown2().startswith("8 samples") and chips2(1) == ["q", "r"],
               f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
+        # a grouped bar's column is that bar's, all of it: the empty band above
+        # it is not a second gesture (a group is not a stack)
         aim("fig5")
         b4 = gb(4).bounding_box()
         shift_click(b4["x"] + b4["width"] / 2, b4["y"] + b4["height"] * 0.05)
         pg.wait_for_timeout(300)
-        check("grouped: shift-click above the ink: that group, none of its bars",
-              shown2().startswith("2 samples") and chips2(0) == ["z"] and chips2(1) == ["r"],
+        check("grouped: shift above the bar means what shift on it means",
+              shown2().startswith("4 samples") and chips2(0) == ["z"] and chips2(1) == ["q", "r"],
               f"{shown2()} arm={chips2(0)} tag={chips2(1)}")
 
         print("the complement preview, and a tooltip that answers to the key")
@@ -710,10 +712,14 @@ with tempfile.TemporaryDirectory() as td:
         pg.mouse.move(tb["x"] + tb["width"] / 2, tb["y"] + tb["height"] * 0.95)
         pg.keyboard.down("Shift")
         pg.wait_for_timeout(250)
+        shapes = pg.evaluate(
+            "() => { const top = 12;"   # frame's default top margin, in viewBox units
+            " return [...document.querySelectorAll('#fig-torn .kit-ghost *')]"
+            ".map(e => e.tagName + (e.tagName === 'rect' && Math.abs(e.y.baseVal.value - top) < 1"
+            " ? ':at-ceiling' : '')); }")
         check("a complement that runs off the axis is cut, not capped",
-              pg.evaluate("() => document.querySelectorAll('#fig-torn .kit-ghost path').length") == 1,
-              str(pg.evaluate("() => [...document.querySelectorAll('#fig-torn .kit-ghost *')]"
-                              ".map(e => e.tagName)")))
+              shapes.count("path") >= 1 and not any(":at-ceiling" in x for x in shapes),
+              str(shapes))
         pg.keyboard.up("Shift")
         pg.wait_for_timeout(150)
 
