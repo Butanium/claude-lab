@@ -31,6 +31,12 @@ now reaches a single step of a transcript in two clicks, and the url names that 
   from the filters, so a reload or a pasted link restates it.
 - **The viewer stacks at phone width** (≤640px): rail as a short strip above the
   transcript. Side by side, a persisted 240px rail left the transcript ~80px at 380px.
+- **The outline pane never leaves an empty column.** Under 900px of viewport the
+  old rule hid the pane but its column kept the width the drag had persisted, so
+  in a page with a sidebar the transcript got ~200px and a blank strip sat to its
+  right (Clément: "no metadata on the right → no panel, and always let it be
+  foldable"). Narrow is now the viewer's own width (<1100px; the rail capped at 28% of it): the outline starts
+  folded there, under its own pref, and its open/close buttons always work.
 - **`groupedBars` `pointGo`**: the per-run dots become doors (one run = one transcript),
   with 9px halos drawn after every other mark so no bar's hit column swallows them.
 

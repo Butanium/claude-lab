@@ -330,19 +330,33 @@ const KitTrace = (() => {
     const notify = () => listener?.();
     const idx = () => rows.findIndex(r => idOf(r) === sel);
 
-    /* --- rails: open/close + drag --- */
+    /* --- rails: open/close + drag ---
+       Narrow is the VIEWER's width, not the viewport's: a page with a sidebar
+       gives the viewer far less than the window. There the outline pane starts
+       folded (its own pref, so folding it on a laptop does not fold it on a
+       wide screen) and the rail is capped, but both stay foldable — the old
+       media query hid the pane and left its column standing, an empty strip
+       that squeezed the transcript to a word per line (Clément). */
+    /* below this the transcript would get under ~550px with all three panes open */
+    const narrow = () => el.clientWidth > 0 && el.clientWidth < 1100;
+    const sideKey = () => narrow() ? "sideOpenNarrow" : "sideOpen";
+    const sideOpen = () => prefs[sideKey()] ?? !narrow();
     const paintRails = () => {
+      const n = narrow(), so = sideOpen();
+      el.classList.toggle("narrow", n);
       el.classList.toggle("rail-closed", !prefs.railOpen);
-      el.classList.toggle("side-closed", !prefs.sideOpen);
-      el.style.setProperty("--kt-rail", prefs.rail + "px");
-      el.style.setProperty("--kt-side", prefs.side + "px");
+      el.classList.toggle("side-closed", !so);
+      el.style.setProperty("--kt-rail", (n ? Math.min(prefs.rail, Math.round(el.clientWidth * 0.28)) : prefs.rail) + "px");
+      el.style.setProperty("--kt-side", (n ? Math.min(prefs.side, 210) : prefs.side) + "px");
       $(".kt-rail-open").hidden = prefs.railOpen;
-      $(".kt-side-open").hidden = prefs.sideOpen;
+      $(".kt-side-open").hidden = so;
     };
+    let wasNarrow = null;
+    new ResizeObserver(() => { const n = narrow(); if (n !== wasNarrow) { wasNarrow = n; paintRails(); } }).observe(el);
     $(".kt-rail-close").addEventListener("click", () => { prefs.railOpen = false; save(); paintRails(); });
     $(".kt-rail-open").addEventListener("click", () => { prefs.railOpen = true; save(); paintRails(); });
-    $(".kt-side-close").addEventListener("click", () => { prefs.sideOpen = false; save(); paintRails(); });
-    $(".kt-side-open").addEventListener("click", () => { prefs.sideOpen = true; save(); paintRails(); });
+    $(".kt-side-close").addEventListener("click", () => { prefs[sideKey()] = false; save(); paintRails(); });
+    $(".kt-side-open").addEventListener("click", () => { prefs[sideKey()] = true; save(); paintRails(); });
     for (const [g, key, sign] of [[$(".g-rail"), "rail", 1], [$(".g-side"), "side", -1]]) {
       g.addEventListener("pointerdown", e => {
         e.preventDefault();

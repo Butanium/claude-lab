@@ -154,10 +154,6 @@
 /* the flash that says "this is what you clicked to", reused from layout.css */
 .kt .kt-trace.hi-flash .kt-thead { animation: hi-flash 1.2s ease-out; }
 
-@media (max-width: 900px) {
-  .kt { --kt-rail: 160px; --kt-side: 0px; }
-  .kt .kt-side, .kt .kt-gutter.g-side { display: none; }
-}
 /* phone width: three panes side by side leave the transcript ~80px. Stack them —
    the rail becomes a short scrolling strip above the transcript (the inline
    --kt-rail a desktop drag persisted must not apply here, hence !important) */
@@ -167,7 +163,7 @@
   }
   .kt > .kt-rail { grid-column: 1; grid-row: 1; max-height: 9.5rem; border-bottom: 1px solid var(--baseline); }
   .kt > .kt-main { grid-column: 1; grid-row: 2; }
-  .kt > .kt-gutter { display: none; }
+  .kt > .kt-gutter, .kt > .kt-side, .kt .kt-side-open { display: none !important; }
   .kt .kt-scroll { padding: 0 0.6rem 1.2rem; }
 }
 @media print { .kt { height: auto; resize: none; } .kt .kt-rail, .kt .kt-side, .kt .kt-gutter, .kt .kt-bar { display: none; } .kt .kt-scroll { overflow: visible; } }
