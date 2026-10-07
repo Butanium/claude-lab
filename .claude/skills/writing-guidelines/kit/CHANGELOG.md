@@ -3,6 +3,38 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.9.1 — 2026-10-07
+
+Clément: the Luna run page "freezes the browser" on open. Measured in headless
+Chromium: the viewer auto-opened the first run in corpus order at page load (2,223
+steps, 17 MB) and rendered every step — 3k blocks, a 3k-button outline, 62k DOM nodes,
+4 s of blocked main thread on a fast box, several times that on a laptop in the artifact
+frame — and opening a 2,624-step run did the same again. Two changes in `KitTrace`:
+
+- **A lazy viewer opens nothing on its own.** `spec.autoSelect` (default `!spec.load`):
+  with a `load`, arriving on the explorer, or filtering it, no longer selects and fetches
+  the first matching row; the pane says "N transcripts — choose one from the list, or a
+  mark on a chart" until a rail click, a chart mark or the url (`_sel`) names one. A
+  viewer with inline transcripts keeps the old behaviour.
+- **Windowed rendering**, opt-in (`spec.window: true | {before, after, first, step, max,
+  min, minGap}`): only the steps around the points of interest are rendered — pinned or
+  badged blocks (the judge's flags), the step the reader landed on (`_at`, so a flag link
+  or a chart mark opens on its step with context), blocks holding a search hit — plus
+  the transcript's head (judge, system and task prompts). Everything between is a
+  `[… N steps hidden · a–b …]` row with `▾ 10 more` (after the window above), `▴ 10 more`
+  (before the window below) and `show all N` (up to 100; past that, `▾ 100 more`). A
+  transcript with no point of interest shows its first 50 steps; one of at most 60 steps
+  is whole; gaps under 4 steps are not worth a row and are shown. A reveal builds only the
+  new blocks and splices them in (`replaceChildren` over cached elements), so folds and
+  expanded texts already on screen survive it; a landing (`_at`, a pin, the outline) on
+  a hidden step reveals its window first. Search hits are marked per revealed batch and
+  the outline lists the gaps. A block may carry a `tag` ("nudge", "compaction") and a gap
+  row counts the tagged blocks it hides ("· 12 nudges · 3 compactions"), so a run's
+  nudge loop or compaction burst is visible without opening the gap. Off by default: a 40-step transcript with one flag is better
+  read whole, and the viewer's premise is still "everything on screen as you scroll".
+- The page's own fix, for the record: its base64 decode used `Uint8Array.from(str, c =>
+  c.charCodeAt(0))`, a per-character callback over 20 MB; a plain loop is 10× faster.
+
 ## v0.9.0 — 2026-10-06
 
 Clément: "allow me to click on bar and read transcript using the kit". A chart mark

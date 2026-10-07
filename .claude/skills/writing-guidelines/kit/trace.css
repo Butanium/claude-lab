@@ -189,3 +189,13 @@
 .kt .kt-outline button.marked .k { box-shadow: 0 0 0 2px var(--pin, var(--warning)); }
 .kt .kt-loading { color: var(--muted); font-style: italic; padding: 1rem 0; font-family: var(--serif); }
 .kt .kt-loading.err { color: var(--critical); font-style: normal; }
+
+/* --- a windowed transcript: the steps between windows sit behind a gap row --- */
+.kt .kt-gap {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.4rem;
+  margin: 0.7rem 0; padding: 0.3rem 0 0.3rem 0.75rem;
+  border-left: 3px dashed var(--baseline); color: var(--muted);
+  font: 0.78rem var(--sans); font-variant-numeric: tabular-nums;
+}
+.kt .kt-gap .n { font-family: var(--mono); font-size: 0.76rem; margin-right: 0.3rem; }
+.kt .kt-outline .gap { color: var(--muted); font: italic 0.72rem/1.3 var(--sans); padding: 0.15rem 0.3rem 0.15rem 1.05rem; }

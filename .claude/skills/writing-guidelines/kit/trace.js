@@ -34,9 +34,11 @@
      `cls` (extra class names for report-specific styling),
      `folded: true|false` to override the fold-all default for itself,
      `anchor` (a stable id within its transcript — a step number — that pins,
-     the outline and the url's `_at` address it by), and
+     the outline and the url's `_at` address it by),
      `badges: [[label, chipClass]…]` (chips in the block's head; a block with
-     any badge also gets the `.kb-marked` rule, e.g. a judge-flagged step).
+     any badge also gets the `.kb-marked` rule, e.g. a judge-flagged step), and
+     `tag` (a short noun, "nudge" or "compaction": a windowed transcript's gap
+     rows count the tagged blocks they hide).
 
    A transcript may carry `pins: [{anchor, label, text|html, cls?}]`: a list at
    its top (the judge's flagged steps, say) where one click lands on the block
@@ -47,6 +49,21 @@
    heavy part (blocks, pins, details) when the transcript is first shown; the
    rail and the chrome render from `spec.trace(row)` alone, which stays cheap
    and synchronous. A failed load renders its error in place of the blocks.
+   A lazy viewer opens nothing on its own (`spec.autoSelect`, default
+   `!spec.load`): until a rail click, a chart mark or the url names a
+   transcript, the pane says how many match and waits — the alternative was
+   fetching and rendering whichever run came first in corpus order on every
+   page load, which froze the browser on a 17 MB one.
+   Windowed rendering: `spec.window: true | {before, after, first, step, max,
+   min}` renders only the steps around the points of interest — pinned or
+   badged blocks, the step the reader landed on (`_at`), blocks holding a
+   search hit — and the transcript's head; everything between sits behind a
+   `[… N steps …]` gap row that reveals `step` (10) steps from either edge, or
+   the whole gap when it is at most `max` (100) steps. A transcript with no
+   point of interest shows its first `first` (50) steps. Revealing adds blocks
+   in place; nothing already on screen is rebuilt. Off by default: a small
+   transcript is better read whole, and the viewer's premise is "everything on
+   screen as you scroll"; a page whose runs reach thousands of steps turns it on.
    `spec.onEscape()` runs when Esc is pressed in the viewer with no step
    selected (Esc first clears a selected step) — a page uses it to close the
    drill-down, e.g. history.back() to the figure the reader came from. */
@@ -176,6 +193,111 @@ const KitTrace = (() => {
     return el;
   }
 
+  /* ---- windowing ----
+     A unit is a step: the run of consecutive blocks sharing an anchor (its
+     reasoning, its message, its call), or one unanchored block. The head (the
+     unanchored blocks before the first step: judge, system, task prompt) is
+     always shown. Gaps shorter than `minGap` are shown too — a row of controls
+     for three steps costs more than the steps. */
+  const WINDOW = { before: 5, after: 5, first: 50, step: 10, max: 100, min: 60, minGap: 4 };
+  const blockText = b => b.kind === "tool"
+    ? [b.input != null ? asText(b.input) : "", b.output != null ? asText(b.output) : ""].join("\n")
+    : String(b.text ?? "");
+  const windows = new WeakMap();   /* trace element -> its window controller */
+  function windowed(blocks, cfg, opts) {
+    const units = [];
+    for (const b of blocks) {
+      const a = b.anchor == null ? null : String(b.anchor);
+      const last = units[units.length - 1];
+      if (a != null && last && last.anchor === a) last.blocks.push(b);
+      else units.push({ anchor: a, blocks: [b] });
+    }
+    const n = units.length;
+    const shown = new Uint8Array(n);
+    const poi = new Set((opts.poi || []).map(String));
+    if (opts.at != null) poi.add(String(opts.at));
+    const re = opts.hitRe;
+    const interesting = u => (u.anchor != null && poi.has(u.anchor))
+      || u.blocks.some(b => b.badges?.length)
+      || (!!re && u.blocks.some(b => { re.lastIndex = 0; return re.test(blockText(b)); }));
+    let head = 0;
+    while (head < n && units[head].anchor == null) head++;
+    const show = (i, j) => { for (let k = Math.max(0, i); k < Math.min(n, j); k++) shown[k] = 1; };
+    if (n <= cfg.min) shown.fill(1);
+    else {
+      show(0, head);
+      let any = false;
+      for (let k = head; k < n; k++) if (interesting(units[k])) { any = true; show(k - cfg.before, k + cfg.after + 1); }
+      if (!any) show(head, head + cfg.first);
+      /* close the gaps too short to be worth a control */
+      for (let i = 0; i < n;) {
+        if (shown[i]) { i++; continue; }
+        let j = i; while (j < n && !shown[j]) j++;
+        if (j - i < cfg.minGap) show(i, j);
+        i = j;
+      }
+    }
+
+    const box = document.createElement("div");
+    box.className = "kt-blocks";
+    const els = new Map();   /* unit index -> its block elements, built once */
+    let fresh = [];
+    const render = i => {
+      if (!els.has(i)) { const e = units[i].blocks.map(b => block(b, opts)); els.set(i, e); fresh.push(...e); }
+      return els.get(i);
+    };
+    const plural = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+    function gap(i, j) {
+      const g = document.createElement("div");
+      g.className = "kt-gap";
+      const a = units[i].anchor, b = units[j - 1].anchor, N = j - i, steps = a != null && b != null;
+      /* what the gap hides, by the blocks' tags: "· 12 nudges · 3 compactions" */
+      const tags = new Map();
+      for (let k = i; k < j; k++) for (const bl of units[k].blocks) if (bl.tag) tags.set(bl.tag, (tags.get(bl.tag) || 0) + 1);
+      const tagged = [...tags].map(([t, c]) => ` · ${plural(c, esc(t))}`).join("");
+      g.innerHTML = `<span class="n">… ${plural(N, steps ? "step" : "block")} hidden${steps ? ` · ${esc(a)}–${esc(b)}` : ""}${tagged} …</span>`;
+      const btn = (label, title, from, to) => {
+        const el = document.createElement("button");
+        el.type = "button"; el.textContent = label; el.title = title;
+        el.addEventListener("click", () => { show(from, to); paint(); });
+        g.appendChild(el);
+      };
+      const k = Math.min(cfg.step, N), w = steps ? "step" : "block";
+      const after = m => units[i - 1] ? `show the ${plural(m, w)} after ${steps ? "step " + esc(units[i - 1].anchor) : "the one above"}` : `show the first ${plural(m, w)}`;
+      const before = m => units[j] ? `show the ${plural(m, w)} before ${steps ? "step " + esc(units[j].anchor) : "the one below"}` : `show the last ${plural(m, w)}`;
+      btn(`▾ ${k} more`, after(k), i, i + k);
+      btn(`▴ ${k} more`, before(k), j - k, j);
+      if (N > cfg.step) {
+        if (N <= cfg.max) btn(`show all ${N}`, `show every hidden ${w} here`, i, j);
+        else btn(`▾ ${cfg.max} more`, after(cfg.max), i, i + cfg.max);
+      }
+      return g;
+    }
+    function paint() {
+      const nodes = [];
+      for (let i = 0; i < n;) {
+        if (shown[i]) { nodes.push(...render(i)); i++; continue; }
+        let j = i; while (j < n && !shown[j]) j++;
+        nodes.push(gap(i, j));
+        i = j;
+      }
+      box.replaceChildren(...nodes);
+      const f = fresh; fresh = [];
+      if (f.length) opts.onBlocks?.(f);
+      opts.onPaint?.();
+    }
+    /* bring a hidden step on screen with its window; false if it was shown or unknown */
+    function reveal(anchor) {
+      const k = units.findIndex(u => u.anchor === String(anchor));
+      if (k < 0 || shown[k]) return false;
+      show(k - cfg.before, k + cfg.after + 1);
+      paint();
+      return true;
+    }
+    paint();
+    return { el: box, reveal, hidden: () => shown.reduce((s, x) => s + (1 - x), 0), units: n };
+  }
+
   /* ---- one transcript ---- */
   function trace(t, opts = {}) {
     const el = document.createElement("article");
@@ -200,7 +322,12 @@ const KitTrace = (() => {
     if (t.loading) el.insertAdjacentHTML("beforeend", `<div class="kt-loading">loading…</div>`);
     if (t.loadError) el.insertAdjacentHTML("beforeend",
       `<div class="kt-loading err">could not load this transcript: ${esc(t.loadError)}</div>`);
-    for (const b of t.blocks || []) el.appendChild(block(b, opts));
+    if (opts.window) {
+      const cfg = { ...WINDOW, ...(opts.window === true ? {} : opts.window) };
+      const W = windowed(t.blocks || [], cfg, { ...opts, poi: (t.pins || []).map(p => p.anchor) });
+      windows.set(el, W);
+      el.appendChild(W.el);
+    } else for (const b of t.blocks || []) el.appendChild(block(b, opts));
     return el;
   }
 
@@ -233,9 +360,14 @@ const KitTrace = (() => {
     });
     kb.classList.remove("hi-flash"); void kb.offsetWidth; kb.classList.add("hi-flash");
   }
+  /* the blocks of a step, revealed first when the transcript is windowed */
+  const stepBlocks = (root, a) => {
+    windows.get(root)?.reveal(a);
+    return root.querySelectorAll(`.kb[data-anchor="${CSS.escape(String(a))}"]`);
+  };
   /* a standalone trace has no viewer to own the scroll: the block scrolls itself */
   const standaloneJump = root => a => {
-    const kbs = root.querySelectorAll(`.kb[data-anchor="${CSS.escape(String(a))}"]`);
+    const kbs = stepBlocks(root, a);
     kbs.forEach(k => reveal(k, root));
     kbs[0]?.scrollIntoView({ block: "start" });
   };
@@ -257,6 +389,8 @@ const KitTrace = (() => {
     const toTrace = spec.trace;
     const pageSize = spec.pageSize ?? 8;
     const defaultMode = spec.mode === "all" ? "all" : "one";
+    const win = spec.window || null;
+    const autoSelect = spec.autoSelect ?? !spec.load;
     const memo = new WeakMap();
     const T = r => { if (!memo.has(r)) memo.set(r, toTrace(r)); return memo.get(r); };
     const idOf = spec.id || (r => String(T(r).id ?? ""));
@@ -488,7 +622,17 @@ const KitTrace = (() => {
     };
     function mount(r, before = null) {
       const id = idOf(r);
-      const te = trace(full(r), { folds: prefs.folds, onPin: a => goAnchor(id, a) });
+      let te = null;
+      const te0 = trace(full(r), {
+        folds: prefs.folds, onPin: a => goAnchor(id, a), window: win, hitRe: ctx.hitRe,
+        at: id === sel ? at : null,
+        /* windowed: hits are marked per batch of revealed blocks (marking the
+           whole trace again would nest a mark in every earlier one), and a
+           reveal rewrites the outline, which is read off the DOM */
+        onBlocks: els => { if (ctx.hitRe) els.forEach(e => KitCards.highlight(e, ctx.hitRe)); },
+        onPaint: () => { if (te?.isConnected) { te.dataset.hits = JSON.stringify(countHits(te)); if (id === sel) paintCurrent(); } },
+      });
+      te = te0;
       scroll.insertBefore(te, before);
       const L = loaded.get(id);
       if (L && !L.done) L.promise.then(() => {
@@ -498,7 +642,7 @@ const KitTrace = (() => {
         KitCards.markShort(fresh);
         if (id === sel) { paintCurrent(); if (at != null) landAt(at, { flash: true }); }
       });
-      if (ctx.hitRe) { KitCards.highlight(te, ctx.hitRe); }
+      if (ctx.hitRe && !win) { KitCards.highlight(te, ctx.hitRe); }
       te.dataset.hits = JSON.stringify(countHits(te));
       te.querySelector(".kt-thead").addEventListener("click", e => {
         if (mode === "all" && !e.target.closest("button")) setCurrent(te.dataset.id, { notify: true });
@@ -514,7 +658,13 @@ const KitTrace = (() => {
         return;
       }
       if (mode === "one") {
-        const i = Math.max(0, idx());
+        const i = idx();
+        if (i < 0) {   /* a lazy viewer with nothing chosen yet: say so, fetch nothing */
+          scroll.innerHTML = `<div class="kt-empty">${rows.length} transcript${rows.length === 1 ? "" : "s"} — choose one from the list, or a mark on a chart</div>`;
+          outline.textContent = ""; details.textContent = "";
+          paintChrome();
+          return;
+        }
         mount(rows[i]);
         jumpTo(0);
       } else {
@@ -542,7 +692,7 @@ const KitTrace = (() => {
       scroll.querySelectorAll(".kt-pin.on").forEach(k => k.classList.remove("on"));
       /* every block of the step carries its anchor (its reasoning, its call):
          all of them are the step, the first is where the eye lands */
-      const kbs = te ? [...te.querySelectorAll(`.kb[data-anchor="${CSS.escape(String(a))}"]`)] : [];
+      const kbs = te ? [...stepBlocks(te, a)] : [];
       const kb = kbs[0];
       if (!kb) return false;
       te.querySelectorAll(`.kt-pin[data-anchor="${CSS.escape(String(a))}"]`).forEach(p => p.classList.add("on"));
@@ -577,7 +727,14 @@ const KitTrace = (() => {
       outline.textContent = "";
       /* read from the DOM, so nested blocks (groups) and their hit counts come
          out in document order without a second walk over the spec */
-      (te ? [...te.querySelectorAll(".kb")] : []).forEach(kb => {
+      (te ? [...te.querySelectorAll(".kb, .kt-gap")] : []).forEach(kb => {
+        if (kb.classList.contains("kt-gap")) {
+          const g = document.createElement("div");
+          g.className = "gap";
+          g.textContent = kb.querySelector(".n")?.textContent || "…";
+          outline.appendChild(g);
+          return;
+        }
         const kind = kb.dataset.kind;
         const depth = (() => { let d = 0, p = kb.parentElement.closest(".kb"); while (p) { d++; p = p.parentElement.closest(".kb"); } return d; })();
         const head = kb.querySelector(":scope > .kb-head");
@@ -652,7 +809,7 @@ const KitTrace = (() => {
     function setRows(newRows, newCtx = {}) {
       const sameHits = String(newCtx.hitRe ?? "") === String(ctx.hitRe ?? "");
       rows = newRows; ctx = newCtx; shown = pageSize; railShown = 400;
-      if (!rows.some(r => idOf(r) === sel)) { sel = rows.length ? idOf(rows[0]) : null; at = null; }
+      if (!rows.some(r => idOf(r) === sel)) { sel = rows.length && autoSelect ? idOf(rows[0]) : null; at = null; }
       paintFolds();
       renderRail();
       /* the same transcript still on screen (a live page refreshing its rows, a
