@@ -226,3 +226,5 @@ details.ex-adv > summary.has-active { color: var(--accent); font-weight: 600; }
   font: 0.78rem/1.6 var(--mono); overflow-x: auto;
 }
 .prompt-box.rendered-prompt .tmpl { color: var(--accent); }
+/* the question a drill-down answers, with its arithmetic (explorer `describe`) */
+.ex-question { font: 1rem/1.5 var(--serif); color: var(--ink); margin: 0.6rem 0 0.2rem; }

@@ -3,6 +3,37 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.9.0 — 2026-10-06
+
+Clément: "allow me to click on bar and read transcript using the kit". A chart mark
+now reaches a single step of a transcript in two clicks, and the url names that step.
+
+- **Lazy transcripts in `KitTrace.viewer`** (`spec.load(row) → Promise<partial trace>`).
+  A run's transcript can be megabytes (100k-char tool outputs), so a page with fifty
+  of them ships them as supporting files and fetches one when it is opened; the rail
+  and chrome render from `spec.trace(row)` alone. Loads are cached by id, not by row
+  object, because a live page swaps its rows every refresh.
+- **Pins and anchors.** A block may carry `anchor` (a step number) and `badges`; a
+  transcript may carry `pins` — a list at its top (the judge's flagged steps) where one
+  click lands on the step: every block of it unfolded, outlined, flashed, and a clamped
+  text holding the judge's quote expanded, scrolled to the quote when it sits deep in a
+  long output. The landed step is viewer state `_at`, so hashNav carries it and a
+  copied link opens on the step. Esc clears the step, then calls `spec.onEscape`
+  (a page sends the reader back to the figure they came from).
+- **A refresh keeps the transcript on screen.** `setRows` with the selected transcript
+  still present no longer re-renders it, so a live page refreshing every minute does
+  not throw the reader back to the top of what they are reading.
+- **`evidence` on tool blocks**, and evidence as an array of quotes taken whole: the
+  string form splits on `/` and `;`, which shredded code quotes (`np.save("/workspace/…")`)
+  into fragments that highlighted the wrong words.
+- **Explorer `describe`**: the question the current view answers, with its arithmetic,
+  in a line above the list ("9 of 10 judged navigation runs judged dirty"). Derived
+  from the filters, so a reload or a pasted link restates it.
+- **The viewer stacks at phone width** (≤640px): rail as a short strip above the
+  transcript. Side by side, a persisted 240px rail left the transcript ~80px at 380px.
+- **`groupedBars` `pointGo`**: the per-run dots become doors (one run = one transcript),
+  with 9px halos drawn after every other mark so no bar's hit column swallows them.
+
 ## v0.8.4 — 2026-09-17
 
 - **The ⇧ wash stays inside the hovered mark's own width.** v0.8.3 spread it

@@ -26,13 +26,30 @@
 
    Block shapes:
      { kind: "user"|"system"|"assistant"|"thinking"|"note", text, label?, evidence?, clamp? }
-     { kind: "tool", name, input (string|object), output?, error?, label? }
+     { kind: "tool", name, input (string|object), output?, error?, label?, evidence? }
      { kind: "judge", text, fields?: [[label, value]…], label? }
      { kind: "group", label, blocks: [...], folded? }   — a foldable run of blocks
        (a frozen prefix, a sub-agent's transcript), folded by default
      any block may carry `html` (trusted, report-authored) instead of `text`,
      `cls` (extra class names for report-specific styling),
-     and `folded: true|false` to override the fold-all default for itself. */
+     `folded: true|false` to override the fold-all default for itself,
+     `anchor` (a stable id within its transcript — a step number — that pins,
+     the outline and the url's `_at` address it by), and
+     `badges: [[label, chipClass]…]` (chips in the block's head; a block with
+     any badge also gets the `.kb-marked` rule, e.g. a judge-flagged step).
+
+   A transcript may carry `pins: [{anchor, label, text|html, cls?}]`: a list at
+   its top (the judge's flagged steps, say) where one click lands on the block
+   with that anchor, unfolded and flashed. The block the reader landed on is
+   viewer state (`_at`), so a link names the step, not only the transcript.
+
+   Lazy transcripts: `spec.load(row) -> Promise<partial trace>` fetches the
+   heavy part (blocks, pins, details) when the transcript is first shown; the
+   rail and the chrome render from `spec.trace(row)` alone, which stays cheap
+   and synchronous. A failed load renders its error in place of the blocks.
+   `spec.onEscape()` runs when Esc is pressed in the viewer with no step
+   selected (Esc first clears a selected step) — a page uses it to close the
+   drill-down, e.g. history.back() to the figure the reader came from. */
 "use strict";
 
 const KitTrace = (() => {
@@ -61,6 +78,8 @@ const KitTrace = (() => {
     const el = document.createElement("div");
     el.className = `kb kb-${kind}` + (b.error ? " err" : "") + (b.cls ? " " + b.cls : "");
     el.dataset.kind = kind;
+    if (b.anchor != null) el.dataset.anchor = String(b.anchor);
+    if (b.badges?.length) el.classList.add("kb-marked");
     const foldable = !!K.fold && b.fold !== false;
     const head = document.createElement("div");
     head.className = "kb-head";
@@ -81,6 +100,7 @@ const KitTrace = (() => {
     const hits = document.createElement("span");
     hits.className = "hits";
     head.appendChild(hits);
+    for (const [l, c] of b.badges || []) head.insertAdjacentHTML("beforeend", KitCards.chip(l, c));
     el.appendChild(head);
 
     const body = document.createElement("div");
@@ -93,8 +113,10 @@ const KitTrace = (() => {
         const h = document.createElement("div"); h.className = "kb-sec"; h.textContent = label;
         body.appendChild(h);
         const c = document.createElement("div"); c.className = "kb-code";
-        if (clamp) c.appendChild(KitCards.ptext(esc(text)));
-        else c.textContent = text;
+        /* `evidence` marks the quoted span in whichever section holds it */
+        const html = b.evidence ? KitCards.highlightEvidence(text, b.evidence) : esc(text);
+        if (clamp) c.appendChild(KitCards.ptext(html));
+        else c.innerHTML = html;
         body.appendChild(c);
       };
       if (b.input != null) sec("input", asText(b.input), b.clamp === true);
@@ -174,9 +196,49 @@ const KitTrace = (() => {
       if (t.ledeHtml) l.innerHTML = t.ledeHtml; else l.textContent = t.lede;
       el.appendChild(l);
     }
+    if (t.pins?.length) el.appendChild(pinList(t.pins, a => (opts.onPin || standaloneJump(el))(a)));
+    if (t.loading) el.insertAdjacentHTML("beforeend", `<div class="kt-loading">loading…</div>`);
+    if (t.loadError) el.insertAdjacentHTML("beforeend",
+      `<div class="kt-loading err">could not load this transcript: ${esc(t.loadError)}</div>`);
     for (const b of t.blocks || []) el.appendChild(block(b, opts));
     return el;
   }
+
+  function pinList(pins, go) {
+    const box = document.createElement("div");
+    box.className = "kt-pins";
+    for (const p of pins) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "kt-pin" + (p.cls ? " " + p.cls : "");
+      b.dataset.anchor = String(p.anchor);
+      b.title = "jump to this step";
+      b.innerHTML = `<span class="pl">${p.labelHtml ?? esc(p.label ?? p.anchor)}</span>`
+        + `<span class="pt">${p.html ?? esc(p.text ?? "")}</span>`;
+      b.addEventListener("click", () => go(String(p.anchor)));
+      box.appendChild(b);
+    }
+    return box;
+  }
+  /* unfold every fold between a block and its transcript, then flash it */
+  function reveal(kb, root) {
+    for (let p = kb; p && p !== root; p = p.parentElement.closest(".kb")) {
+      p.classList.remove("folded");
+      p.querySelector(":scope > .kb-head")?.setAttribute("aria-expanded", "true");
+    }
+    /* a clamped text holding the judge's quote opens, or the highlight the
+       reader came for is hidden behind "click to expand" */
+    kb.querySelectorAll(".ptext:not(.expanded):not(.short)").forEach(pt => {
+      if (pt.querySelector("mark.ev")) pt.click();
+    });
+    kb.classList.remove("hi-flash"); void kb.offsetWidth; kb.classList.add("hi-flash");
+  }
+  /* a standalone trace has no viewer to own the scroll: the block scrolls itself */
+  const standaloneJump = root => a => {
+    const kbs = root.querySelectorAll(`.kb[data-anchor="${CSS.escape(String(a))}"]`);
+    kbs.forEach(k => reveal(k, root));
+    kbs[0]?.scrollIntoView({ block: "start" });
+  };
 
   /* search-hit counts per block, after KitCards.highlight ran over the trace */
   function countHits(traceEl) {
@@ -198,6 +260,24 @@ const KitTrace = (() => {
     const memo = new WeakMap();
     const T = r => { if (!memo.has(r)) memo.set(r, toTrace(r)); return memo.get(r); };
     const idOf = spec.id || (r => String(T(r).id ?? ""));
+    /* lazy part, keyed by id rather than row: a live page swaps its row objects
+       on every refresh, and a refetch per refresh would be a refetch per minute */
+    const loaded = new Map();   /* id -> {done, value, error, promise} */
+    function full(r) {
+      const base = T(r);
+      if (!spec.load) return base;
+      const id = idOf(r);
+      let L = loaded.get(id);
+      if (!L) {
+        L = { done: false };
+        L.promise = Promise.resolve().then(() => spec.load(r)).then(
+          v => { L.done = true; L.value = v; }, e => { L.done = true; L.error = String(e?.message || e); });
+        loaded.set(id, L);
+      }
+      if (!L.done) return { ...base, loading: true, blocks: [] };
+      return L.error ? { ...base, loadError: L.error, blocks: [] } : { ...base, ...L.value };
+    }
+    let at = null;   /* the anchor of the block the reader landed on, in the current transcript */
 
     /* per-viewer prefs: how the reader looks, never what they look at */
     const KEY = spec.storageKey || "clab-kit-trace";
@@ -327,6 +407,13 @@ const KitTrace = (() => {
       if (e.target.closest("input, textarea, select, [contenteditable]")) return;
       if (e.key === "j") { e.preventDefault(); step(1); }
       else if (e.key === "k") { e.preventDefault(); step(-1); }
+      else if (e.key === "Escape") {
+        if (at != null) {
+          at = null;
+          scroll.querySelectorAll(".kb.kb-at, .kt-pin.on").forEach(k => k.classList.remove("kb-at", "on"));
+          notify();
+        } else spec.onEscape?.();
+      }
     });
 
     function paintChrome() {
@@ -385,9 +472,18 @@ const KitTrace = (() => {
       scroll.scrollTo({ top, behavior: "instant" });
       requestAnimationFrame(() => requestAnimationFrame(() => { programmatic = Math.max(0, programmatic - 1); }));
     };
-    function mount(r) {
-      const te = trace(T(r), { folds: prefs.folds });
-      scroll.appendChild(te);
+    function mount(r, before = null) {
+      const id = idOf(r);
+      const te = trace(full(r), { folds: prefs.folds, onPin: a => goAnchor(id, a) });
+      scroll.insertBefore(te, before);
+      const L = loaded.get(id);
+      if (L && !L.done) L.promise.then(() => {
+        if (!te.isConnected) return;
+        const fresh = mount(r, te);
+        te.remove();
+        KitCards.markShort(fresh);
+        if (id === sel) { paintCurrent(); if (at != null) landAt(at, { flash: true }); }
+      });
       if (ctx.hitRe) { KitCards.highlight(te, ctx.hitRe); }
       te.dataset.hits = JSON.stringify(countHits(te));
       te.querySelector(".kt-thead").addEventListener("click", e => {
@@ -422,6 +518,42 @@ const KitTrace = (() => {
       KitCards.markShort(scroll);
       paintCurrent();
       paintChrome();
+      if (at != null) landAt(at, { flash: true });
+    }
+    /* land on a block by anchor in the current transcript: unfold, scroll it
+       under the sticky header, flash, and keep it marked as the current step */
+    function landAt(a, { flash = false } = {}) {
+      const te = sel && traceEl(sel);
+      scroll.querySelectorAll(".kb.kb-at").forEach(k => k.classList.remove("kb-at"));
+      scroll.querySelectorAll(".kt-pin.on").forEach(k => k.classList.remove("on"));
+      /* every block of the step carries its anchor (its reasoning, its call):
+         all of them are the step, the first is where the eye lands */
+      const kbs = te ? [...te.querySelectorAll(`.kb[data-anchor="${CSS.escape(String(a))}"]`)] : [];
+      const kb = kbs[0];
+      if (!kb) return false;
+      te.querySelectorAll(`.kt-pin[data-anchor="${CSS.escape(String(a))}"]`).forEach(p => p.classList.add("on"));
+      for (const k of kbs) {
+        k.classList.add("kb-at");
+        if (flash) reveal(k, te);
+        else for (let p = k; p && p !== te; p = p.parentElement.closest(".kb")) p.classList.remove("folded");
+      }
+      const head = te.querySelector(".kt-thead");
+      const pad = head ? head.offsetHeight + 8 : 44;
+      const y = n => n.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop;
+      /* the quote itself when it sits below the first screen of the step (a
+         long tool output), else the step's head */
+      const mk = kbs.map(k => k.querySelector("mark.ev")).find(Boolean);
+      const top = y(kb), room = scroll.clientHeight - pad;
+      jumpTo(mk && y(mk) - top > room * 0.6 ? y(mk) - pad - room * 0.3 : top - pad);
+      return true;
+    }
+    /* the reader asked for a step: select its transcript if needed, land, and
+       write it to the url (an edit of the view: replace, not push) */
+    function goAnchor(id, a) {
+      if (id !== sel) { sel = id; at = String(a); if (mode === "one") renderMain(); else paintCurrent(); paintRailSel(); paintChrome(); }
+      at = String(a);
+      landAt(at, { flash: true });
+      notify();
     }
     function paintCurrent() {
       scroll.querySelectorAll(".kt-trace").forEach(t => t.classList.toggle("cur", t.dataset.id === sel));
@@ -445,10 +577,11 @@ const KitTrace = (() => {
         btn.title = "scroll to this block";
         btn.innerHTML = `<span class="k"></span><span class="s">${esc(label + (sum ? " — " + sum.slice(0, 70) : ""))}</span>` +
           (n ? `<span class="h">${n}</span>` : "");
+        if (kb.classList.contains("kb-marked")) btn.classList.add("marked");
         btn.addEventListener("click", () => {
-          for (let p = kb; p && p !== te; p = p.parentElement.closest(".kb")) p.classList.remove("folded");
+          if (kb.dataset.anchor != null) return goAnchor(sel, kb.dataset.anchor);
+          reveal(kb, te);
           jumpTo(kb.offsetTop - scroll.offsetTop - 44);
-          kb.classList.remove("hi-flash"); void kb.offsetWidth; kb.classList.add("hi-flash");
         });
         outline.appendChild(btn);
       });
@@ -461,7 +594,7 @@ const KitTrace = (() => {
     let hashTimer = 0;
     function setCurrent(id, { notify: n = false } = {}) {
       if (id === sel) return;
-      sel = id;
+      sel = id; at = null;
       paintRailSel(); paintCurrent(); paintChrome();
       if (n) { clearTimeout(hashTimer); hashTimer = setTimeout(notify, 300); }
     }
@@ -483,6 +616,7 @@ const KitTrace = (() => {
 
     function select(id, { flash = true } = {}) {
       if (!rows.some(r => idOf(r) === id)) return;
+      if (id !== sel) at = null;
       sel = id;
       if (mode === "one") renderMain();
       else {
@@ -502,17 +636,23 @@ const KitTrace = (() => {
 
     /* explorer contract */
     function setRows(newRows, newCtx = {}) {
+      const sameHits = String(newCtx.hitRe ?? "") === String(ctx.hitRe ?? "");
       rows = newRows; ctx = newCtx; shown = pageSize; railShown = 400;
-      if (!rows.some(r => idOf(r) === sel)) sel = rows.length ? idOf(rows[0]) : null;
+      if (!rows.some(r => idOf(r) === sel)) { sel = rows.length ? idOf(rows[0]) : null; at = null; }
       paintFolds();
       renderRail();
-      renderMain();
+      /* the same transcript still on screen (a live page refreshing its rows, a
+         filter that kept it): leave it, with the reader's scroll and folds */
+      const te = mode === "one" && sel && traceEl(sel);
+      if (te && sameHits && scroll.querySelectorAll(".kt-trace").length === 1) { paintCurrent(); paintChrome(); }
+      else renderMain();
       paintRailSel();
     }
     function state() {
       const f = {};
       if (sel && rows.some(r => idOf(r) === sel)) f._sel = sel;
       if (mode !== defaultMode) f._mode = mode;
+      if (f._sel && at != null) f._at = at;
       return f;
     }
     /* called by the explorer before it re-filters: `_sel` absent = clear the
@@ -520,10 +660,11 @@ const KitTrace = (() => {
        `_mode` absent = keep the mode the reader chose */
     function apply(f) {
       sel = "_sel" in f ? String([].concat(f._sel)[0]) : null;
+      at = sel != null && "_at" in f ? String([].concat(f._at)[0]) : null;
       if ("_mode" in f) { const m = String([].concat(f._mode)[0]); if (m === "one" || m === "all") mode = m; }
     }
 
-    return { el, setRows, select, state, apply, keys: () => ["_sel", "_mode"],
+    return { el, setRows, select, state, apply, keys: () => ["_sel", "_mode", "_at"],
              onChange: fn => { listener = fn; }, get mode() { return mode; } };
   }
 

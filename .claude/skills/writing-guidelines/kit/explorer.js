@@ -181,6 +181,12 @@ const KitExplorer = (() => {
        sort: [{key, label}],      // numeric fields the reader can order by ("random" default)
        shuffle: true,             // false = corpus order (ranked rows)
        globalStore, globalFilter: (row, state) => bool,  // optional KitFilters hookup
+       describe: ({ state, rows, without }) => string|null,
+         // the question the current view answers, with its arithmetic, in a line
+         // above the list ("9 of 10 navigation runs judged dirty"). `without(...keys)`
+         // counts the rows matching every filter except those dims — the
+         // denominator a chart mark divided by. Derived from the filters, so a
+         // reload or a pasted link restates it too.
      }) → { refresh, set, state, onChange } */
   function explorer(el, spec) {
     const { data, dims = [], search = [], render, pageSize = 12, drawN = 5 } = spec;
@@ -372,7 +378,17 @@ const KitExplorer = (() => {
     const host = spec.view || null;
     const list = host ? host.el : document.createElement("div");
     if (!host) list.className = "sample-list";
-    el.append(controls, ...(advDims.length ? [advFold] : []), list);
+    const question = document.createElement("p");
+    question.className = "ex-question";
+    question.hidden = true;
+    el.append(controls, ...(advDims.length ? [advFold] : []), question, list);
+    function paintQuestion(m) {
+      if (!spec.describe) return;
+      const without = (...keys) => matches(new Set(keys)).length;
+      const q = spec.describe({ state: getState(), rows: m, without });
+      question.hidden = !q;
+      question.textContent = q || "";
+    }
 
     function syncChrome() {
       /* a slider moved off its default is an active filter too — it was never counted,
@@ -439,11 +455,12 @@ const KitExplorer = (() => {
       }
     }
 
-    function matches() {
+    function matches(skip = null) {
       const q = buildMatcher();
       if (q === false) return [];
       return data.filter(r => {
         for (const d of dims) {
+          if (skip?.has(d.key)) continue;
           if (d.type === "min" && r[d.key] < state[d.key + ":min"]) return false;
           if (d.type === "max" && r[d.key] > state[d.key + ":max"]) return false;
           /* empty set = unconstrained; otherwise OR within a dimension, AND across */
@@ -463,6 +480,7 @@ const KitExplorer = (() => {
       shown = pageSize;
       syncChrome();
       renderList();
+      paintQuestion(m);
     }
 
     /* The whole control state as a flat {key: value | [values]} bag — what

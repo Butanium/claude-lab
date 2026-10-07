@@ -82,3 +82,6 @@ body.kit-shift .kit-chart .kit-bg { cursor: crosshair; }
    tick stay the ink; the band is the reference span a row is read against */
 .kit-violin-body { fill-opacity: 0.20; stroke-opacity: 0.55; stroke-width: 1; }
 .kit-violin-band { fill: color-mix(in srgb, var(--muted) 16%, transparent); }
+/* a clickable per-run dot (groupedBars pointGo): its halo takes the pointer */
+.kit-chart .pt-halo { cursor: pointer; }
+.kit-chart circle.pt-hot { stroke-width: 2.6; fill: var(--ink-2); }

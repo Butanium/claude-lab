@@ -632,7 +632,11 @@ const KitCharts = (() => {
   /* ---- grouped bars with CI whiskers + per-run dot overlays ----
      spec: { groups, series: [{name, seriesIndex}], values: [{group, series,
        est, lo, hi, n, points: [{label, value, n, lo, hi}]}], yMax, yFmt, yTitle,
-       baseline: {y,label}, lowN, w, h } */
+       baseline: {y,label}, lowN, w, h,
+       pointGo?: (point, value, series, group) => void }
+     pointGo makes the per-run dots doors too (one run = one row to open): each
+     gets an invisible 9px halo, drawn after every other mark so no bar's hit
+     column swallows it. A point with p.noClick stays inert. */
   function groupedBars(container, spec) {
     const { groups, series, values, lowN = 0 } = spec;
     /* groupFull/seriesFull: optional (glyph -> full string) resolvers so an
@@ -687,6 +691,7 @@ const KitCharts = (() => {
     const colorOf = s => s.color || seriesColor(s.seriesIndex ?? series.indexOf(s));
     const y0 = f.y(Math.max(spec.yMin ?? 0, 0));
     const cells = [];   /* one per drawn bar, for spec.select (see selectLayer) */
+    const halos = [];   /* clickable per-run dots, appended last (see pointGo) */
     /* what "all the rows this bar counts" is worth on the y axis, for the
        complement wash. A rate axis knows it (1); a count axis does not, and
        `select.whole` is how a report says — pass null to drop the wash. */
@@ -820,8 +825,18 @@ const KitCharts = (() => {
               class: "whisker-dot" }));
           }
           const dot = el("circle", { cx: px, cy: f.y(p.value), r }, { fill: "var(--surface)", stroke, strokeWidth: 1.6 });
-          bindTip(dot, `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${ciTxt({ ...p, fmt })}${fmtN(p)}`);
+          const ptip = `<span class="tip-head">${p.label ?? "run"}</span><br>${fmt(p.value)}${ciTxt({ ...p, fmt })}${fmtN(p)}`;
+          bindTip(dot, ptip);
           f.svg.appendChild(dot);
+          if (spec.pointGo && !p.noClick) {
+            const halo = el("circle", { cx: px, cy: f.y(p.value), r: Math.max(9, r + 4),
+              class: "pt-halo" }, { fill: "transparent" });
+            bindTip(halo, ptip);
+            a11y(halo, ptip.replace(/<[^>]+>/g, " "));
+            clickable(halo, { ...spec, clickHint: spec.pointHint || "click to open this run" },
+              e => spec.pointGo(p, d, s, gname, e));
+            halos.push([halo, dot]);
+          }
         });
         /* per-bar reference overlays: a diamond (e.g. the independence
            expectation) or a wide dashed tick (e.g. P(either) "essays in play").
@@ -850,6 +865,11 @@ const KitCharts = (() => {
     });
     if (spec.baseline) refLine(f, spec.baseline);
     wireSelect(f, spec, cells, { label: l => groupFull(l[0].group) });
+    for (const [halo, dot] of halos) {
+      halo.addEventListener("mouseenter", () => dot.classList.add("pt-hot"));
+      halo.addEventListener("mouseleave", () => dot.classList.remove("pt-hot"));
+      f.svg.appendChild(halo);
+    }
     /* legendItems overrides the auto series-legend (e.g. when bars are colored
        by a per-value entity rather than by series) */
     legend(container, spec.legendItems || series.map((s, i) => ({ name: s.name, color: colorOf(s) })), spec);

@@ -23,7 +23,11 @@ const KitCards = (() => {
   function evFragments(evidence) {
     if (!evidence) return [];
     const frags = [];
-    for (let q of String(evidence).split(/\s*(?:\/|;|\|)\s*/)) {
+    /* an ARRAY is already split into quotes: each is taken whole (bar "…"
+       elisions), so a code quote full of "/" and ";" stays one fragment */
+    const quotes = Array.isArray(evidence) ? evidence.map(String)
+      : String(evidence).split(/\s*(?:\/|;|\|)\s*/);
+    for (let q of quotes) {
       q = q.replace(/^[\s"'“”]+|[\s"'“”]+$/g, "");
       for (let f of q.split(/\s*(?:\.\.\.|…)\s*|(?<=[.!?])\s+/)) {
         f = f.trim();

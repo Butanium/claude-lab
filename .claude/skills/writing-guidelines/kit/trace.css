@@ -158,4 +158,38 @@
   .kt { --kt-rail: 160px; --kt-side: 0px; }
   .kt .kt-side, .kt .kt-gutter.g-side { display: none; }
 }
+/* phone width: three panes side by side leave the transcript ~80px. Stack them —
+   the rail becomes a short scrolling strip above the transcript (the inline
+   --kt-rail a desktop drag persisted must not apply here, hence !important) */
+@media (max-width: 640px) {
+  .kt, .kt.rail-closed, .kt.side-closed, .kt.rail-closed.side-closed {
+    grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr);
+  }
+  .kt > .kt-rail { grid-column: 1; grid-row: 1; max-height: 9.5rem; border-bottom: 1px solid var(--baseline); }
+  .kt > .kt-main { grid-column: 1; grid-row: 2; }
+  .kt > .kt-gutter { display: none; }
+  .kt .kt-scroll { padding: 0 0.6rem 1.2rem; }
+}
 @media print { .kt { height: auto; resize: none; } .kt .kt-rail, .kt .kt-side, .kt .kt-gutter, .kt .kt-bar { display: none; } .kt .kt-scroll { overflow: visible; } }
+
+/* --- pins: a transcript's marked steps, listed at its top --- */
+.kt .kt-pins { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.5rem 0 0.9rem; }
+.kt .kt-pin {
+  display: block; width: 100%; min-width: 0;
+  text-align: left; white-space: normal; line-height: 1.45; padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border); border-left: 3px solid var(--pin, var(--warning)); border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--paper); color: var(--ink);
+}
+.kt .kt-pin:hover { border-color: var(--accent); border-left-color: var(--pin, var(--warning)); background: var(--paper); color: var(--ink); }
+.kt .kt-pin.on { background: color-mix(in srgb, var(--accent) 9%, var(--paper)); }
+.kt .kt-pin .pl { display: block; font: 600 0.74rem/1.4 var(--sans); color: var(--ink-2); }
+.kt .kt-pin .pt { display: block; font: 0.9rem/1.5 var(--serif); color: var(--ink); overflow-wrap: anywhere; }
+/* a marked block (a badge in its head) and the block the reader landed on */
+.kt .kb-marked { box-shadow: inset 3px 0 0 var(--pin, var(--warning)); background: color-mix(in srgb, var(--pin, var(--warning)) 7%, transparent); }
+.kt .kb-tool.kb-marked { background: color-mix(in srgb, var(--pin, var(--warning)) 7%, var(--paper)); }
+.kt .kb.kb-at { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0 var(--radius) var(--radius) 0; }
+.kt .kb-head .chip { font-size: 0.64rem; letter-spacing: 0; text-transform: none; }
+.kt .kt-outline button.marked .s { color: var(--ink); font-weight: 600; }
+.kt .kt-outline button.marked .k { box-shadow: 0 0 0 2px var(--pin, var(--warning)); }
+.kt .kt-loading { color: var(--muted); font-style: italic; padding: 1rem 0; font-family: var(--serif); }
+.kt .kt-loading.err { color: var(--critical); font-style: normal; }
