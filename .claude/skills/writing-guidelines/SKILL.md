@@ -36,6 +36,7 @@ One trap when you write a report, is to write it for yourself: which things you 
 - Figures are central, not supplementary — build sections around key visualizations
 - Detailed figure captions that can stand alone
 - Titles are descriptive, not clever. "Thinking-on: the reasoning turns protective — then the answer betrays it" is less readable than "Often the reasoning is health-focused but the answer still pushes for cigarettes". No need to use fancy words in the title, try to just get to the point.
+- The same rule for every lead sentence: a TL;DR bullet's bold opener, a section title, the first sentence of a card. State the fact with its numbers; do not frame it and deliver it in the next sentence. "Six more are the same Kimi K3 pattern, and whether they count depends on a definition, not on how the cases are read." is a headline; "6 more, all Kimi K3, have no decision sentence: the trace is a finished draft answer on one side and the visible answer is a redraft on the other." is the finding. "Why the report counted more" as a bold opener is a teaser; "The report's judge labels content, not decisions" is the claim. Contrast constructions ("not X, Y") and abstractions that only make sense after the explanation are the tell. (Clément, 2026-09-21: "this is not efficient scientific writing, those are like good looking titles".)
 
 ## Examples and Interactivity
 
@@ -67,7 +68,7 @@ One trap when you write a report, is to write it for yourself: which things you 
 
 Before shipping, reread the report with a little-Clément-on-your-shoulder: What would I not be convinced by? What would I find surprising and want dug into? What sanity checks would I ask for — and are they worth showing? If data was aggregated, what might the aggregation hide (is the effect driven mostly by the prompt or by the condition?).
 
-While drafting, freely add little-Clément caveats — but treat them as TODOs, not shipping content. For each one, decide: is this a reasonable concern? If yes, **fix the report** (run the disaggregation, add the sanity check, tighten the claim) rather than leaving mistake + caveat side by side. A caveat survives to the final report only when the underlying limitation genuinely can't be resolved — then the altitude rule above says where it lives.
+While drafting, freely add little-Clément caveats — but treat them as TODOs, not shipping content. For each one, decide: is this a reasonable concern? If yes, **fix the report** (run the disaggregation, add the sanity check, tighten the claim) rather than leaving mistake + caveat side by side. A caveat survives to the final report only when the underlying limitation genuinely can't be resolved — then the altitude rule above says where it lives. "Not scanned / not checked / not run" is almost never such a limitation: if the data to do it exists, do it. Example (Clément, 2026-10-15): a report said "The control arms cannot be counted the same way: they were not scanned for keep-alives." The fix was to scan the control arms and give the panel its control bars, not to explain the gap.
 
 ## Outtakes / Highlights Section
 
