@@ -3,6 +3,14 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.9.2 — 2026-10-16
+
+Clément, on the Corin-grafts report: "make the prompt in the viewer also be expandable — rn it's always full even
+when long". `KitCards.card` rendered `spec.prompt` as a plain block, so a prompt carrying a full test suite (40
+asserts) pushed every card's reasoning and answer a screen down. The prompt box now holds a `ptext`, clamped at 6 lines
+with the same click/keyboard expand, selection guard and `.short` auto-detection as the panes; short prompts show in
+full with no affordance. `promptRendered` keeps its template-marker tinting inside the clamp.
+
 ## v0.9.1 — 2026-10-07
 
 Clément: the Luna run page "freezes the browser" on open. Measured in headless

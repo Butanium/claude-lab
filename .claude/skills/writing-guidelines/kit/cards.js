@@ -289,14 +289,18 @@ const KitCards = (() => {
          user's sentence — set it in mono and tint the chat-template markers, so the reader
          can see the template and the trailing prefill as part of the input rather than
          reading `<｜Assistant｜><think>Hmm,` as if it were prose. */
+      let html;
       if (spec.promptRendered) {
         p.className = "prompt-box rendered-prompt";
-        p.innerHTML = esc(spec.prompt).replace(
+        html = esc(spec.prompt).replace(
           /(&lt;\|[^|\n]*\|&gt;|&lt;｜[^｜\n]*｜&gt;|&lt;\/?think&gt;|\[\/?INST\])/g,
           '<span class="tmpl">$1</span>');
       } else {
-        p.className = "prompt-box"; p.textContent = spec.prompt;
+        p.className = "prompt-box"; html = esc(spec.prompt);
       }
+      /* clamped like the panes: a long prompt (a full test suite, a few-shot block)
+         otherwise pushes the model's output a screen down on every card */
+      p.appendChild(ptext(html));
       el.appendChild(p);
     }
     for (const pane of spec.panes || []) {
