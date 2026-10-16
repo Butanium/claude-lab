@@ -53,6 +53,10 @@ One trap when you write a report, is to write it for yourself: which things you 
 - Every example needs context and commentary. Context = the facts that situate it (which model, condition, figure cell it comes from); commentary = what to notice in it. Neither is a justification for showing it — if an example needs defending, pick a better example.
 - Cherry-picked samples should be varied across relevant dimensions (prompts, conditions, models).
 
+## Labels come from judges, never from code patterns
+
+Every classification the report shows or counts (hack type, "defeats the test", "noticed the contradiction", refusal, persona, ...) comes from an LLM judge or from actually running the thing (a test, a grader). Never use a regex, AST or keyword heuristic to label samples, and never quote counts of keyword occurrences as evidence. A heuristic misses cases the judge sees: a "≥5 expected values as literals" detector reported 6/20 hacked solvable answers where both judges found 11 (Clément, 2026-10-16: "just use the judges everywhere, never ever some regex"). If the existing judge prompt doesn't ask the question you need, add a scorer that asks it, with one judge for easy questions and two for subjective ones.
+
 ## Charts
 
 - Comparison charts should always include the baseline as a visual reference (bar, dashed line, or both)
