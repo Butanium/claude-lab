@@ -47,6 +47,41 @@ const KitCharts = (() => {
     return w;
   }
 
+  /* A "\n" in a group label (groupLabel, or the group key itself) breaks it
+     into lines, one <tspan> each: "Cigarette\nteacher" sits flat under its
+     bars where the one-line form would be tilted 65°. Whether a label must
+     rotate is decided on its LONGEST LINE; one that still has to rotate is
+     drawn on one line, since a tilted block of lines fans into its neighbours. */
+  const labelLines = s => String(s).split("\n");
+  const flatLabel = s => labelLines(s).join(" ");
+  function groupText(x, y, s, attrs) {
+    const lines = labelLines(s);
+    if (lines.length < 2) return txt(x, y, s, attrs);
+    const t = txt(x, y, "", attrs);
+    lines.forEach((line, i) => {
+      const ts = el("tspan", { x, dy: i ? "1.15em" : "0" });
+      ts.textContent = line;
+      t.appendChild(ts);
+    });
+    return t;
+  }
+  /* the label-axis decision shared by the three bar charts: rotate or not, and
+     how much the bottom margin (and with it h, so the plot area keeps its
+     height) must grow for tilted text or for stacked lines */
+  function labelAxis(spec, groups, groupLabel, LFS) {
+    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
+    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
+    const lineW = Math.max(0, ...groups.map(g =>
+      Math.max(...labelLines(groupLabel(g)).map(l => estTextWidth(l, LFS)))));
+    const flatW = Math.max(0, ...groups.map(g => estTextWidth(flatLabel(groupLabel(g)), LFS)));
+    const rotate = spec.rotateLabels ?? (lineW > bw0 * 0.85);
+    const nLines = rotate ? 1 : Math.max(1, ...groups.map(g => labelLines(groupLabel(g)).length));
+    const needB = rotate ? Math.ceil(LFS + 5 + flatW * Math.sin(65 * Math.PI / 180))
+                : nLines > 1 ? Math.ceil(LFS + 9 + (nLines - 1) * LFS * 1.15) : 0;
+    const bAdj = Math.max(m0.b, needB);
+    return { rotate, m0, bAdj, grow: rotate || bAdj > m0.b };
+  }
+
   /* Nice round tick values inside [min, max] that NEVER exceed max — so a
      scale ceiling with headroom (yMax 1.05 for whisker/label room) doesn't
      label a tick at 105%. Ticks land on multiples of 1/2/2.5/5 ×10^k; the
@@ -415,6 +450,26 @@ const KitCharts = (() => {
     if (typeof ResizeObserver !== "undefined") new ResizeObserver(fit).observe(svg);
   }
 
+  /* A legend swatch that looks like its mark. An item may carry
+       hatch: true | "/" | "\\" | "x"   a hatched square, as the bars' hatch
+       line: true (+ dash: true | "<dasharray>")   a short stroke, dashed like the line
+     Explicit items (`legendItems`, `sharedLegend` entries) use them as given;
+     a chart's automatic legend does only with `legendMarks: true`, so a report
+     that never asked keeps the plain squares it was published with. */
+  const dashArray = dash => (typeof dash === "string" ? dash : "5 4");
+  const hatchBg = (color, shape) => {
+    const stripe = deg => `repeating-linear-gradient(${deg}deg, ${color} 0 2.6px, var(--surface) 2.6px 4.2px)`;
+    return shape === "x"
+      ? `repeating-linear-gradient(45deg, transparent 0 2.6px, var(--surface) 2.6px 4.2px), ${stripe(-45)}`
+      : stripe(shape === "\\" ? -45 : 45);
+  };
+  function swatchHtml(it) {
+    if (it.glyph) return `<span class="glyph">${it.glyph}</span>`;
+    if (it.line) return `<svg class="sw-line" width="24" height="10" viewBox="0 0 24 10" aria-hidden="true">` +
+      `<line x1="2" y1="5" x2="22" y2="5" style="stroke:${it.color};stroke-width:2.4;stroke-linecap:round` +
+      (it.dash ? `;stroke-dasharray:${dashArray(it.dash)}` : "") + `"/></svg>`;
+    return `<span class="sw" style="background:${it.hatch ? hatchBg(it.color, it.hatch) : it.color}"></span>`;
+  }
   function legend(container, items, spec = null) {
     if (items.length < 2) return;
     const ctx = spec && spec.__legend;
@@ -422,9 +477,7 @@ const KitCharts = (() => {
     div.className = "kit-legend" + (ctx ? " kit-legend-live" : "");
     for (const it of items) {
       const e = document.createElement("span");
-      e.innerHTML = (it.glyph ? `<span class="glyph">${it.glyph}</span>`
-                              : `<span class="sw" style="background:${it.color}"></span>`) +
-                    (KitCards?.esc(it.name) ?? it.name);
+      e.innerHTML = swatchHtml(it) + (KitCards?.esc(it.name) ?? it.name);
       const full = it.full && it.full !== it.name ? it.full : "";
       if (full) e.title = full;
       if (ctx) {
@@ -489,6 +542,7 @@ const KitCharts = (() => {
     const items = pinColors(series).map(s => ({
       name: s.name, full: s.full, key: s.key ?? s.name,
       color: s.color || seriesColor(s.seriesIndex),
+      hatch: s.hatch, line: s.line, dash: s.dash,
     }));
     const host = document.createElement("div");   /* not el(): that one is SVG-namespaced */
     host.className = "kit-legend-row";
@@ -497,7 +551,7 @@ const KitCharts = (() => {
       if (grp.hidden.has(key)) grp.hidden.delete(key);
       else if (grp.hidden.size + 1 < items.length) grp.hidden.add(key);
       else return;   /* never hide the last visible series */
-      for (const repaint of grp.members) repaint();
+      for (const repaint of [...grp.members]) repaint();
       paint();
     };
     function paint() {
@@ -516,10 +570,23 @@ const KitCharts = (() => {
     const names = new Set(list.map(s => s.name));
     return items.length >= 2 && items.every(it => names.has(it.key)) ? items : null;
   }
-  const swatches = l => l.map(s => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex) }));
+  /* legendMarks: line charts' entries become strokes with the series' dash,
+     hatched segments' entries hatched squares (see swatchHtml) */
+  const marksOf = (s, spec, line) => !spec?.legendMarks ? {}
+    : line ? { line: true, dash: s.dash } : s.hatch ? { hatch: s.hatch } : {};
+  const swatches = (l, spec, line) => l.map(s => ({ name: s.name, full: s.full,
+    color: s.color || seriesColor(s.seriesIndex), ...marksOf(s, spec, line) }));
+
+  /* w: "auto" sizes the viewBox to the container's CSS width at draw time, so the
+     chart's 11px text renders at 11px whether the panel is 1000px or 370px wide
+     (a fixed w scales every glyph with the panel). Pair it with responsive()
+     below so a later change of width redraws. */
+  const autoW = (container, spec) => spec.w === "auto"
+    ? { ...spec, w: Math.round(container.getBoundingClientRect().width) || 720 } : spec;
 
   function interactive(draw, plan) {
     return function (container, spec) {
+      spec = autoW(container, spec);
       const p = plan(spec);
       const grp = spec.legendGroup || null;
       if (spec.legendToggle === false || !(p.items || grp)) return draw(container, spec);
@@ -533,9 +600,20 @@ const KitCharts = (() => {
         if (hidden.has(key)) hidden.delete(key);
         else if (hidden.size + 1 < p.items.length) hidden.add(key);
         else return;
-        for (const repaint of (grp ? grp.members : [paint])) repaint();
+        for (const repaint of (grp ? [...grp.members] : [paint])) repaint();
       };
+      /* a chart the report has since redrawn (a responsive() redraw, a metric
+         switch) leaves its painter in the group; repainting it would draw a
+         second copy into the live container. Its anchor is gone, so it drops
+         out instead. The first paint is exempt: a chart may be drawn into a
+         node the report attaches afterwards. */
+      let first = true;
       function paint() {
+        if (!first && !anchor.isConnected) {
+          if (grp) grp.members.splice(grp.members.indexOf(paint), 1);
+          return;
+        }
+        first = false;
         for (const n of mine) n.remove();
         const at = container.childNodes.length;
         out = draw(container, { ...p.apply(hidden),
@@ -549,9 +627,9 @@ const KitCharts = (() => {
     };
   }
 
-  const planSeries = key => spec => {
+  const planSeries = (key, line = false) => spec => {
     const list = pinColors(spec[key] || []);
-    return { items: legendItemsFor(spec, list, swatches),
+    return { items: legendItemsFor(spec, list, l => swatches(l, spec, line)),
              apply: h => ({ ...spec, [key]: list.filter(s => !h.has(s.name)) }) };
   };
   const planScatter = spec => {
@@ -670,18 +748,13 @@ const KitCharts = (() => {
        horizontal footprint within roughly its own slot width even when it's
        2-3x longer than its neighbors (cos 65° ≈ 0.42 vs cos 35° ≈ 0.82).
        Bottom margin is sized to the actual longest label so it isn't clipped. */
-    const ROT = 65, rotRad = ROT * Math.PI / 180;
-    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
-    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
-    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
+    const ROT = 65;
     /* rotateLabels forces the decision either way — glyph-only axes read badly
        tilted even when the estimator thinks they're a hair too wide */
-    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
-    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
-    const bAdj = Math.max(m0.b, neededB);
+    const { rotate, m0, bAdj, grow } = labelAxis(spec, groups, groupLabel, LFS);
     /* growing the bottom margin must grow h too, or the extra label room
        eats directly into the plot area (bars/lines get crushed) */
-    const f = frame(container, rotate
+    const f = frame(container, grow
       ? { ...spec, m: { ...m0, b: bAdj }, h: (spec.h ?? 300) + (bAdj - m0.b) }
       : spec);
     const defs = el("defs");
@@ -697,6 +770,35 @@ const KitCharts = (() => {
        `select.whole` is how a report says — pass null to drop the wash. */
     const WHOLE = spec.select && "whole" in spec.select ? spec.select.whole
                 : (spec.yMax ?? 1) <= 1 ? 1 : null;
+    /* mergePoints: true | {unit}: per-run dots with the SAME value become one dot
+       carrying a count. Per-prompt shares sit on a grid (multiples of 1/10 at 10
+       draws a prompt), so 70 prompts drew 70 dots on a dozen rows, a column of
+       rings that hides the spread it exists to show. A merged dot's area is
+       proportional to its count, the chart's biggest at min(7, 42% of the bar);
+       it never drops below a lone dot's size. Its tooltip says "k of N <unit>"
+       with n summed over its points; `p.merged` lists them for a pointGo. A
+       point with its own interval (p.lo) is never merged. */
+    const mergeOpt = spec.mergePoints
+      ? { unit: "runs", ...(spec.mergePoints === true ? {} : spec.mergePoints) } : null;
+    const dotsOf = new Map();
+    for (const d of values) {
+      const pts = d.points || [];
+      if (!mergeOpt) { dotsOf.set(d, pts); continue; }
+      const byVal = new Map(), out = [];
+      for (const p of pts) {
+        if (Number.isFinite(p.lo)) { out.push(p); continue; }
+        const k = Math.round(p.value * 1e9);
+        if (!byVal.has(k)) { byVal.set(k, []); out.push(byVal.get(k)); }
+        byVal.get(k).push(p);
+      }
+      dotsOf.set(d, out.map(m => !Array.isArray(m) ? m : m.length === 1 ? m[0] : {
+        label: `${m.length} of ${pts.length} ${mergeOpt.unit}`, value: m[0].value,
+        count: m.length, merged: m, color: m[0].color,
+        ...(m.every(q => Number.isFinite(q.n)) ? { n: m.reduce((a, q) => a + q.n, 0) } : {}),
+      }));
+    }
+    const kMax = Math.max(1, ...[...dotsOf.values()].flatMap(ps => ps.map(p => p.count || 1)));
+    const lone = p => p.n ? Math.min(5, 2 + 1.1 * Math.sqrt(p.n) / 3) : 2.6;
     /* A group's label sits under the bars that group actually draws, not under
        the middle of its slot. Empty slots are common — a series with no value
        here, or one the reader just hid from the legend — and a label centred on
@@ -714,11 +816,11 @@ const KitCharts = (() => {
       const lattr = LFS === 11 ? {} : { "font-size": LFS };
       const lx = gx + labelDx(gname);
       if (rotate) {
-        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        const t = txt(0, 0, flatLabel(glabel), { "text-anchor": "end", ...lattr });
         t.setAttribute("transform", `translate(${lx + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
         f.svg.appendChild(t);
       } else {
-        f.svg.appendChild(txt(lx, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
+        f.svg.appendChild(groupText(lx, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
       }
       const placedN = [];   /* n= labels placed in this group, for collision bumps */
       series.forEach((s, si) => {
@@ -807,9 +909,11 @@ const KitCharts = (() => {
            Stroke follows the bar's own color when the value overrides it
            (d.color / p.color) — bars colored per-entity would otherwise get
            overlay dots in the series fallback color, a mismatched hue. */
-        (d.points || []).forEach((p, pi) => {
+        dotsOf.get(d).forEach((p, pi) => {
           const px = x + bwid * (0.25 + 0.5 * ((pi * 0.618) % 1));
-          const r = p.n ? Math.min(5, 2 + 1.1 * Math.sqrt(p.n) / 3) : 2.6;
+          const r = p.merged
+            ? Math.max(lone(p.merged[0]), Math.min(7, bwid * 0.42) * Math.sqrt(p.count / kMax))
+            : lone(p);
           const stroke = p.color || d.color || colorOf(s);
           /* a point's own CI when it carries one (p.lo/p.hi): thin, capless and
              ink-colored (see .whisker-dot). NOT the dot's hue — the interval
@@ -889,15 +993,10 @@ const KitCharts = (() => {
     const groupFull = spec.groupFull || (g => g);
     const groupLabel = spec.groupLabel || (g => g);
     const LFS = spec.labelSize ?? 11;   /* see groupedBars */
-    const ROT = 65, rotRad = ROT * Math.PI / 180;
-    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
-    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
-    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
-    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
-    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
-    const bAdj = Math.max(m0.b, neededB);
-    const fSpec = { ...spec, m: rotate ? { ...m0, b: bAdj } : m0,
-      h: rotate ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
+    const ROT = 65;
+    const { rotate, m0, bAdj, grow } = labelAxis(spec, groups, groupLabel, LFS);
+    const fSpec = { ...spec, m: grow ? { ...m0, b: bAdj } : m0,
+      h: grow ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
       yMin: 0, yMax: percent ? 1 : Math.max(...groups.map(g => values.filter(v => v.group === g).reduce((s, v) => s + v.count, 0))), yFmt: percent ? v => Math.round(v * 100) + "%" : v => v };
     const f = frame(container, fSpec);
     const defs = el("defs");
@@ -910,11 +1009,11 @@ const KitCharts = (() => {
       const glabel = groupLabel(gname);
       const lattr = LFS === 11 ? {} : { "font-size": LFS };
       if (rotate) {
-        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        const t = txt(0, 0, flatLabel(glabel), { "text-anchor": "end", ...lattr });
         t.setAttribute("transform", `translate(${gx + bwid / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
         f.svg.appendChild(t);
       } else {
-        f.svg.appendChild(txt(gx + bwid / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
+        f.svg.appendChild(groupText(gx + bwid / 2, f.h - f.m.b + LFS + 5, glabel, { "text-anchor": "middle", ...lattr }));
       }
       const rows = values.filter(v => v.group === gname);
       const total = rows.reduce((s, v) => s + v.count, 0) || 1;
@@ -943,7 +1042,8 @@ const KitCharts = (() => {
     wireSelect(f, spec, cells, { label: l => groupFull(l[0].group) });
     /* legendItems mirrors groupedBars: override the auto segment-legend, or
        pass [] to suppress it (e.g. the top chart of an aligned pair) */
-    legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
+    legend(container, spec.legendItems || segments.map((s, i) => ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i),
+                                                                     ...marksOf(s, spec) })), spec);
     return f;
   }
 
@@ -966,17 +1066,12 @@ const KitCharts = (() => {
     const groupLabel = spec.groupLabel || (g => g);
     const subFull = spec.subFull || (s => s.name);
     const LFS = spec.labelSize ?? 11;
-    const ROT = 65, rotRad = ROT * Math.PI / 180;
-    const m0 = { t: 12, r: 16, b: 34, l: 46, ...spec.m };
+    const ROT = 65;
     const totalOf = (g, s) => values.reduce((t, v) =>
       t + (v.group === g && v.sub === s ? v.count : 0), 0);
-    const bw0 = ((spec.w ?? 720) - m0.l - m0.r) / groups.length;
-    const maxLabelW = Math.max(0, ...groups.map(g => estTextWidth(groupLabel(g), LFS)));
-    const rotate = spec.rotateLabels ?? (maxLabelW > bw0 * 0.85);
-    const neededB = Math.ceil(LFS + 5 + maxLabelW * Math.sin(rotRad));
-    const bAdj = Math.max(m0.b, neededB);
-    const fSpec = { ...spec, m: rotate ? { ...m0, b: bAdj } : m0,
-      h: rotate ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
+    const { rotate, m0, bAdj, grow } = labelAxis(spec, groups, groupLabel, LFS);
+    const fSpec = { ...spec, m: grow ? { ...m0, b: bAdj } : m0,
+      h: grow ? (spec.h ?? 300) + (bAdj - m0.b) : spec.h,
       yMin: 0,
       yMax: percent ? 1 : Math.max(...groups.flatMap(g => subs.map(s => totalOf(g, s.name)))),
       yFmt: percent ? v => Math.round(v * 100) + "%" : v => v };
@@ -995,11 +1090,11 @@ const KitCharts = (() => {
       const glabel = groupLabel(gname);
       const lattr = LFS === 11 ? {} : { "font-size": LFS };
       if (rotate) {
-        const t = txt(0, 0, glabel, { "text-anchor": "end", ...lattr });
+        const t = txt(0, 0, flatLabel(glabel), { "text-anchor": "end", ...lattr });
         t.setAttribute("transform", `translate(${gx + inner / 2 + 3} ${f.h - f.m.b + LFS + 1}) rotate(-${ROT})`);
         f.svg.appendChild(t);
       } else {
-        f.svg.appendChild(txt(gx + inner / 2, f.h - f.m.b + LFS + 5, glabel,
+        f.svg.appendChild(groupText(gx + inner / 2, f.h - f.m.b + LFS + 5, glabel,
           { "text-anchor": "middle", ...lattr }));
       }
       subs.forEach((sub, sui) => {
@@ -1035,7 +1130,7 @@ const KitCharts = (() => {
     });
     wireSelect(f, spec, cells, { label: l => `${groupFull(l[0].group)} · ${subFull(l[0].sub)}` });
     legend(container, spec.legendItems || segments.map((s, i) =>
-      ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
+      ({ name: s.name, color: s.color || seriesColor(s.seriesIndex ?? i), ...marksOf(s, spec) })), spec);
     return f;
   }
 
@@ -1066,7 +1161,11 @@ const KitCharts = (() => {
       const color = s.color || seriesColor(s.seriesIndex ?? si);
       const pts = s.points.slice().sort((a, b) => a.x - b.x);
       const dAttr = pts.map((p, i) => `${i ? "L" : "M"}${X(p.x)},${f.y(p.y)}`).join("");
-      f.svg.appendChild(el("path", { d: dAttr, fill: "none", "stroke-width": 2, "stroke-dasharray": s.dash ? "5 4" : "none" }, { stroke: color }));
+      /* dash: true is "5 4"; a string is the dasharray itself (round caps, so a
+         "0.5 5" reads as dots) — a third series style past solid and dashed */
+      f.svg.appendChild(el("path", { d: dAttr, fill: "none", "stroke-width": 2,
+        "stroke-dasharray": s.dash ? dashArray(s.dash) : "none",
+        ...(typeof s.dash === "string" ? { "stroke-linecap": "round" } : {}) }, { stroke: color }));
       const full = s.full || s.name;
       pts.forEach(p => {
         if (Number.isFinite(p.lo))
@@ -1107,7 +1206,8 @@ const KitCharts = (() => {
        legend rendered below them) */
     wireSelect(f, spec, cells, { label: l => `x = ${l[0].group}` });
     legend(container, spec.legendItems
-      || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i) })), spec);
+      || spec.series.map((s, i) => ({ name: s.name, full: s.full, color: s.color || seriesColor(s.seriesIndex ?? i),
+                                       ...marksOf(s, spec, true) })), spec);
     return f;
   }
 
@@ -1517,12 +1617,46 @@ const KitCharts = (() => {
     return { svg };
   }
 
+  /* ---- responsive(el, draw, {threshold}): redraw on a change of width ----
+     draw() runs once `el` has a width — at once, or, for a box that has none
+     yet (display: none; a closed <details> in a browser that lays its content
+     out at 0), as soon as it gets one — and again whenever that width
+     moves by `threshold` px (default 20) or more: a resized window, a row of
+     panels going from one column to two. draw() rebuilds from scratch (clear
+     the container first) with `w: "auto"` on its charts; a legendGroup created
+     OUTSIDE it keeps the reader's legend toggles across redraws. Returns a
+     function that stops watching.
+
+       const lg = KitCharts.legendGroup();
+       KitCharts.responsive(row, () => {
+         row.textContent = "";
+         for (const p of panels) KitCharts.groupedBars(cell(row), { ...p, w: "auto", legendGroup: lg, legendItems: [] });
+       });
+
+     A fixed `w` scaled with its container instead: a page loaded in a
+     half-width window and then maximised drew 652-unit panels into 447px
+     columns, 7.5px text. */
+  function responsive(el, draw, { threshold = 20 } = {}) {
+    const width = () => el.getBoundingClientRect().width;
+    let drawnAt = 0, pending = 0;
+    const run = () => { drawnAt = width(); draw(drawnAt); };
+    if (typeof ResizeObserver === "undefined") { run(); return () => {}; }
+    if (width() > 0) run();
+    const ro = new ResizeObserver(() => {
+      const w = width();
+      if (!w || pending || (drawnAt && Math.abs(w - drawnAt) < threshold)) return;
+      pending = requestAnimationFrame(() => { pending = 0; run(); });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }
+
   return { el, txt, seriesColor, pctFmt, estTextWidth, bindTip, legend, legendGroup,
-           sharedLegend, frame, refLine,
+           sharedLegend, frame, refLine, responsive,
            groupedBars: interactive(groupedBars, planSeries("series")),
            stackedBars: interactive(stackedBars, planSeries("segments")),
            groupedStackedBars: interactive(groupedStackedBars, planSeries("segments")),
-           line: interactive(line, planSeries("series")),
+           line: interactive(line, planSeries("series", true)),
            scatter: interactive(scatter, planScatter),
            dotStrip, heatmap, forest, violin };
 })();

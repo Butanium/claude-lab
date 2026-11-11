@@ -43,6 +43,11 @@ body.kit-shift .kit-chart .kit-bg { cursor: crosshair; }
 }
 .kit-legend .sw { display: inline-block; width: 13px; height: 13px; border-radius: 3px; margin-right: 0.35em; vertical-align: -2px; }
 .kit-legend .glyph { margin-right: 0.3em; font-size: 1.15em; vertical-align: -1px; }
+/* an <svg> in a legend (the line swatch, an svg glyph) keeps its own size:
+   `.kit-chart svg` sizes the CHART to its container, and a legend drawn inside
+   the chart's container inherited it, stretching a 24px swatch across the row */
+.kit-chart .kit-legend svg, .kit-legend svg { display: inline-block; width: auto; height: auto; vertical-align: middle; }
+.kit-legend .sw-line { margin-right: 0.35em; }
 /* interactive legend: an entry toggles its series. The padding is cancelled by
    an equal negative margin so a live legend sits exactly where a static one did.
    Off = struck through and faded; a dimmed swatch alone doesn't say "hidden"

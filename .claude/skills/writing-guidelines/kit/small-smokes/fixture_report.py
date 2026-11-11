@@ -25,7 +25,11 @@ FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
            '<div id="fig3"></div><div id="explorer"></div>'
            '<div id="fig4"></div><div id="fig5"></div><div id="fig-torn"></div>'
            '<div id="fig-solo"></div>'
-           '<div id="explorer2"></div>')
+           '<div id="explorer2"></div>'
+           # v0.10.0: wrapped labels, merged dots, legend marks, responsive redraw
+           '<div id="fig-wrap"></div><div id="fig-merge"></div><div id="fig-marks"></div>'
+           '<div id="fig-shared"></div><div id="fig-resp" style="width:600px"></div>'
+           '<div id="fig-fold" style="display:none"></div>')
 BODY = "".join(
     f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
     f'<div style="height:900px"></div>'
@@ -171,6 +175,48 @@ KitCharts.stackedBars(document.getElementById("fig4"), {
     go: (filters, info) => { window.__lastSelect = info.mode; nav2.goto(filters); },
   },
 });
+/* ---- v0.10.0 options ---- */
+/* "\\n" stacks a group label; flat, "Cigarette teacher" would tilt at this width */
+const K4 = ["k1", "k2", "k3", "k4"];
+KitCharts.groupedBars(document.getElementById("fig-wrap"), {
+  groups: K4, series: SERIES, legendItems: [], w: 440, yMax: 1,
+  values: K4.flatMap(g => SERIES.map(s => ({ group: g, series: s.name, est: 0.5, n: 10 }))),
+  groupLabel: g => ({ k1: "Cigarette\\nteacher", k2: "Health\\nteacher", k3: "W", k4: "OPD\\nstudent" })[g] });
+/* the same per-prompt shares with and without mergePoints: 10 prompts, 4 values */
+const SHARES = [1, 1, 1, 1, 1, 1, 0.9, 0.9, 0.5, 0.2];
+for (const [id, merge] of [["fig-merge-on", { unit: "prompts" }], ["fig-merge-off", undefined]]) {
+  const sub = document.getElementById("fig-merge").appendChild(document.createElement("div"));
+  sub.id = id;
+  KitCharts.groupedBars(sub, { groups: ["m"], series: [{ name: "only" }], yMax: 1, mergePoints: merge,
+    values: [{ group: "m", series: "only", est: 0.85, n: 100,
+               points: SHARES.map((v, i) => ({ label: `prompt ${i + 1}`, value: v, n: 10 })) }] });
+}
+const P = k => [0, 1, 2].map(x => ({ x, y: 0.2 + 0.2 * k + 0.05 * x }));
+KitCharts.line(document.getElementById("fig-marks"), { yMax: 1, legendMarks: true,
+  series: [{ name: "solid", points: P(0) }, { name: "dashed", dash: true, points: P(1) },
+           { name: "dotted", dash: "0.5 5", points: P(2) }] });
+const hgrp = KitCharts.legendGroup(), HSEGS = [{ name: "plain" }, { name: "hatched", hatch: true }];
+KitCharts.stackedBars(document.getElementById("fig-shared"), { groups: GROUPS, segments: HSEGS,
+  legendItems: [], legendGroup: hgrp,
+  values: GROUPS.flatMap(g => HSEGS.map(s => ({ group: g, segment: s.name, count: 5 }))) });
+KitCharts.sharedLegend(document.getElementById("fig-shared"), HSEGS, hgrp);
+/* w: "auto" + responsive(): redraws at the new width, keeps the legend toggles,
+   and never paints a stale copy back in */
+const rlg = KitCharts.legendGroup(), rbox = document.getElementById("fig-resp");
+window.__respDraws = 0;
+KitCharts.responsive(rbox, () => {
+  window.__respDraws++;
+  rbox.textContent = "";
+  KitCharts.groupedBars(rbox, { groups: GROUPS, series: SERIES, values, w: "auto", yMax: 1, legendGroup: rlg });
+});
+const fbox = document.getElementById("fig-fold");
+window.__foldDraws = 0;
+KitCharts.responsive(fbox, () => {
+  window.__foldDraws++;
+  fbox.textContent = "";
+  KitCharts.groupedBars(fbox, { groups: GROUPS, series: SERIES, values, w: "auto", yMax: 1 });
+});
+
 KitCards.observeShort();
 
 /* built last and asynchronously, from headings linkHeadings() has already

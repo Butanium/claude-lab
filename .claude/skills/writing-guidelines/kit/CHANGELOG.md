@@ -3,6 +3,46 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.10.0 — 2026-11-11
+
+From the polish pass on the 11-11 two-teacher OPD report, which needed five in-report workarounds for things
+the kit could not do. Each is now a kit option; all are opt-in, so a rebuild leaves existing reports as they were
+(the one exception is a bug fix, last bullet).
+
+- **Group labels wrap at "\n"** (`groupedBars`, `stackedBars`, `groupedStackedBars`). Model names under four bars
+  ("W (SFT on both)", "cigarette prompts, cigarette teacher only") were tilted 65° and read sideways. A "\n" in
+  `groupLabel` (or the group key) now draws one `<tspan>` per line, and the rotate decision uses the longest
+  line, so "Cigarette\nteacher" sits flat. The bottom margin and `h` grow for a third line, as they do for
+  rotation. A label that must rotate anyway is drawn on one line. Labels without "\n" are unchanged.
+- **`mergePoints: true | {unit}`** (`groupedBars`). Per-prompt shares sit on a grid (multiples of 0.1 at 10 draws a
+  prompt), so 70 prompts drew 70 overlapping rings in a column. Dots with the same value merge into one, area
+  proportional to its count (the chart's biggest at min(7, 42% of the bar), never smaller than a lone dot); its
+  tooltip reads "6 of 10 prompts" with n summed over the points, and `p.merged` lists them for a `pointGo`.
+  Points with their own interval are never merged.
+- **Legend swatches that look like their marks.** A legend item may carry `hatch` (a hatched square, same shapes
+  as the bars) or `line: true` with an optional `dash` (a short stroke). `legendItems` and `sharedLegend` entries
+  use them as given; a chart's automatic legend does only with **`legendMarks: true`** (line charts: strokes with
+  each series' dash; stacked bars: hatched segments hatched). Before, a dashed series and a solid one in the same
+  hue got two identical squares, and a hatched "alternative" segment a solid one. `line` series also take a
+  **string `dash`** (the dasharray itself, round-capped: `"0.5 5"` is dotted), a third style past solid and dashed.
+- **`w: "auto"` and `KitCharts.responsive(el, draw)`.** A fixed `w` scales every glyph with its panel: the report's
+  440-unit panels rendered 9px text on a phone, and a page opened in a half-width window then maximised drew
+  652-unit panels into 447px columns (7.5px text). `w: "auto"` (the five legend-interactive charts) sizes the
+  viewBox to the container's CSS width at draw time. `responsive(el, draw, {threshold: 20})` calls `draw()` once
+  `el` has a width (a `display: none` box waits) and again when that width moves by ≥ 20px; it returns a stop
+  function. A `legendGroup` created outside `draw` keeps the reader's legend toggles across redraws.
+- **A redrawn chart's painter drops out of its legendGroup.** A chart drawn again into the same container left
+  its old painter in `grp.members`; the next legend click repainted it into the live container and threw on the
+  detached anchor. A painter whose anchor is gone now removes itself (the first paint is exempt, for charts
+  drawn into a node attached later). This was reachable before only by redrawing a legendGroup chart by hand.
+- **Fix: an `<svg>` inside a legend keeps its own size.** `.kit-chart svg { width: 100% }` sizes the chart, and a
+  legend drawn inside the chart's container inherited it, stretching a glyph svg across the row.
+
+Smoke: `fixture_report.py` gains wrapped labels, merged vs unmerged dots, a `legendMarks` line chart, a hatched
+`sharedLegend` entry and a `responsive()` chart resized three times (with a legend toggle between redraws) plus
+one in a `display: none` box; `smoke_kit_behaviour.py` checks each, and that a line chart without `legendMarks`
+keeps its squares.
+
 ## v0.9.2 — 2026-10-16
 
 Clément, on the Corin-grafts report: "make the prompt in the viewer also be expandable — rn it's always full even

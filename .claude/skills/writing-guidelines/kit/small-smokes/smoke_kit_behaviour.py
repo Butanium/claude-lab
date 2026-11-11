@@ -751,6 +751,91 @@ with tempfile.TemporaryDirectory() as td:
         check("and the background says what it would open", pg.evaluate(
             "() => !!document.querySelector('#fig4 .kit-bg')"))
 
+        print("v0.10.0 — wrapped labels, merged dots, legend marks, responsive redraw")
+        pg.locator("#fig-wrap").scroll_into_view_if_needed()
+        wrap = pg.evaluate("""() => {
+          const texts = [...document.querySelectorAll('#fig-wrap svg text')];
+          const ts = texts.filter(t => t.querySelector('tspan'));
+          return { lines: ts.map(t => [...t.querySelectorAll('tspan')].map(s => s.textContent).join('|')),
+                   rotated: ts.some(t => t.getAttribute('transform')),
+                   bottom: Math.max(...ts.map(t => { const b = t.getBBox(); return b.y + b.height; })),
+                   vbH: document.querySelector('#fig-wrap svg').viewBox.baseVal.height,
+                   oneLine: texts.some(t => t.textContent === 'W' && !t.querySelector('tspan')) }; }""")
+        check("'\\n' in a group label stacks its lines, flat",
+              wrap["lines"] == ["Cigarette|teacher", "Health|teacher", "OPD|student"]
+              and not wrap["rotated"], str(wrap["lines"]))
+        check("and the last line fits inside the chart", wrap["bottom"] <= wrap["vbH"],
+              f"{wrap['bottom']:.1f} <= {wrap['vbH']}")
+        check("a label without '\\n' stays one plain <text>", wrap["oneLine"])
+
+        dots = lambda fid: pg.evaluate(                                  # noqa: E731
+            f"() => [...document.querySelectorAll('#{fid} svg circle')]"
+            ".map(c => [+c.getAttribute('cy'), +c.getAttribute('r')])")
+        on, off = dots("fig-merge-on"), dots("fig-merge-off")
+        check("mergePoints: one dot per distinct value", len(on) == 4 and len(off) == 10,
+              f"{len(on)} merged vs {len(off)} plain")
+        top_r = min(on)[1]                       # smallest cy = value 1.0, 6 prompts
+        check("the dot holding the most prompts is the biggest",
+              top_r == max(r for _, r in on) and top_r > min(r for _, r in on), str(on))
+        check("without it, every dot is drawn and sized alike", len({r for _, r in off}) == 1)
+        idx = on.index(min(on))
+        pg.locator("#fig-merge-on svg circle").nth(idx).hover()
+        pg.wait_for_timeout(200)
+        mtip = pg.evaluate("() => document.querySelector('.kit-tip').textContent")
+        check("its tooltip counts the prompts and sums their n",
+              "6 of 10 prompts" in mtip and "n=60" in mtip, repr(mtip))
+
+        lm = pg.evaluate("""() => [...document.querySelectorAll('#fig-marks .kit-legend svg.sw-line')]
+          .map(s => { const b = s.getBoundingClientRect();
+                      return [b.width, b.height, getComputedStyle(s.querySelector('line')).strokeDasharray]; })""")
+        nums = lambda s: [float(x) for x in s.replace("px", "").replace(",", " ").split()
+                          if x.replace(".", "").isdigit()]                # noqa: E731
+        check("legendMarks: line entries are strokes with the series' dash",
+              len(lm) == 3 and nums(lm[0][2]) == [] and nums(lm[1][2]) == [5, 4]
+              and nums(lm[2][2]) == [0.5, 5], str([x[2] for x in lm]))
+        check("and keep their own size inside the chart's container",
+              all(20 <= w <= 30 and h <= 14 for w, h, _ in lm), str([x[:2] for x in lm]))
+        check("a string dash draws round-capped on the line itself", pg.evaluate(
+            "() => document.querySelector('#fig-marks path[stroke-dasharray=\"0.5 5\"]')"
+            "?.getAttribute('stroke-linecap') === 'round'"))
+        check("without legendMarks a line legend keeps its squares", pg.evaluate(
+            "() => !document.querySelector('#fig3 .kit-legend svg')"
+            " && document.querySelectorAll('#fig3 .kit-legend .sw').length === 2"))
+        sh = pg.evaluate("() => [...document.querySelectorAll('#fig-shared .kit-legend-row .sw')]"
+                         ".map(s => getComputedStyle(s).backgroundImage)")
+        check("sharedLegend: a hatched entry gets a hatched swatch",
+              len(sh) == 2 and sh[0] == "none" and "repeating-linear-gradient" in sh[1], str(sh)[:120])
+
+        vbw = lambda fid: pg.evaluate(                                   # noqa: E731
+            f"() => [...document.querySelectorAll('#{fid} > svg')].map(s => s.viewBox.baseVal.width)")
+        draws = lambda: pg.evaluate("() => window.__respDraws")          # noqa: E731
+        width = lambda px: (pg.evaluate(                                 # noqa: E731
+            f"() => {{ document.getElementById('fig-resp').style.width = '{px}px'; }}"),
+            pg.wait_for_timeout(400))
+        pg.locator("#fig-resp").scroll_into_view_if_needed()
+        check("w: 'auto' draws at the container's CSS width", vbw("fig-resp") == [600], str(vbw("fig-resp")))
+        width(420)
+        check("responsive(): a width change redraws at the new width",
+              vbw("fig-resp") == [420] and draws() == 2, f"{vbw('fig-resp')} draws={draws()}")
+        entry("fig-resp", "beta").click()
+        pg.wait_for_timeout(200)
+        check("a legend toggle after a redraw repaints one chart, no stale copy",
+              len(vbw("fig-resp")) == 1 and marks("fig-resp") == 2,
+              f"svgs={len(vbw('fig-resp'))} marks={marks('fig-resp')}")
+        width(600)
+        check("and the toggle survives the next redraw",
+              vbw("fig-resp") == [600] and marks("fig-resp") == 2 and draws() == 3,
+              f"{vbw('fig-resp')} marks={marks('fig-resp')} draws={draws()}")
+        width(590)
+        check("a change under the threshold does not redraw", draws() == 3, f"draws={draws()}")
+        fold_before = pg.evaluate("() => window.__foldDraws")
+        pg.evaluate("() => { document.getElementById('fig-fold').style.display = 'block'; }")
+        pg.wait_for_timeout(400)
+        fw = pg.evaluate("() => Math.round(document.getElementById('fig-fold').getBoundingClientRect().width)")
+        check("a box with no width yet waits, then draws once it has one",
+              fold_before == 0 and pg.evaluate("() => window.__foldDraws") == 1 and vbw("fig-fold") == [fw],
+              f"before={fold_before} viewBox={vbw('fig-fold')} width={fw}")
+
         check("no console errors", not errs, str(errs[:2]))
 
         # Control: the same shape WITHOUT the kit must reproduce the v0.6.18 bug,
