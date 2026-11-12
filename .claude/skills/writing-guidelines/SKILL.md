@@ -14,7 +14,7 @@ Turn experiment data and findings into a single self-contained interactive HTML 
 ## Rough outline
 
 - You want to start with a clear, human-readable tldr of what was run and what's the takeaways.
-  - The TL;DR is for a reader who has NOT followed the project and only wants the high-level takeaways: it must make sense read cold. One or two plain sentences on what was trained or compared, then the takeaways in plain words. No condition codes, run names or setup terms that are only defined further down ("100+30", "the four prompt sets", "W_sft+200"). At most one number per bullet, said as plainly as possible ("one answer in five, against one in fifty"). The per-condition numbers go in the section titles and the read-out paragraphs, not here. (Clément, 2026-11-11, on a TL;DR bullet reading "W_sft pushes smoking in 90% / 80% / 46% / 21% of responses across the four prompt sets": "very well written for someone that has high context of everything that has been run, but this is not good for someone that just wants to know the high level takeaways, which is what the tldr is for".)
+  - The TL;DR is for a reader who has NOT followed the project and only wants the high-level takeaways: it must make sense read cold. No condition codes, run names or setup terms that are only defined further down.
 - You don't need to cite literatures / try to have an intro / conclusion
 - All details / sanity checks / small trends etc should go in the appendix. It's okay to have the main text be quite short with a key takeaway and then in the appendix have a bunch of sanity checks / ways of presenting the data to support it without overloading the human-reader by framing  them as key results. You're writing reports to human researchers, which time is precious but who are quite adverserial. It's tricky and we're stilll figuring it out together. This skill is our ongoing attempt :)
 - Appendix should start with a quick description of each section and what it contains.
@@ -37,7 +37,7 @@ One trap when you write a report, is to write it for yourself: which things you 
 - Figures are central, not supplementary — build sections around key visualizations
 - Detailed figure captions that can stand alone
 - Titles are descriptive, not clever. "Thinking-on: the reasoning turns protective — then the answer betrays it" is less readable than "Often the reasoning is health-focused but the answer still pushes for cigarettes". No need to use fancy words in the title, try to just get to the point.
-- The same rule for every lead sentence: a TL;DR bullet's bold opener, a section title, the first sentence of a card. State the fact with its numbers; do not frame it and deliver it in the next sentence. (In the TL;DR, "with its numbers" means the one number that carries the claim, in plain words: see the TL;DR rule in the outline above. Section titles keep the precise numbers.) "Six more are the same Kimi K3 pattern, and whether they count depends on a definition, not on how the cases are read." is a headline; "6 more, all Kimi K3, have no decision sentence: the trace is a finished draft answer on one side and the visible answer is a redraft on the other." is the finding. "Why the report counted more" as a bold opener is a teaser; "The report's judge labels content, not decisions" is the claim. Contrast constructions ("not X, Y") and abstractions that only make sense after the explanation are the tell. (Clément, 2026-09-21: "this is not efficient scientific writing, those are like good looking titles".)
+- The same rule for every lead sentence: a TL;DR bullet's bold opener, a section title, the first sentence of a card.
 
 ## Examples and Interactivity
 
@@ -94,7 +94,7 @@ If I give you feedback that goes against some principles / advices in this skill
 
 One self-contained HTML file: all CSS/JS inline, data embedded, zero external requests (the Artifact CSP blocks CDNs, fonts, and fetch — and self-containment is also what keeps old reports openable forever). No build toolchain; write the HTML directly. The file lives in the repo (direction `reports/` or the subexperiment folder); publishing it with the Artifact tool gives a private shareable URL that redeploys in place on edits.
 
-**Before writing the page, load the `artifact-design` and `dataviz` skills.** Design/theming calibration and the chart procedure (palette validation, mark specs, hover layer) live there — this skill doesn't restate them. Every figure goes through the `dataviz` procedure.
+The `artifact-design` and `dataviz` skills might be useful to load too.
 
 **Start from the kit.** `kit/` (next to this SKILL.md) is the shared component library: theme tokens, layout/callouts/folds, sample cards with expand-collapse and judge-evidence highlighting, the corpus explorer, SVG charts with CI whiskers and n= tooltips, seeded client-side stats, global filter store. Inline it per `kit/README.md` and build on top — do NOT re-implement these from scratch; the whole point is that improvements accumulate in one place. Which leads to the standing rule:
 
@@ -181,3 +181,6 @@ If the user explicitly asks for it, do it with `capabilities: {downloads: true}`
 If the Artifact tool isn't available even after tool search, (e.g. subagent context), the HTML file itself is the deliverable — your team lead can publish it.
 
 
+### 8. Polishing
+
+As a general advice, if you're the main session conducting what is being reported, you should write the report and once happy and published the first version, hand it to a subagent (avoid using Fable for this) instructed to polish the visuals, check if the interactivity is properly wired etc. That allows you to focus on the important part of the report while still delivering a high-quality final artifact.
