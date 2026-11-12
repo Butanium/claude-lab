@@ -21,6 +21,15 @@ body.kit-shift .kit-chart .kit-bg { cursor: crosshair; }
 .kit-chart .kit-ghost .ghost-fill { fill: var(--ink); fill-opacity: 0.14; }
 .kit-chart .refline { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
 .kit-chart .whisker { stroke: var(--ink-2); stroke-width: 1.4; }
+/* groupedBars whiskerHalo: the underlay that keeps the whisker readable on a fill
+   of its own lightness */
+.kit-chart .whisker-halo { stroke: var(--surface); stroke-width: 4; stroke-opacity: 0.9; stroke-linecap: round; pointer-events: none; }
+/* forest: a spanning group header, haloed so the gridlines it crosses don't strike it */
+.kit-chart .forest-head { fill: var(--ink); font-weight: 600; paint-order: stroke;
+  stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.kit-chart .forest-rule { stroke: var(--baseline); stroke-width: 1; }
+/* a label drawn above its marks crosses the gridlines and the reference line */
+.kit-chart .forest-lab { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 /* CI on an overlay dot: ink, not the dot's hue — the interval reaches down into
    the bar, and a same-hue line disappears against the fill. Thinner and lighter
    than .whisker so the bar's own CI still reads as the primary one. */

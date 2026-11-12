@@ -3,6 +3,48 @@
 The feedback ledger: generalizable report feedback lands here as kit changes,
 so the next report inherits every lesson. One entry per version; note WHY.
 
+## v0.11.0 — 2026-11-11
+
+From the polish pass on the 11-11 OPD coverage report (run 2). Its appendix had a 7-column, 36-row table of paired
+differences that was cut off at desktop width and unusable on a phone, whiskers that vanished on a dark bar, and
+axis labels that ran into each other at phone width. All new behaviour is opt-in except two tooltip changes:
+the "%" on stacked-bar intervals (last bullet) and a forest mark's tooltip answering on its whole interval.
+
+- **`whiskerHalo: true`** (`groupedBars`). The whisker is `--ink-2`, which sits at 1.1–2.8:1 against the kit's own
+  series fills in light mode (1.0:1 on a light fill in dark mode): on a navy or a light-blue bar the interval was
+  all but invisible. With the option every whisker segment gets a surface-coloured underlay (`.whisker-halo`,
+  4px), drawn beneath it, so it reads on any fill without changing the palette.
+- **`wrapLabels: true`** (`groupedBars`, `stackedBars`, `groupedStackedBars`). Breaks each line of a group label at
+  spaces to fit its slot (estimated width), and the bottom margin grows as for "\n" lines. For charts with
+  `rotateLabels: false` drawn at several widths (`w: "auto"`): a "\n" placed for desktop ("cigarette prompts,\none
+  in 100+30") still collided at phone width, and no fixed placement is right for both. A single word wider than
+  the slot still rotates the axis unless rotation is forced off.
+- **`forest` for a long table of paired differences**, all opt-in; a forest without them draws as before:
+  - `w: "auto"` (pair with `responsive()`);
+  - `series: [{name, color, shape}]` + `row.marks: [{series, est, lo, hi, n, tip}]`: several intervals per row
+    (one per condition), stacked inside the row, shape `circle | diamond | square | triangle`, with a legend;
+  - `hollowIfCrossesRef: true`: an interval that contains `x0` is drawn hollow with a faded whisker, one that
+    excludes it filled (`hollowLabel` names it in the legend) — the table's "bold = excludes zero" at a glance;
+  - `headerSpan: true`: group headers start at the left edge, wrap to the chart width and run over the plot
+    (haloed, with a rule above), instead of right-aligning in the label column, which a 70-character header
+    would widen past the plot;
+  - `labelsAbove: true | "auto"`: each label on its own line just above its marks, the plot taking the full
+    width; "auto" switches when the label column would take more than 40% of `w` (a phone, for long labels);
+  - `rowH`, and `topAxis: true` (tick values repeated above the first row of a long forest).
+  Every forest mark's tooltip now answers on its whole interval ±6px, not only on the 4.5px dot.
+- **Legend swatch `shape` (+ `hollow`)**: a point mark as the forest draws it, for any legend.
+- **`line` points may carry `label`**, shown in the tooltip head instead of "x=10" (a bin: "steps 0–19,
+  n = rollouts", which also gives n its unit).
+- **Fix: stacked-bar tooltips put "%" on the interval** ("4.7% [0.3%, 12.0%]"; it read "[0.3, 12.0]" next to a
+  percentage).
+
+Smoke: `fixture_report.py` gains a haloed bar chart, four long labels in a 320px chart with and without
+`wrapLabels`, the same multi-mark forest in a 360px and a 700px box plus a forest without options, and a labelled
+line point; `smoke_kit_behaviour.py` checks the halo count and order, that wrapped labels don't overlap (and that
+the unwrapped control does), above/beside labels by width, header wrapping, one mark per series with the series'
+shape, exactly the intervals across zero hollow, the legend, the legacy forest, the interval-wide tooltip and the
+point label.
+
 ## v0.10.0 — 2026-11-11
 
 From the polish pass on the 11-11 two-teacher OPD report, which needed five in-report workarounds for things

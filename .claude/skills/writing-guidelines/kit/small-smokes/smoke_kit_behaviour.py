@@ -836,6 +836,74 @@ with tempfile.TemporaryDirectory() as td:
               fold_before == 0 and pg.evaluate("() => window.__foldDraws") == 1 and vbw("fig-fold") == [fw],
               f"before={fold_before} viewBox={vbw('fig-fold')} width={fw}")
 
+        print("v0.11.0 — whisker halo, wrapped long labels, forest rows with several marks")
+        pg.locator("#fig-halo").scroll_into_view_if_needed()
+        halo = pg.evaluate("""() => ({ halo: document.querySelectorAll('#fig-halo line.whisker-halo').length,
+          whisk: document.querySelectorAll('#fig-halo line.whisker').length,
+          plain: document.querySelectorAll('#fig1 line.whisker-halo').length,
+          first: (() => { const l = document.querySelector('#fig-halo svg line.whisker-halo, #fig-halo svg line.whisker');
+                          return l && l.classList.contains('whisker-halo'); })() })""")
+        check("whiskerHalo: every whisker segment has an underlay, drawn beneath it",
+              halo["halo"] == halo["whisk"] > 0 and halo["first"], str(halo))
+        check("a chart that did not ask has none", halo["plain"] == 0)
+
+        boxes = lambda fid: pg.evaluate(                                 # noqa: E731
+            f"""() => [...document.querySelectorAll('#{fid} svg > text')]
+              .filter(t => t.getAttribute('text-anchor') === 'middle' && !t.classList.contains('num'))
+              .map(t => {{ const b = t.getBBox(); return [b.x, b.x + b.width, t.querySelectorAll('tspan').length]; }})""")
+        def overlaps(bs):
+            bs = sorted(bs)
+            return any(bs[i][1] > bs[i + 1][0] + 0.5 for i in range(len(bs) - 1))
+        on, off = boxes("fig-wrapw"), boxes("fig-wrapw-off")
+        check("wrapLabels: long labels in a narrow chart stack instead of colliding",
+              len(on) == 4 and not overlaps(on) and all(n >= 2 for *_, n in on), str(on))
+        check("control: the same labels without it do collide", len(off) == 4 and overlaps(off), str(off))
+
+        pg.locator("#fig-forest-narrow").scroll_into_view_if_needed()
+        pg.wait_for_timeout(300)
+        fo = pg.evaluate("""() => {
+          const q = id => document.querySelector(`#${id} svg`);
+          const vbw = s => s.viewBox.baseVal.width;
+          const n = q('fig-forest-narrow'), w = q('fig-forest-wide');
+          const heads = s => [...s.querySelectorAll('text.forest-head')].map(t => { const b = t.getBBox(); return b.x + b.width; });
+          const anchors = s => [...s.querySelectorAll('text')].filter(t => /smoking only|^both$/.test(t.textContent))
+                                  .map(t => t.getAttribute('text-anchor'));
+          const marks = s => [...s.querySelectorAll('circle, path')].filter(e => !e.closest('.kit-legend'));
+          const hollow = s => marks(s).filter(e => e.style.fill === 'var(--surface)').length;
+          return { above: window.__forestAbove, nW: vbw(n), wW: vbw(w),
+                   headRight: Math.max(...heads(n)), headLines: [...n.querySelectorAll('text.forest-head')].map(t => t.querySelectorAll('tspan').length),
+                   nAnch: anchors(n), wAnch: anchors(w), marks: marks(n).length, hollow: hollow(n),
+                   diamonds: n.querySelectorAll('path').length,
+                   legend: [...document.querySelectorAll('#fig-forest-narrow .kit-legend > span')].map(e => [e.textContent.trim(), !!e.querySelector('svg path')]),
+                   legacy: [...document.querySelectorAll('#fig-forest-legacy svg circle')].map(c => c.style.fill.startsWith('var(--series') && !c.style.stroke) };
+        }""")
+        check("forest w: 'auto' draws at each box's width", fo["nW"] == 360 and fo["wW"] == 700, f"{fo['nW']} / {fo['wW']}")
+        check("labelsAbove 'auto': labels go above the marks in the narrow box only",
+              fo["above"] == {"fig-forest-narrow": True, "fig-forest-wide": False}
+              and set(fo["nAnch"]) == {"start"} and set(fo["wAnch"]) == {"end"}, str(fo["above"]) + str(fo["nAnch"]) + str(fo["wAnch"]))
+        check("a spanning header wraps inside the chart", fo["headRight"] <= fo["nW"] and max(fo["headLines"]) >= 2,
+              f"right={fo['headRight']:.0f} lines={fo['headLines']}")
+        check("one mark per series a row, in the series' shape", fo["marks"] == 6 and fo["diamonds"] == 3, str(fo))
+        check("hollowIfCrossesRef: exactly the intervals across zero are hollow", fo["hollow"] == 2, str(fo["hollow"]))
+        check("its legend names the shapes and the hollow mark",
+              [t for t, _ in fo["legend"]] == ["A", "B", "interval includes 0"] and all(s for _, s in fo["legend"]), str(fo["legend"]))
+        check("a forest without the options draws as before", fo["legacy"] == [True, True], str(fo["legacy"]))
+        line = pg.locator("#fig-forest-wide svg line[style*='stroke-width: 2']").first
+        bb = line.bounding_box()
+        pg.mouse.move(bb["x"] + bb["width"] * 0.15, bb["y"] + bb["height"] / 2)
+        pg.wait_for_timeout(200)
+        ftip = pg.evaluate("() => document.querySelector('.kit-tip').textContent")
+        check("hovering the interval, not only the dot, shows the mark's tooltip with its n", "n=70" in ftip, repr(ftip))
+
+        pg.locator("#fig-marks").scroll_into_view_if_needed()
+        tips = []
+        for i in range(2):
+            pg.locator("#fig-marks svg circle[fill='transparent']").nth(i).hover(force=True)
+            pg.wait_for_timeout(150)
+            tips.append(pg.evaluate("() => document.querySelector('.kit-tip').textContent"))
+        check("line: a point's label names it in the tooltip, others keep x=",
+              "x=0" in tips[0] and "steps 20–39" in tips[1], repr(tips))
+
         check("no console errors", not errs, str(errs[:2]))
 
         # Control: the same shape WITHOUT the kit must reproduce the v0.6.18 bug,

@@ -29,7 +29,12 @@ FIGURES = ('<div id="fig1"></div><div id="fig2"></div>'
            # v0.10.0: wrapped labels, merged dots, legend marks, responsive redraw
            '<div id="fig-wrap"></div><div id="fig-merge"></div><div id="fig-marks"></div>'
            '<div id="fig-shared"></div><div id="fig-resp" style="width:600px"></div>'
-           '<div id="fig-fold" style="display:none"></div>')
+           '<div id="fig-fold" style="display:none"></div>'
+           # v0.11.0: whisker halo, wrapped long labels, forest with several marks a row
+           '<div id="fig-halo"></div><div id="fig-wrapw" style="width:320px"></div>'
+           '<div id="fig-wrapw-off" style="width:320px"></div>'
+           '<div id="fig-forest-narrow" style="width:360px"></div><div id="fig-forest-wide" style="width:700px"></div>'
+           '<div id="fig-forest-legacy"></div>')
 BODY = "".join(
     f'<h2 id="{i}">{lbl}</h2><p>Body.</p>{FIGURES if i == "sec1" else ""}'
     f'<div style="height:900px"></div>'
@@ -191,7 +196,7 @@ for (const [id, merge] of [["fig-merge-on", { unit: "prompts" }], ["fig-merge-of
     values: [{ group: "m", series: "only", est: 0.85, n: 100,
                points: SHARES.map((v, i) => ({ label: `prompt ${i + 1}`, value: v, n: 10 })) }] });
 }
-const P = k => [0, 1, 2].map(x => ({ x, y: 0.2 + 0.2 * k + 0.05 * x }));
+const P = k => [0, 1, 2].map(x => ({ x, y: 0.2 + 0.2 * k + 0.05 * x, ...(k === 0 && x === 1 ? { label: "steps 20–39" } : {}) }));
 KitCharts.line(document.getElementById("fig-marks"), { yMax: 1, legendMarks: true,
   series: [{ name: "solid", points: P(0) }, { name: "dashed", dash: true, points: P(1) },
            { name: "dotted", dash: "0.5 5", points: P(2) }] });
@@ -216,6 +221,37 @@ KitCharts.responsive(fbox, () => {
   fbox.textContent = "";
   KitCharts.groupedBars(fbox, { groups: GROUPS, series: SERIES, values, w: "auto", yMax: 1 });
 });
+
+/* ---- v0.11.0 options ---- */
+KitCharts.groupedBars(document.getElementById("fig-halo"), { groups: GROUPS, series: SERIES, yMax: 1, whiskerHalo: true,
+  values: values.map(v => ({ ...v, lo: v.est - 0.1, hi: v.est + 0.1 })) });
+/* four long labels in a 320px chart, flat: wrapped they stack, unwrapped they run into each other */
+const LONG4 = ["cigarette prompts, one in 100+30", "cigarette prompts, both in 100+30",
+               "health prompts, both in 100+30", "health prompts, one in 100+30"];
+for (const [id, wrapLabels] of [["fig-wrapw", true], ["fig-wrapw-off", false]])
+  KitCharts.groupedBars(document.getElementById(id), { groups: LONG4, series: SERIES, legendItems: [], w: "auto",
+    rotateLabels: false, wrapLabels, yMax: 1,
+    values: LONG4.flatMap(g => SERIES.map(s => ({ group: g, series: s.name, est: 0.5, n: 10 }))) });
+/* a forest of paired differences: two conditions a row, headers, one interval across zero per condition */
+const FROWS = [{ header: "Training prompts: cigarette prompts, cigarette teacher only in 100+30" },
+  ...["smoking only", "flipping, 0–100: 2·min(s, h)"].map((label, i) => ({ label,
+    marks: ["A", "B"].map((c, j) => ({ series: c, est: i === j ? 2 : 12, lo: i === j ? -3 : 5, hi: i === j ? 7 : 19,
+                                      n: 70, tip: `${label} ${c} n=70` })) })),
+  { header: "Temptation prompts" },
+  { label: "both", marks: [{ series: "A", est: -20, lo: -30, hi: -10, n: 10, tip: "both A n=10" },
+                           { series: "B", est: -15, lo: -25, hi: -5, n: 10, tip: "both B n=10" }] }];
+const FSER = [{ name: "A", color: "var(--ink)", shape: "circle" }, { name: "B", color: "var(--ink)", shape: "diamond" }];
+window.__forestAbove = {};
+for (const id of ["fig-forest-narrow", "fig-forest-wide"]) {
+  const box = document.getElementById(id);
+  KitCharts.responsive(box, () => {
+    box.textContent = "";
+    window.__forestAbove[id] = KitCharts.forest(box, { w: "auto", rows: FROWS, series: FSER, hollowIfCrossesRef: true,
+      headerSpan: true, labelsAbove: "auto", topAxis: true, xMin: -40, xMax: 40 }).above;
+  });
+}
+KitCharts.forest(document.getElementById("fig-forest-legacy"), { rows: [{ header: "group" },
+  { label: "r1", est: 0.1, lo: -0.1, hi: 0.3 }, { label: "r2", est: 0.4, lo: 0.2, hi: 0.6 }] });
 
 KitCards.observeShort();
 
